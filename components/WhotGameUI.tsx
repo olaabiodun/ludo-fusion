@@ -835,12 +835,7 @@ export function WhotGameUI({
     // Snapshot card count BEFORE splice so winner detection is accurate
     const cardCountBefore = p.cards.length;
 
-    // [House Rule] Last Card Penalty
-    if (cardCountBefore === 2 && !announcedLastCard[p.id]) {
-      // If playing second-to-last card without warning, draw 2 as penalty
-      setActionMessage({ msg: "NO WARNING!", seat: p.seat as Seat });
-      handlePickAction(pi, 2);
-    }
+    // [House Rule] Last Card Penalty removed as per user request (now automatic)
 
     // Apply special effects messages
     let message = "";
@@ -900,7 +895,10 @@ export function WhotGameUI({
           setCurrentShape(null);
         } else if (remainingAfterPlay > 0) {
           setCurrentShape(null);
-          setShowShapePicker(true);
+          if (pi === localPlayerIndex) {
+            console.log(`[WhotGameUI] Showing shape picker in multiplayer for local player`);
+            setShowShapePicker(true);
+          }
         } else {
           setCurrentShape(null);
         }
@@ -954,16 +952,17 @@ export function WhotGameUI({
       pi: turnIndex,
       pickIndex: 0,
       totalAtStart: p.cardCount,
+      isPenalty: false,
     }]);
     setMarketCount(prev => prev - 1);
   }, [marketCount, reshuffling, dealing, players, turnIndex]);
 
-  const handlePickAction = React.useCallback((pi: number, overrideCount?: number) => {
+   const handlePickAction = React.useCallback((pi: number, overrideCount?: number, isPenalty: boolean = false) => {
     if (reshuffling || dealing) return;
     const p = players[pi];
     if (!p) return;
 
-    if (topCard?.value === 20 && currentShape === null && pi === turnIndex && (players[pi]?.cards.length ?? 0) > 0) {
+    if (topCard?.value === 20 && currentShape === null && pi === turnIndex && (players[pi]?.cards.length ?? 0) > 0 && !isPenalty) {
       setShowShapePicker(true);
       return;
     }
@@ -1016,6 +1015,7 @@ export function WhotGameUI({
         pi,
         pickIndex: i,
         totalAtStart: p.cardCount,
+        isPenalty,
       });
     }
 
@@ -1088,10 +1088,11 @@ export function WhotGameUI({
     // After reshuffle, the turn that was stuck should continue
   }, []);
 
-  const lastLandedPi = React.useRef<number | null>(null);
+  const lastLandedWasPenalty = React.useRef(false);
 
-  const handleMarketPickLand = React.useCallback((key: string, card: Card, pi: number) => {
+  const handleMarketPickLand = React.useCallback((key: string, card: Card, pi: number, isPenalty: boolean = false) => {
     lastLandedPi.current = pi;
+    lastLandedWasPenalty.current = isPenalty;
     setPlayers(prev => {
       const next = [...prev];
       if (next[pi]) {
@@ -1108,10 +1109,15 @@ export function WhotGameUI({
 
   // Advance turn after all picks have landed
   React.useEffect(() => {
-    if (activeMarketPicks.length === 0 && lastLandedPi.current !== null) {
+    const active = activeMarketPicks;
+    if (active.length === 0 && lastLandedPi.current !== null) {
       const pi = lastLandedPi.current;
+      const wasPenalty = lastLandedWasPenalty.current;
       lastLandedPi.current = null;
-      if (!gameId && pi === turnIndex) {
+      lastLandedWasPenalty.current = false;
+
+      // Only advance turn if it wasn't a penalty draw and it's the current player's turn
+      if (!gameId && pi === turnIndex && !wasPenalty) {
         setTurnIndex(v => getNextPlayer(v, 1, playersRef.current));
       }
     }
@@ -1179,6 +1185,8 @@ export function WhotGameUI({
         // remaining already defined
         if (turnIndex === localPlayerIndex) {
           if (remaining > 0) {
+            console.log(`[WhotGameUI] Showing shape picker for local player ${turnIndex}`);
+            setCurrentShape(null);
             setShowShapePicker(true);
             return; // turn advances after shape is chosen
           }
@@ -1244,7 +1252,8 @@ export function WhotGameUI({
       setCurrentShape(shape);
       // Show clean shape message — 'last card' will show when they play their final card
       setActionMessage({ msg: `I want ${shape.toUpperCase()}!`, seat: 'DOWN' });
-      setTurnIndex(prev => (prev + 1) % players.length);
+      setTurnIndex(prev => getNextPlayer(prev, 1, playersRef.current));
+      setTurnStartedAt(Date.now());
       return;
     }
 
@@ -1416,7 +1425,7 @@ export function WhotGameUI({
           delay={p.delay}
           pickIndex={p.pickIndex}
           totalAtStart={p.totalAtStart}
-          onLand={() => handleMarketPickLand(p.key, p.card, p.pi)}
+          onLand={() => handleMarketPickLand(p.key, p.card, p.pi, p.isPenalty)}
           fanCenters={fanCenters}
           rootPos={rootPos}
           rootLayout={rootLayout}
