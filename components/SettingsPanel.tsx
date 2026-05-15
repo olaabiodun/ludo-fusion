@@ -8,7 +8,6 @@ import {
   Alert,
   Animated,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -577,10 +576,11 @@ export function SettingsPanel() {
     : (profile?.username ?? 'PL').slice(0, 2).toUpperCase();
 
   return (
-    <DodgeKeyboard>
-      <ScrollView style={s.scroll} contentContainerStyle={s.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* ── Header bar ── */}
-        <Animated.View style={[s.topBar, headerAnim]}>
+    <View style={{ flex: 1 }}>
+      <DodgeKeyboard>
+        <ScrollView style={s.scroll} contentContainerStyle={s.contentContainer} showsVerticalScrollIndicator={false}>
+          {/* ── Header bar ── */}
+          <Animated.View style={[s.topBar, headerAnim]}>
           <View style={s.headerBlock}>
             <Text style={s.eyebrow}>PREFERENCES</Text>
             <Text style={s.pageTitle}>Settings</Text>
@@ -637,148 +637,158 @@ export function SettingsPanel() {
           </View>
         </View>
 
-        {/* Generic Modal Overlay */}
-        {activeModal && (
-          <Modal transparent animationType="slide">
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-              <View style={[s.editModal, { width: '95%', maxHeight: '80%' }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={s.editModalTitle}>{activeModal.charAt(0).toUpperCase() + activeModal.slice(1).replace('_', ' ')}</Text>
-                  <TouchableOpacity onPress={() => setActiveModal(null)} style={s.notifBtn}>
-                    <MaterialCommunityIcons name="close" size={20} color={C.textPrimary} />
-                  </TouchableOpacity>
+        </ScrollView>
+      </DodgeKeyboard>
+
+      {/* Generic Modal Overlay (Non-Native) */}
+      {activeModal && (
+        <View style={s.modalOverlay}>
+          <View style={[s.editModal, { width: '95%', maxHeight: '80%', padding: 20 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[s.modalTitle, { fontSize: 18 }]}>{activeModal.charAt(0).toUpperCase() + activeModal.slice(1).replace('_', ' ')}</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={s.notifBtn}>
+                <MaterialCommunityIcons name="close" size={20} color={C.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ marginTop: 10 }}>
+              {activeModal === 'blocked' ? (
+                <Text style={{ color: C.textMuted }}>No players currently blocked. You can block players from their profile or during a match.</Text>
+              ) : activeModal === 'sessions' ? (
+                <View style={{ gap: 10 }}>
+                  <View style={[s.settingRow, s.settingDivider]}>
+                    <MaterialCommunityIcons name="cellphone" size={24} color={C.success} />
+                    <View>
+                      <Text style={s.settingLabel}>Current Device</Text>
+                      <Text style={s.settingSub}>Active now · Lagos, Nigeria</Text>
+                    </View>
+                  </View>
                 </View>
-                <ScrollView style={{ marginTop: 10 }}>
-                  {activeModal === 'blocked' ? (
-                    <Text style={{ color: C.textMuted }}>No players currently blocked. You can block players from their profile or during a match.</Text>
-                  ) : activeModal === 'sessions' ? (
-                    <View style={{ gap: 10 }}>
-                      <View style={[s.settingRow, s.settingDivider]}>
-                        <MaterialCommunityIcons name="cellphone" size={24} color={C.success} />
-                        <View>
-                          <Text style={s.settingLabel}>Current Device</Text>
-                          <Text style={s.settingSub}>Active now · Lagos, Nigeria</Text>
-                        </View>
+              ) : activeModal === 'terms' ? (
+                <Text style={{ color: C.textMuted, lineHeight: 20 }}>Welcome to Winnerson Plexus. By using our services, you agree to follow the rules of the games and maintain fair play...</Text>
+              ) : (
+                <Text style={{ color: C.textMuted }}>Details for {activeModal} will appear here soon.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* ── Edit Profile Overlay (Non-Native) ── */}
+      {editOpen && (
+        <View style={s.modalOverlay}>
+          <Animated.View style={[s.editModal, { width: '85%', maxWidth: 440, padding: 14, gap: 10 }]}>
+            <View style={s.modalHeader}>
+              <View style={[s.modalIconWrap, { backgroundColor: C.gold + '15', width: 40, height: 40, borderRadius: 10 }]}>
+                <MaterialCommunityIcons name="account-edit-outline" size={20} color={C.gold} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.modalTitle, { fontSize: 16 }]}>Edit Profile</Text>
+                <Text style={s.modalSubtitle}>Update your identity</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditOpen(false)} style={s.notifBtn}>
+                <MaterialCommunityIcons name="close" size={20} color={C.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.modalMainRow}>
+              {/* Left Column: Avatar Management */}
+              <View style={s.modalLeftCol}>
+                <View style={s.avatarSelectionSection}>
+                  <TouchableOpacity 
+                    style={s.mainAvatarCore}
+                    onPress={() => setShowAvatarPicker(!showAvatarPicker)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={s.avatarBigCircle}>
+                      {editAvatar ? (
+                        <Image source={{ uri: editAvatar }} style={s.fullImg} />
+                      ) : (
+                        <Text style={s.avatarBigText}>{initials}</Text>
+                      )}
+                      <View style={s.avatarEditBadge}>
+                        <MaterialCommunityIcons name="camera" size={14} color="#000" />
                       </View>
                     </View>
-                  ) : activeModal === 'terms' ? (
-                    <Text style={{ color: C.textMuted, lineHeight: 20 }}>Welcome to Winnerson Plexus. By using our services, you agree to follow the rules of the games and maintain fair play...</Text>
-                  ) : (
-                    <Text style={{ color: C.textMuted }}>Details for {activeModal} will appear here soon.</Text>
+                  </TouchableOpacity>
+
+                  <View style={s.avatarPickerLabelRow}>
+                    <Text style={s.avatarPickerLabel}>Appearance</Text>
+                    <TouchableOpacity onPress={() => setShowAvatarPicker(!showAvatarPicker)}>
+                      <Text style={s.avatarPickerAction}>{showAvatarPicker ? 'Hide' : 'Change'}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {showAvatarPicker && (
+                    <View style={s.avatarGrid}>
+                      {AVATAR_PRESETS.map((url, i) => (
+                        <TouchableOpacity 
+                          key={i} 
+                          onPress={() => {
+                            setEditAvatar(url);
+                            setShowAvatarPicker(false);
+                          }}
+                          style={[s.avatarThumbContainer, editAvatar === url && s.avatarThumbActive]}
+                        >
+                          <Image source={{ uri: url }} style={s.fullImg} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   )}
-                </ScrollView>
+                </View>
+              </View>
+
+              {/* Right Column: Profile Form */}
+              <View style={s.modalRightCol}>
+                <View style={s.modalBody}>
+                  <View style={s.avatarInputGroup}>
+                    <TextInput
+                      style={[s.modalInput, { height: 42, fontSize: 15 }]}
+                      value={editUsername}
+                      onChangeText={setEditUsername}
+                      placeholder="username"
+                      placeholderTextColor={C.textFaint}
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={s.lockedDataSection}>
+                    <View style={s.lockedDataItem}>
+                      <MaterialCommunityIcons name="account-lock" size={13} color={C.textFaint} />
+                      <Text style={s.lockedDataText}>{profile?.full_name}</Text>
+                    </View>
+                    <View style={s.lockedDataItem}>
+                      <MaterialCommunityIcons name="email-lock" size={13} color={C.textFaint} />
+                      <Text style={s.lockedDataText}>{profile?.email}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={[s.modalActions, { gap: 6, marginTop: 10 }]}>
+                  <TouchableOpacity 
+                    style={[s.modalConfirm, { backgroundColor: C.gold, height: 44 }]} 
+                    onPress={saveProfile}
+                    disabled={saving}
+                    activeOpacity={0.8}
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <>
+                        <Text style={s.modalConfirmText}>SAVE PROFILE</Text>
+                        <MaterialCommunityIcons name="check" size={16} color="#000" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.modalCancel, { height: 44 }]} onPress={() => setEditOpen(false)} activeOpacity={0.7}>
+                    <Text style={s.modalCancelText}>CANCEL</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </Modal>
-        )}
-
-        {/* ── Edit Profile Modal (Compact & Premium) ── */}
-        {editOpen && (
-          <Modal transparent animationType="fade" visible={editOpen}>
-            <View style={s.modalOverlay}>
-              <Animated.View style={s.compactModal}>
-                <View style={s.modalHeader}>
-                  <Text style={s.modalTitleText}>Edit Profile</Text>
-                  <TouchableOpacity onPress={() => setEditOpen(false)} style={s.closeCircle}>
-                    <MaterialCommunityIcons name="close" size={20} color={C.textMuted} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={s.modalBodyRow}>
-                  {/* Left Column: Avatar */}
-                  <View style={s.modalLeftCol}>
-                    <TouchableOpacity 
-                      style={s.mainAvatarContainer}
-                      onPress={() => setShowAvatarPicker(!showAvatarPicker)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={s.avatarBig}>
-                        {editAvatar ? (
-                          <Image source={{ uri: editAvatar }} style={s.fullImg} />
-                        ) : (
-                          <Text style={s.avatarBigText}>{initials}</Text>
-                        )}
-                        <View style={s.editBadge}>
-                          <MaterialCommunityIcons name="camera" size={12} color="#000" />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-
-                    {showAvatarPicker && (
-                      <View style={s.avatarStripLandscape}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 5 }}>
-                          {AVATAR_PRESETS.map((url, i) => (
-                            <TouchableOpacity 
-                              key={i} 
-                              onPress={() => {
-                                setEditAvatar(url);
-                                setShowAvatarPicker(false);
-                              }}
-                            >
-                              <Image 
-                                source={{ uri: url }} 
-                                style={[s.avatarThumbSmall, editAvatar === url && s.avatarThumbActive]} 
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Right Column: Form & Actions */}
-                  <View style={s.modalRightCol}>
-                    <View style={s.inputGroup}>
-                      <Text style={s.inputLabel}>USERNAME</Text>
-                      <View style={s.inputWrapperSmall}>
-                        <MaterialCommunityIcons name="at" size={14} color={C.gold} style={{ marginRight: 6 }} />
-                        <TextInput
-                          style={s.compactInputSmall}
-                          value={editUsername}
-                          onChangeText={setEditUsername}
-                          placeholder="Enter username"
-                          placeholderTextColor={C.textFaint}
-                          autoCapitalize="none"
-                        />
-                      </View>
-                    </View>
-
-                    <View style={s.lockedInfoSmall}>
-                      <View style={s.lockedRow}>
-                        <MaterialCommunityIcons name="account-lock" size={12} color={C.textMuted} />
-                        <Text style={s.lockedTextSmall}>{profile?.full_name}</Text>
-                      </View>
-                      <View style={s.lockedRow}>
-                        <MaterialCommunityIcons name="email-lock" size={12} color={C.textMuted} />
-                        <Text style={s.lockedTextSmall}>{profile?.email}</Text>
-                      </View>
-                    </View>
-
-                    <View style={s.modalActionsSmall}>
-                      <TouchableOpacity style={s.btnCancelSmall} onPress={() => setEditOpen(false)}>
-                        <Text style={s.btnCancelText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[s.btnSaveSmall, saving && { opacity: 0.7 }]} 
-                        onPress={saveProfile} 
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <ActivityIndicator size="small" color="#000" />
-                        ) : (
-                          <Text style={s.btnSaveText}>SAVE</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </Animated.View>
-            </View>
-          </Modal>
-        )}
-
-      </ScrollView>
-    </DodgeKeyboard>
+          </Animated.View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -1097,268 +1107,219 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ── Compact Edit Modal ──
   modalOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    zIndex: 1000,
   },
-  compactModal: {
-    width: '100%',
-    backgroundColor: C.surface,
-    borderRadius: 28,
-    borderWidth: 1,
+  editModal: {
+    backgroundColor: C.surfaceStrong,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: C.goldBorder,
-    overflow: 'hidden',
-    paddingBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    gap: 10,
+    marginBottom: 2,
   },
-  modalTitleText: {
-    color: C.textPrimary,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  closeCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  modalIconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  avatarSelectorArea: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    gap: 15,
-  },
-  mainAvatarContainer: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    borderWidth: 3,
-    borderColor: C.gold,
-    padding: 3,
-    backgroundColor: 'rgba(212,175,55,0.1)',
-  },
-  avatarBig: {
-    flex: 1,
-    borderRadius: 40,
-    backgroundColor: C.surfaceStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarBigText: {
-    color: C.gold,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: C.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: C.surface,
-  },
-  avatarStrip: {
-    width: '100%',
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  avatarThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  avatarThumbActive: {
-    borderColor: C.gold,
-  },
-  compactForm: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  inputLabel: {
-    color: C.gold,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginLeft: 4,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    height: 50,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
-  compactInput: {
-    flex: 1,
+  modalTitle: {
     color: C.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  lockedInfo: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 14,
-    padding: 12,
-    gap: 8,
-  },
-  lockedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  lockedText: {
-    color: C.textMuted,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 24,
-    gap: 12,
-  },
-  btnCancel: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  btnCancelText: {
-    color: C.textMuted,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  btnSave: {
-    flex: 2,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: C.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnSaveText: {
-    color: '#000',
     fontWeight: '900',
-    fontSize: 14,
+    letterSpacing: 0.3,
   },
-  // ── Landscape Optimizations ──
-  modalBodyRow: {
+  modalSubtitle: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 0,
+  },
+  modalMainRow: {
     flexDirection: 'row',
-    padding: 12,
-    gap: 16,
+    gap: 14,
+    alignItems: 'flex-start',
   },
   modalLeftCol: {
-    width: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 0.8,
     gap: 8,
   },
   modalRightCol: {
-    flex: 1,
+    flex: 1.2,
+  },
+  modalBody: {
     gap: 8,
-    justifyContent: 'center',
   },
-  avatarStripLandscape: {
-    width: '100%',
-    height: 60,
-    marginTop: 8,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    borderRadius: 12,
-    justifyContent: 'center',
-  },
-  avatarThumbSmall: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  inputWrapperSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 12,
-    height: 42,
-  },
-  compactInputSmall: {
-    flex: 1,
-    color: C.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  lockedInfoSmall: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 12,
-    padding: 8,
+  inputGroup: {
     gap: 4,
   },
-  lockedTextSmall: {
+  modalLabel: {
     color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginLeft: 2,
   },
-  modalActionsSmall: {
+  avatarInputGroup: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  btnCancelSmall: {
-    flex: 1,
-    height: 38,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 10,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+  },
+  modalInput: {
+    flex: 1,
+    color: C.textPrimary,
+    fontWeight: '700',
+  },
+  modalActions: {
+    flexDirection: 'column',
+    gap: 6,
+  },
+  modalConfirm: {
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    gap: 6,
   },
-  btnSaveSmall: {
-    flex: 2,
-    height: 38,
+  modalConfirmText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  modalCancel: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  modalCancelText: {
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // ── Avatar Specific Styles ──
+  avatarSelectionSection: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  mainAvatarCore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBigCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1.5,
+    borderColor: C.goldBorder,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBigText: {
+    color: C.textPrimary,
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
     borderRadius: 10,
     backgroundColor: C.gold,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: C.surfaceStrong,
+  },
+  avatarPickerLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 2,
+  },
+  avatarPickerLabel: {
+    color: C.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  avatarPickerAction: {
+    color: C.gold,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    padding: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  avatarThumbContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  avatarThumbActive: {
+    borderColor: C.gold,
+    borderWidth: 1.5,
   },
   fullImg: {
     width: '100%',
     height: '100%',
+  },
+  lockedDataSection: {
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  lockedDataItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  lockedDataText: {
+    color: C.textFaint,
+    fontSize: 10,
+    fontWeight: '600',
   },
 });

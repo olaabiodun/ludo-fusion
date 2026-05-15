@@ -22,7 +22,7 @@ import {
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { GameplayScreen } from './GameplayScreen';
 import { getBotName } from '@/lib/botNames';
-import { startProgressLoop, stopProgressLoop } from '@/lib/sounds';
+import { startProgressLoop, stopProgressLoop, playPlayerFoundSound } from '@/lib/sounds';
 import { preloadGameAssets, AssetPreloader } from '@/lib/preloader';
 import Dice3D from './Dice3D';
 
@@ -743,8 +743,23 @@ function PlayerSlots({
   serverSearchingPlayers?: any[];
 }) {
   const [realPlayers, setRealPlayers] = useState<any[]>([]);
-  // We'll use the prop instead of fetching locally
   const searchingPlayers = serverSearchingPlayers || [];
+  const prevPlayersCount = useRef(0);
+  const prevSearchersCount = useRef(0);
+
+  useEffect(() => {
+    if (realPlayers.length > prevPlayersCount.current && realPlayers.length > 1) {
+      playPlayerFoundSound();
+    }
+    prevPlayersCount.current = realPlayers.length;
+  }, [realPlayers.length]);
+
+  useEffect(() => {
+    if (searchingPlayers.length > prevSearchersCount.current) {
+      playPlayerFoundSound();
+    }
+    prevSearchersCount.current = searchingPlayers.length;
+  }, [searchingPlayers.length]);
 
   useEffect(() => {
     if (!roomId) {
@@ -1428,6 +1443,7 @@ export function GameLobbyScreen({
     if (isAiEnabled && searching && readyCount < playerCount) {
       timer = setTimeout(() => {
         setReadyCount(prev => prev + 1);
+        playPlayerFoundSound();
       }, 1500 + Math.random() * 1500);
     } else if (isAiEnabled && searching && readyCount === playerCount) {
       if (gameState === 'lobby') {
@@ -1454,6 +1470,7 @@ export function GameLobbyScreen({
     let timer: any;
     if (gameState === 'starting') {
       if (countdown > 0) {
+        playPlayerFoundSound();
         timer = setTimeout(() => setCountdown(c => c - 1), 1000);
       } else {
         // Transition to playing

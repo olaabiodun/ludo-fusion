@@ -229,13 +229,14 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
       setDisplayTime(15);
       return;
     }
-    const elapsed = Math.max(0, Date.now() - activeSince);
+    const elapsed = Math.max(0, Date.now() - (activeSince || Date.now()));
     const remaining = Math.max(0, 15000 - elapsed);
     progress.value = elapsed / 15000;
     progress.value = withTiming(1, { duration: remaining, easing: ReanimatedEasing.linear });
     const iv = setInterval(() => {
-      const nowElapsed = Date.now() - activeSince;
-      setDisplayTime(Math.max(0, Math.ceil(15 - nowElapsed / 1000)));
+      const nowElapsed = Math.max(0, Date.now() - (activeSince || Date.now()));
+      const calcTime = Math.ceil(15 - nowElapsed / 1000);
+      setDisplayTime(Math.max(0, calcTime));
     }, 500);
     return () => clearInterval(iv);
   }, [active, activeSince]);
@@ -287,7 +288,7 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
       }}>
         {active && (
           <View style={{ position: 'absolute', top: -rs(isLocal ? 7 : 9), [isRight ? 'right' : 'left']: rs(isLocal ? 6 : 8), backgroundColor: col, paddingHorizontal: rs(4), paddingVertical: rs(0.5), borderRadius: rs(4), zIndex: 10 }}>
-            <Text style={{ color: '#000', fontSize: rs(isLocal ? 6 : 7), fontWeight: '900', letterSpacing: 0.4 }}>{displayTime}s · {isLocal ? 'YOUR TURN' : `${name.toUpperCase()}'S`}</Text>
+            <Text style={{ color: '#000', fontSize: rs(isLocal ? 6 : 7), fontWeight: '900', letterSpacing: 0.4 }}>{displayTime}s · {isLocal ? 'YOUR TURN' : `${name.toUpperCase()}'S TURN`}</Text>
           </View>
         )}
         <View style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2, alignItems: 'center', justifyContent: 'center' }}>
@@ -311,7 +312,7 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
           </View>
           <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: rs(2), marginTop: rs(1) }}>
             <MaterialCommunityIcons name="cards-outline" size={rs(isLocal ? 8 : 9)} color="#FFD030" />
-            <Text style={{ color: "#FFD030", fontSize: rs(isLocal ? 8 : 9), fontWeight: '700' }}>{cardCount}</Text>
+            <Text style={{ color: "#FFD030", fontSize: rs(isLocal ? 8 : 9), fontWeight: '700' }}>{Math.max(0, cardCount)}</Text>
           </View>
         </View>
       </View>
@@ -1088,6 +1089,7 @@ export function WhotGameUI({
     // After reshuffle, the turn that was stuck should continue
   }, []);
 
+  const lastLandedPi = React.useRef<number | null>(null);
   const lastLandedWasPenalty = React.useRef(false);
 
   const handleMarketPickLand = React.useCallback((key: string, card: Card, pi: number, isPenalty: boolean = false) => {
@@ -1126,19 +1128,7 @@ export function WhotGameUI({
   // handlePlayLand: fallback onLand for the PlayCardAnim when no custom onLand
   // is set. In multiplayer the custom onLand on activePlay is always set, so
   // this function only executes in practice / bot mode.
-  const announceLastCard = React.useCallback(() => {
-    if (localPlayerIndex === -1) return;
-    const p = players[localPlayerIndex];
-    if (p.cardCount !== 2) return;
 
-    setAnnouncedLastCard(prev => ({ ...prev, [p.id]: true }));
-    setActionMessage({ msg: "LAST CARD!", seat: p.seat as Seat });
-    playWhotLastCardSound();
-
-    if (gameId) {
-      socket.emit('whot_last_card_announced', { pi: localPlayerIndex });
-    }
-  }, [localPlayerIndex, players, gameId]);
 
   // handlePlayLand: fallback onLand for the PlayCardAnim when no custom onLand
   // is set. In multiplayer the custom onLand on activePlay is always set, so
@@ -1356,6 +1346,22 @@ export function WhotGameUI({
             </View>
             <Text style={[st.quickSettingsText, { color: C.green }]}>Run Logic Audit</Text>
           </TouchableOpacity>
+
+          <View style={st.qDivider} />
+
+          <TouchableOpacity
+            style={st.quickSettingsItem}
+            activeOpacity={0.7}
+            onPress={() => {
+              setShowScoring(true);
+              setShowQuickSettings(false);
+            }}
+          >
+            <View style={[st.qIconBg, { backgroundColor: 'rgba(255,208,48,0.1)' }]}>
+              <MaterialCommunityIcons name="calculator" size={rs(14)} color="#FFD030" />
+            </View>
+            <Text style={[st.quickSettingsText, { color: '#FFD030' }]}>Simulate Counting</Text>
+          </TouchableOpacity>
         </RNAnimated.View>
       )}
 
@@ -1485,6 +1491,15 @@ export function WhotGameUI({
           </View>
         )}
 
+        {/* Simulation Button */}
+        <TouchableOpacity
+          onPress={() => { playButtonSound(); setShowScoring(true); }}
+          activeOpacity={0.8}
+          style={[pill, { marginLeft: rs(4), paddingHorizontal: rs(8) }]}
+        >
+          <MaterialCommunityIcons name="calculator" size={rs(14)} color="#FFD030" />
+        </TouchableOpacity>
+
         {/* Settings Button (Icon Only) */}
         <TouchableOpacity
           onPress={() => { playButtonSound(); setShowQuickSettings(!showQuickSettings); }}
@@ -1529,16 +1544,7 @@ export function WhotGameUI({
           </RNAnimated.View>
         )}
 
-        {localPlayerIndex !== -1 && players[localPlayerIndex]?.cardCount === 2 && (
-          <TouchableOpacity
-            style={[pill, { backgroundColor: announcedLastCard[players[localPlayerIndex].id] ? '#4CAF50' : '#FF9800', paddingHorizontal: rs(12) }]}
-            onPress={announceLastCard}
-          >
-            <Text style={{ color: '#FFF', fontSize: rs(10), fontWeight: '900' }}>
-              {announcedLastCard[players[localPlayerIndex].id] ? "WARNING SENT" : "LAST CARD!"}
-            </Text>
-          </TouchableOpacity>
-        )}
+
 
         <View style={{ flex: 1 }} />
 

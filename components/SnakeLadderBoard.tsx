@@ -180,8 +180,8 @@ export const BOARD_SNAKES = [
   { start: 95, end: 75, image: require('../assets/images/sk5.png'), rotate: -120, widthMultiplier: 5.3, offsetY: -7, offsetX: -9, },
   { start: 98, end: 79, image: require('../assets/images/sk1.png'), rotate: -150, widthMultiplier: 3.3, offsetY: -7, offsetX: 1, },
   { start: 64, end: 60, image: require('../assets/images/sk4.png'), rotate: 15, widthMultiplier: 4.3, offsetY: -7, flippedY: true, zIndex: 5 },
-  { start: 93, end: 73, image: require('../assets/images/sk6.png'), widthMultiplier: 1.8, lengthExtra: 40, rotate: -90 },
-  { start: 54, end: 34, image: require('../assets/images/sk6.png'), widthMultiplier: 1.8, lengthExtra: 40, rotate: -90 }
+  { start: 93, end: 73, image: require('../assets/images/sk6.png'), widthMultiplier: 3.8, lengthExtra: 44, rotate: -90 },
+  { start: 54, end: 34, image: require('../assets/images/sk6.png'), widthMultiplier: 3.8, lengthExtra: 44, rotate: -90 }
 ];
 
 const SnakeImage = ({ start, end, image, flipped, flippedY, rotate, widthMultiplier, offsetX, offsetY, zIndex, lengthExtra }: any) => {
@@ -290,19 +290,19 @@ const CombinedLadders = React.memo(() => (
 const CELL_SHARE_OFFSETS: Record<number, { dx: number; dy: number }[]> = {
   1: [{ dx: 0, dy: 0 }],
   2: [
-    { dx: -CELL_SIZE * 0.22, dy: 0 },
-    { dx: CELL_SIZE * 0.22, dy: 0 },
+    { dx: -CELL_SIZE * 0.28, dy: 0 },
+    { dx: CELL_SIZE * 0.28, dy: 0 },
   ],
   3: [
-    { dx: -CELL_SIZE * 0.26, dy: -CELL_SIZE * 0.14 },
-    { dx: CELL_SIZE * 0.22, dy: -CELL_SIZE * 0.14 },
-    { dx: 0, dy: CELL_SIZE * 0.18 },
+    { dx: -CELL_SIZE * 0.3, dy: -CELL_SIZE * 0.18 },
+    { dx: CELL_SIZE * 0.3, dy: -CELL_SIZE * 0.18 },
+    { dx: 0, dy: CELL_SIZE * 0.25 },
   ],
   4: [
-    { dx: -CELL_SIZE * 0.22, dy: -CELL_SIZE * 0.18 },
-    { dx: CELL_SIZE * 0.22, dy: -CELL_SIZE * 0.18 },
-    { dx: -CELL_SIZE * 0.22, dy: CELL_SIZE * 0.18 },
-    { dx: CELL_SIZE * 0.22, dy: CELL_SIZE * 0.18 },
+    { dx: -CELL_SIZE * 0.28, dy: -CELL_SIZE * 0.25 },
+    { dx: CELL_SIZE * 0.28, dy: -CELL_SIZE * 0.25 },
+    { dx: -CELL_SIZE * 0.28, dy: CELL_SIZE * 0.25 },
+    { dx: CELL_SIZE * 0.28, dy: CELL_SIZE * 0.25 },
   ],
 };
 

@@ -1,4 +1,4 @@
-import { Card, Color, Player, canPlayCard, findNextActivePlayer } from './WhotUtils';
+import { Card, Color, Player, calculateScore, canPlayCard, findNextActivePlayer } from './WhotUtils';
 
 /**
  * Diagnostic suite to verify Whot! game logic.
@@ -50,10 +50,10 @@ export const runWhotTests = () => {
 
   // ─── Test 3: findNextActivePlayer Logic ──────────────────────────────────
   const mockPlayers: Player[] = [
-    { id: '1', name: 'P1', lives: 3, cardCount: 5, cards: [], color: 'red', seat: 'DOWN' },
-    { id: '2', name: 'P2', lives: 0, cardCount: 5, cards: [], color: 'blue', seat: 'LEFT' }, // Dead
-    { id: '3', name: 'P3', lives: 3, cardCount: 0, cards: [], color: 'green', seat: 'TOP' }, // Won
-    { id: '4', name: 'P4', lives: 3, cardCount: 3, cards: [], color: 'yellow', seat: 'RIGHT' },
+    { id: '1', name: 'P1', lives: 3, cardCount: 5, cards: [], color: 'red', seat: 'DOWN', avatar: null, active: true, isBot: false },
+    { id: '2', name: 'P2', lives: 0, cardCount: 5, cards: [], color: 'blue', seat: 'LEFT', avatar: null, active: false, isBot: true }, // Dead
+    { id: '3', name: 'P3', lives: 3, cardCount: 0, cards: [], color: 'green', seat: 'TOP', avatar: null, active: false, isBot: true }, // Won
+    { id: '4', name: 'P4', lives: 3, cardCount: 3, cards: [], color: 'yellow', seat: 'RIGHT', avatar: null, active: false, isBot: true },
   ];
 
   assert(findNextActivePlayer(0, 1, mockPlayers) === 3, 
@@ -65,17 +65,11 @@ export const runWhotTests = () => {
   // ─── Test 4: Scoring Calculations ─────────────────────────────────────────
   const hand: Card[] = [
     { shape: 'circle', value: 5 },
-    { shape: 'star', value: 3 }, // Stars double (3 * 2 = 6)
+    { shape: 'star', value: 3 }, // Stars DO NOT double in this version
     { shape: 'whot', value: 20 },
   ];
-  // 5 + 6 + 20 = 31
-  const score = hand.reduce((sum, card) => {
-    if (card.shape === 'whot') return sum + 20;
-    const val = typeof card.value === 'number' ? card.value : parseInt(card.value as string) || 0;
-    if (card.shape === 'star') return sum + (val * 2);
-    return sum + val;
-  }, 0);
-  assert(score === 31, `Scoring: Hand total should be 31, got ${score}`);
+  const score = calculateScore(hand);
+  assert(score === 28, `Scoring: Hand total should be 28, got ${score}`);
 
   // ─── Summary ──────────────────────────────────────────────────────────────
   console.log(`%c AUDIT SUMMARY: ${results.passed} PASSED, ${results.failed} FAILED `, 

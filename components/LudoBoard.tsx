@@ -22,7 +22,7 @@ import Svg, {
 } from 'react-native-svg';
 import { BC, getCellPosition, getPerimeterIndex } from '../engine/LudoPath';
 import { PawnState, useLudoEngine } from '../engine/useLudoEngine';
-import { playDiceRollSound, playMoveSound } from '../lib/sounds';
+import { playDiceRollSound, playMoveSound, playTokenFinishSound, playLudoCaptureSound } from '../lib/sounds';
 import { ActionPopup } from './ActionPopup';
 import Dice3D from './Dice3D';
 import { getSeatForColor } from './LudoGameUI';
@@ -347,6 +347,7 @@ function EnginePawn({
 
       const animateStep = (idx: number) => {
         if (idx >= path.length) {
+          playTokenFinishSound();
           victoryJump.start();
           return;
         }
@@ -367,6 +368,10 @@ function EnginePawn({
       // Attacker takes (diceValue - 1) * 120ms + 250ms to reach the cell
       const isCaptured = action?.msg === 'capture';
       const moveDelay = isCaptured ? ((diceValue || 1) * 120 + 200) : 0;
+
+      if (isCaptured) {
+        setTimeout(() => { playLudoCaptureSound(); }, moveDelay);
+      }
 
       Animated.parallel([
         Animated.spring(pan, { 

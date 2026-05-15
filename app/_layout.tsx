@@ -46,6 +46,8 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
+import { PaystackModalHost } from "react-native-paystack-modal";
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [fontsLoaded] = useFonts({
@@ -114,6 +116,7 @@ export default function RootLayout() {
           )}
         </View>
         <StatusBar hidden={true} />
+        <PaystackModalHost />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { getCellPos } from './SnakeLadderUtils';
+import { playMoveSound, playTokenFinishSound, playSnakeDropSound } from '../lib/sounds';
 
 /**
  * GameToken — v3
@@ -258,6 +259,9 @@ export function GameToken({
         ]),
         squashLand(0.8),
       ]);
+      
+      // Play sound after a short delay to sync with the slide start
+      setTimeout(() => { playSnakeDropSound(); }, 100);
 
     // ── 🚶 WALK (1–6 cells) ───────────────────────────────────────────────
     } else if (diff <= 6) {
@@ -265,46 +269,35 @@ export function GameToken({
         getCellPos(end - diff + 1 + i, color)
       );
 
-      const hopSteps: Animated.CompositeAnimation[] = targets.map((target, idx) => {
-        const prevTarget = idx === 0
-          ? { x: fromX, y: fromY }
-          : targets[idx - 1];
+      const animateHop = (idx: number) => {
+        if (idx >= targets.length) return;
+        
+        const target = targets[idx];
+        const prevTarget = idx === 0 ? { x: fromX, y: fromY } : targets[idx - 1];
         const isFinal = idx === targets.length - 1;
-
         const peakX = lerp(prevTarget.x, target.x, 0.5);
         const peakY = lerp(prevTarget.y, target.y, 0.5) - cellSize * 0.38;
 
-        const steps = [
-          // Rise and stretch simultaneously
+        playMoveSound();
+
+        const hopAnim = Animated.sequence([
           Animated.parallel([
             hopUp(100),
-            Animated.timing(anim, {
-              toValue:         { x: peakX, y: peakY },
-              duration:        100,
-              easing:          Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
+            Animated.timing(anim, { toValue: { x: peakX, y: peakY }, duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
           ]),
-          // Fall and normalize simultaneously
           Animated.parallel([
             resetScale(100),
-            Animated.timing(anim, {
-              toValue:         target,
-              duration:        100,
-              easing:          Easing.in(Easing.quad),
-              useNativeDriver: true,
-            }),
+            Animated.timing(anim, { toValue: target, duration: 100, easing: Easing.in(Easing.quad), useNativeDriver: true }),
           ]),
-        ];
-        
-        if (isFinal) {
-          steps.push(squashLand(0.9, 30));
-        }
+          ...(isFinal ? [squashLand(0.9, 30)] : []),
+        ]);
 
-        return Animated.sequence(steps as Animated.CompositeAnimation[]);
-      });
+        movementAnim.current = hopAnim;
+        hopAnim.start(() => animateHop(idx + 1));
+      };
 
-      sequence = Animated.sequence(hopSteps);
+      animateHop(0);
+      return; // Handled by recursive animateHop
 
     // ── 🪜 LADDER ────────────────────────────────────────────────────────
     } else {
@@ -328,14 +321,25 @@ export function GameToken({
         -cellSize * 1.6,
       );
 
-      const climbSteps = arcWaypoints.map((pt, i) =>
-        Animated.timing(anim, {
-          toValue:         pt,
-          duration:        i === arcWaypoints.length - 1 ? 100 : 60, // Fast climb
-          easing:          Easing.linear,
+      const animateClimb = (idx: number) => {
+        if (idx >= arcWaypoints.length) {
+          playTokenFinishSound();
+          squashLand(1.0, 40).start();
+          return;
+        }
+        
+        if (idx % 2 === 0) playMoveSound();
+
+        const climbStep = Animated.timing(anim, {
+          toValue: arcWaypoints[idx],
+          duration: idx === arcWaypoints.length - 1 ? 100 : 60,
+          easing: Easing.linear,
           useNativeDriver: true,
-        })
-      );
+        });
+
+        movementAnim.current = climbStep;
+        climbStep.start(() => animateClimb(idx + 1));
+      };
 
       const climbScale = Animated.sequence([
         ...Array(3).fill(0).flatMap(() => [
@@ -357,11 +361,13 @@ export function GameToken({
       sequence = Animated.sequence([
         anticipate,
         Animated.parallel([
-          Animated.sequence(climbSteps),
           climbScale,
+          Animated.delay(0), // Dummy to allow parallel start
         ]),
-        squashLand(1.0, 40),
       ]);
+
+      // Start the position animation separately since it's recursive
+      setTimeout(() => { animateClimb(0); }, 300); // Wait for anticipation
     }
 
     movementAnim.current = sequence;

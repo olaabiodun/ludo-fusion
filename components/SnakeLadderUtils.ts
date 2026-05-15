@@ -26,17 +26,12 @@ export function getCellNumber(row: number, col: number): number {
 export function getCellTopLeft(num: number, color?: string) {
   // Handle start position (off-board golden container)
   if (num === undefined || num === null || num < 1) {
-    // Move start position to the gold plate outside the board
-    const startX = -CELL_SIZE * 1.5;
-    const startY = BOARD_SIZE - CELL_SIZE * 1.1; 
-    
-    const offsets: Record<string, { x: number, y: number }> = {
-      green:  { x: startX + 2, y: startY + 4 },
-      red:    { x: startX + 10, y: startY + 4 },
-      yellow: { x: startX + 2, y: startY + 15 },
-      blue:   { x: startX + 10, y: startY + 16 },
+    // Return a single center point for the gold plate.
+    // The Board component's CELL_SHARE_OFFSETS will handle the 2x2 grid arrangement.
+    return {
+      x: -CELL_SIZE * 1.65,
+      y: BOARD_SIZE - CELL_SIZE * 1.1
     };
-    return offsets[color || 'green'] || offsets.green;
   }
 
   if (num > 100) num = 100;

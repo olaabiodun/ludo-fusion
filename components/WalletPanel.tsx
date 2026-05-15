@@ -1,25 +1,25 @@
+import { playButtonSound } from '@/lib/sounds';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  DeviceEventEmitter,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  DeviceEventEmitter,
-  KeyboardAvoidingView,
-  Platform
+  View
 } from 'react-native';
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
-import { PaystackProvider, usePaystack } from "react-native-paystack-webview";
-import { playButtonSound } from '@/lib/sounds';
+import { Paystack } from "react-native-paystack-modal";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -52,10 +52,10 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 const TX_TABS = ['All', 'Deposits', 'Withdrawals', 'Winnings'] as const;
 
 const QUICK_ACTIONS: { label: string; icon: IconName; color: string; bg: string; border: string }[] = [
-  { label: 'Add Money', icon: 'plus-circle-outline',          color: C.success, bg: C.successSoft, border: C.successBorder },
-  { label: 'Withdraw',  icon: 'arrow-up-circle-outline',      color: C.danger,  bg: C.dangerSoft,  border: C.dangerBorder  },
-  { label: 'Transfer',  icon: 'swap-horizontal-circle-outline',color: C.info,    bg: C.infoSoft,    border: C.infoBorder    },
-  { label: 'History',   icon: 'history',                      color: C.gold,    bg: C.goldSoft,    border: C.goldBorder    },
+  { label: 'Add Money', icon: 'plus-circle-outline', color: C.success, bg: C.successSoft, border: C.successBorder },
+  { label: 'Withdraw', icon: 'arrow-up-circle-outline', color: C.danger, bg: C.dangerSoft, border: C.dangerBorder },
+  { label: 'Transfer', icon: 'swap-horizontal-circle-outline', color: C.info, bg: C.infoSoft, border: C.infoBorder },
+  { label: 'History', icon: 'history', color: C.gold, bg: C.goldSoft, border: C.goldBorder },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ function useFadeSlide(delay = 0, fromY = 14) {
   const translateY = useRef(new Animated.Value(fromY)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity,    { toValue: 1, duration: 450, delay, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 450, delay, useNativeDriver: true }),
       Animated.spring(translateY, { toValue: 0, delay, damping: 16, stiffness: 140, useNativeDriver: true }),
     ]).start();
   }, []);
@@ -97,7 +97,7 @@ function useFadeSlideX(delay = 0) {
   const translateX = useRef(new Animated.Value(-14)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity,    { toValue: 1, duration: 380, delay, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 380, delay, useNativeDriver: true }),
       Animated.timing(translateX, { toValue: 0, duration: 380, delay, useNativeDriver: true }),
     ]).start();
   }, []);
@@ -130,7 +130,7 @@ function PulseDot({ color = C.gold }: { color?: string }) {
     Animated.loop(
       Animated.sequence([
         Animated.timing(scale, { toValue: 0.45, duration: 850, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1,    duration: 850, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 850, useNativeDriver: true }),
       ])
     ).start();
   }, []);
@@ -220,8 +220,8 @@ function QuickActionBtn({ action, delay, onPress }: { action: typeof QUICK_ACTIO
   const anim = useFadeSlide(delay);
   return (
     <Animated.View style={anim}>
-      <Pressable 
-        style={({ pressed }) => [s.quickBtn, pressed && { opacity: 0.75 }]} 
+      <Pressable
+        style={({ pressed }) => [s.quickBtn, pressed && { opacity: 0.75 }]}
         onPress={() => {
           playButtonSound();
           onPress();
@@ -250,8 +250,8 @@ function QuickActions({ onAction }: { onAction: (label: string) => void }) {
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 function TxRow({ tx, delay }: { tx: TxItem; delay: number }) {
   const anim = useFadeSlideX(delay);
-  const statusColor  = tx.status === 'completed' ? C.success : tx.status === 'pending' ? C.gold : C.danger;
-  const statusBg     = tx.status === 'completed' ? C.successSoft : tx.status === 'pending' ? C.goldSoft : C.dangerSoft;
+  const statusColor = tx.status === 'completed' ? C.success : tx.status === 'pending' ? C.gold : C.danger;
+  const statusBg = tx.status === 'completed' ? C.successSoft : tx.status === 'pending' ? C.goldSoft : C.dangerSoft;
   const statusBorder = tx.status === 'completed' ? C.successBorder : tx.status === 'pending' ? C.goldBorder : C.dangerBorder;
 
   const amountStr = (tx.positive ? '+' : '-') + formatNGN(tx.amountRaw);
@@ -333,17 +333,71 @@ function TransactionsSection({ activeTab, setActiveTab, filteredTx }: {
   );
 }
 
+// ─── Custom Numpad ────────────────────────────────────────────────────────────
+function CustomNumpad({ onInput, onClear, onDelete, visible }: {
+  onInput: (val: string) => void;
+  onClear: () => void;
+  onDelete: () => void;
+  visible: boolean;
+}) {
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: visible ? 0 : 300,
+      tension: 140,
+      friction: 12,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'];
+
+  return (
+    <Animated.View style={[s.numpadContainer, { transform: [{ translateY: slideAnim }] }]}>
+      <View style={s.numpadGrid}>
+        {keys.map((key) => (
+          <TouchableOpacity
+            key={key}
+            style={[
+              s.numpadKey,
+              (key === 'C' || key === '⌫') && { backgroundColor: 'rgba(255,255,255,0.05)' }
+            ]}
+            onPress={() => {
+              playButtonSound();
+              if (key === 'C') onClear();
+              else if (key === '⌫') onDelete();
+              else onInput(key);
+            }}
+            activeOpacity={0.7}
+          >
+            {key === '⌫' ? (
+              <MaterialCommunityIcons name="backspace-outline" size={24} color={C.textPrimary} />
+            ) : (
+              <Text style={[
+                s.numpadKeyText,
+                key === 'C' && { color: C.danger },
+                key === '⌫' && { color: C.textMuted }
+              ]}>{key}</Text>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </Animated.View>
+  );
+}
+
 // ─── Transaction Modal ───────────────────────────────────────────────────────
 function TransactionModal({
   visible, type, onClose, onRefresh, userEmail,
 }: {
   visible: boolean; type: 'deposit' | 'withdrawal' | 'transfer' | null; onClose: () => void; onRefresh: () => void; userEmail: string;
 }) {
-  const { popup } = usePaystack();
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<{ id: string, username: string } | null>(null);
+  const [activeInput, setActiveInput] = useState<'amount' | 'recipient'>('amount');
 
   useEffect(() => {
     if (type !== 'transfer' || recipient.length < 3) { setSearchResult(null); return; }
@@ -359,44 +413,43 @@ function TransactionModal({
     if (isNaN(amt) || amt <= 0) return;
 
     if (type === 'deposit') {
-      // For iOS stability, we close the current overlay BEFORE opening Paystack's native modal
       const currentAmount = amount;
       onClose();
-      
-      // Small delay to allow the overlay to unmount before triggering the native modal
-      setTimeout(() => {
-        popup.checkout({
-          email: userEmail || 'user@example.com',
-          amount: amt,
-          metadata: {
-            type: 'deposit',
-            player_id: '', // Will be handled in onSuccess if needed or retrieved there
-          },
-          onSuccess: async (res: any) => {
-            try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                await supabase.from('transactions').insert({
-                  player_id: user.id,
-                  amount: amt,
-                  type: 'deposit',
-                  status: 'completed',
-                  description: `Paystack: ₦${currentAmount} Deposit (${res.transactionRef || res.reference})`
-                });
-                DeviceEventEmitter.emit('wallet_updated');
-                onRefresh();
-                setAmount('');
-                (onRefresh as any).showSuccess?.({ amount: amt, ref: res.transactionRef || res.reference });
-              }
-            } catch (e) {
-              console.error('Paystack sync error:', e);
+
+      Paystack.newTransaction({
+        key: "pk_live_7eb6394cdd76cc2bfe956d3cc1a94085dacf0495",
+        email: userEmail || 'user@example.com',
+        amount: Math.round(amt * 100), // Paystack expects amount in kobo
+        metadata: {
+          type: 'deposit',
+        },
+        onSuccess: async (res) => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase.from('transactions').insert({
+                player_id: user.id,
+                amount: amt,
+                type: 'deposit',
+                status: 'completed',
+                description: `Paystack: ₦${currentAmount} Deposit (${res.transaction || res.reference})`
+              });
+              DeviceEventEmitter.emit('wallet_updated');
+              onRefresh();
+              setAmount('');
+              (onRefresh as any).showSuccess?.({ amount: amt, ref: res.transaction || res.reference });
             }
-          },
-          onCancel: () => {
-            console.log('Payment cancelled');
+          } catch (e) {
+            console.error('Paystack sync error:', e);
           }
-        });
-      }, 300);
+        },
+        onCancel: () => {
+          console.log('Payment cancelled');
+        },
+        onError: (err) => {
+          console.error('Paystack error:', err);
+        }
+      });
       return;
     }
 
@@ -456,77 +509,109 @@ function TransactionModal({
 
   return (
     <Animated.View style={[s.modalOverlay, { opacity: opacityAnim }]}>
-      <Animated.View style={[s.modalContent, { transform: [{ scale: scaleAnim }] }]}>
+      <Animated.View style={[s.modalContent, { transform: [{ scale: scaleAnim }], maxWidth: 520, padding: 16, gap: 12 }]}>
         <View style={s.modalHeader}>
-          <View style={[s.modalIconWrap, { backgroundColor: config.color + '15' }]}>
-            <MaterialCommunityIcons name={config.icon as any} size={28} color={config.color} />
+          <View style={[s.modalIconWrap, { backgroundColor: config.color + '15', width: 44, height: 44, borderRadius: 12 }]}>
+            <MaterialCommunityIcons name={config.icon as any} size={22} color={config.color} />
           </View>
           <View>
-            <Text style={s.modalTitle}>{config.title}</Text>
+            <Text style={[s.modalTitle, { fontSize: 18 }]}>{config.title}</Text>
             <Text style={s.modalSubtitle}>Enter details to proceed</Text>
           </View>
         </View>
 
-        <View style={s.modalBody}>
-          <View style={s.inputGroup}>
-            <Text style={s.modalLabel}>Amount to {type}</Text>
-            <View style={s.inputWrapper}>
-              <Text style={s.inputCurrency}>₦</Text>
-              <TextInput
-                style={s.modalInput}
-                placeholder="0.00"
-                placeholderTextColor={C.textFaint}
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-                autoFocus
-              />
-            </View>
-          </View>
+        <View style={s.modalMainRow}>
+          <View style={s.modalLeftCol}>
+            <View style={s.modalBody}>
+              <Pressable
+                style={s.inputGroup}
+                onPress={() => setActiveInput('amount')}
+              >
+                <Text style={s.modalLabel}>Amount to {type}</Text>
+                <View style={[
+                  s.inputWrapper,
+                  activeInput === 'amount' && { borderColor: config.color, backgroundColor: config.color + '05' }
+                ]}>
+                  <Text style={s.inputCurrency}>₦</Text>
+                  <TextInput
+                    style={[s.modalInput, { height: 48, fontSize: 16 }]}
+                    placeholderTextColor={C.textFaint}
+                    value={amount}
+                    showSoftInputOnFocus={false}
+                    onFocus={() => setActiveInput('amount')}
+                    caretHidden={false}
+                    keyboardType="numeric"
+                    placeholder={type === 'deposit' ? 'MIN ₦100' : type === 'withdrawal' ? ' MIN ₦50' : 'MIN ₦50'}
+                  />
+                  {amount.length > 0 && (
+                    <TouchableOpacity onPress={() => setAmount('')} style={{ marginRight: 12 }}>
+                      <MaterialCommunityIcons name="close-circle" size={18} color={C.textFaint} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </Pressable>
 
-          {type === 'transfer' && (
-            <View style={s.inputGroup}>
-              <Text style={s.modalLabel}>Recipient Username</Text>
-              <View style={s.inputWrapper}>
-                <MaterialCommunityIcons name="at" size={18} color={C.textMuted} style={{ marginLeft: 12 }} />
-                <TextInput
-                  style={[s.modalInput, { paddingLeft: 8 }]}
-                  placeholder="username"
-                  placeholderTextColor={C.textFaint}
-                  autoCapitalize="none"
-                  value={recipient}
-                  onChangeText={setRecipient}
-                />
-              </View>
-              {searchResult && (
-                <View style={s.foundBadge}>
-                  <MaterialCommunityIcons name="check-circle" size={12} color={C.success} />
-                  <Text style={s.foundText}>Recipient: {searchResult.username}</Text>
+              {type === 'transfer' && (
+                <View style={s.inputGroup}>
+                  <Text style={s.modalLabel}>Recipient Username</Text>
+                  <View style={[
+                    s.inputWrapper,
+                    activeInput === 'recipient' && { borderColor: C.info, backgroundColor: C.info + '05' }
+                  ]}>
+                    <MaterialCommunityIcons name="at" size={18} color={C.textMuted} style={{ marginLeft: 12 }} />
+                    <TextInput
+                      style={[s.modalInput, { paddingLeft: 8, height: 48, fontSize: 16 }]}
+                      placeholder="username"
+                      placeholderTextColor={C.textFaint}
+                      autoCapitalize="none"
+                      value={recipient}
+                      onChangeText={setRecipient}
+                      onFocus={() => setActiveInput('recipient')}
+                    />
+                  </View>
+                  {searchResult && (
+                    <View style={s.foundBadge}>
+                      <MaterialCommunityIcons name="check-circle" size={12} color={C.success} />
+                      <Text style={s.foundText}>Recipient: {searchResult.username}</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
-          )}
-        </View>
 
-        <View style={s.modalActions}>
-          <TouchableOpacity style={s.modalCancel} onPress={onClose} activeOpacity={0.7}>
-            <Text style={s.modalCancelText}>CANCEL</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.modalConfirm, { backgroundColor: config.color }]}
-            onPress={handleAction}
-            activeOpacity={0.8}
-            disabled={loading || (type === 'transfer' && !searchResult)}
-          >
-            {loading ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <>
-                <Text style={s.modalConfirmText}>CONFIRM {type?.toUpperCase()}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={18} color="#000" />
-              </>
-            )}
-          </TouchableOpacity>
+            <View style={[s.modalActions, { gap: 8 }]}>
+              <TouchableOpacity
+                style={[s.modalConfirm, { backgroundColor: config.color, height: 48 }]}
+                onPress={handleAction}
+                activeOpacity={0.8}
+                disabled={loading || (type === 'transfer' && !searchResult)}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <>
+                    <Text style={s.modalConfirmText}>CONFIRM {type?.toUpperCase()}</Text>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color="#000" />
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.modalCancel, { height: 48 }]} onPress={onClose} activeOpacity={0.7}>
+                <Text style={s.modalCancelText}>CANCEL</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={s.modalRightCol}>
+            <CustomNumpad
+              visible={activeInput === 'amount'}
+              onInput={(val) => {
+                if (amount.length >= 10) return;
+                setAmount(prev => prev + val);
+              }}
+              onDelete={() => setAmount(prev => prev.slice(0, -1))}
+              onClear={() => setAmount('')}
+            />
+          </View>
         </View>
       </Animated.View>
     </Animated.View>
@@ -555,10 +640,10 @@ function PaymentSuccessModal({ visible, data, onClose }: { visible: boolean; dat
   return (
     <Animated.View style={[s.modalOverlay, { opacity, zIndex: 2000 }]}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      
+
       <Animated.View style={[s.modalContent, { transform: [{ scale }], width: '85%', maxWidth: 600, padding: 20 }]}>
-        <TouchableOpacity 
-          style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, padding: 4 }} 
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, padding: 4 }}
           onPress={onClose}
         >
           <MaterialCommunityIcons name="close" size={20} color={C.textFaint} />
@@ -584,8 +669,8 @@ function PaymentSuccessModal({ visible, data, onClose }: { visible: boolean; dat
               <Text style={{ color: C.textPrimary, fontSize: 11, fontWeight: '600', marginTop: 2 }}>{data.ref}</Text>
             </View>
 
-            <TouchableOpacity 
-              style={[s.modalConfirm, { backgroundColor: C.gold, height: 48, marginTop: 4 }]} 
+            <TouchableOpacity
+              style={[s.modalConfirm, { backgroundColor: C.gold, height: 48, marginTop: 4 }]}
               onPress={onClose}
               activeOpacity={0.8}
             >
@@ -657,7 +742,7 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
         const isWin = g.result === 'win';
         const gameName = g.game_type === 'ludo' ? 'Ludo' : g.game_type === 'snake' ? 'Snake & Ladder' : 'Whot';
         const gameIcon: any = g.game_type === 'ludo' ? 'dice-multiple' : g.game_type === 'whot' ? 'cards-playing' : 'snake';
-        
+
         return {
           id: g.id,
           label: isWin ? `${gameName} Victory` : `${gameName} Match`,
@@ -676,7 +761,7 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
       const manualTx: TxItem[] = (tRes.data || []).map(t => {
         let label = t.type === 'deposit' ? 'Wallet Deposit' : t.type === 'withdrawal' ? 'Wallet Withdrawal' : 'Fund Transfer';
         let icon: any = t.type === 'deposit' ? 'plus-circle' : t.type === 'withdrawal' ? 'minus-circle' : 'swap-horizontal';
-        
+
         const desc = (t.description || '').toLowerCase();
         if (desc.includes('ludo')) {
           label = 'Ludo Match';
@@ -706,7 +791,7 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
         };
       });
 
-      const merged = [...gameTx, ...manualTx].sort((a, b) => 
+      const merged = [...gameTx, ...manualTx].sort((a, b) =>
         new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime()
       ).slice(0, 20);
 
@@ -754,9 +839,9 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
 
   const filteredTx =
     activeTab === 0 ? transactions :
-    activeTab === 1 ? transactions.filter(t => t.type === 'deposit') :
-    activeTab === 2 ? transactions.filter(t => t.type === 'withdrawal') :
-    transactions.filter(t => t.type === 'winning');
+      activeTab === 1 ? transactions.filter(t => t.type === 'deposit') :
+        activeTab === 2 ? transactions.filter(t => t.type === 'withdrawal') :
+          transactions.filter(t => t.type === 'winning');
 
   if (loading && balance === 0) {
     return (
@@ -767,90 +852,90 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
   }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1 }}
     >
       <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#05110B' }}>
         <DodgeKeyboard>
-        <ScrollView
-          style={s.scroll}
-          contentContainerStyle={s.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-        {/* ── Header bar ── */}
-        <Animated.View style={[s.topBar, headerAnim]}>
-        <View style={s.headerBlock}>
-          <Text style={s.eyebrow}>PLAYER WALLET</Text>
-          <Text style={s.pageTitle}>Wallet</Text>
-        </View>
-
-        <View style={s.headerRight}>
-          <Pressable 
-            style={s.notifBtn} 
-            onPress={() => playButtonSound()}
+          <ScrollView
+            style={s.scroll}
+            contentContainerStyle={s.contentContainer}
+            showsVerticalScrollIndicator={false}
           >
-            <MaterialCommunityIcons name="bell-outline" size={18} color={C.textMuted} />
-            <View style={s.notifDot} />
-          </Pressable>
-          <View style={s.idChip}>
-            <View style={s.idAvatar}>
-              <LinearGradient 
-                colors={['#1E5A39', '#0A2318']} 
-                style={[StyleSheet.absoluteFill, { borderRadius: 12 }]} 
-              />
-              <Text style={s.idAvatarText}>{userInitials}</Text>
+            {/* ── Header bar ── */}
+            <Animated.View style={[s.topBar, headerAnim]}>
+              <View style={s.headerBlock}>
+                <Text style={s.eyebrow}>PLAYER WALLET</Text>
+                <Text style={s.pageTitle}>Wallet</Text>
+              </View>
+
+              <View style={s.headerRight}>
+                <Pressable
+                  style={s.notifBtn}
+                  onPress={() => playButtonSound()}
+                >
+                  <MaterialCommunityIcons name="bell-outline" size={18} color={C.textMuted} />
+                  <View style={s.notifDot} />
+                </Pressable>
+                <View style={s.idChip}>
+                  <View style={s.idAvatar}>
+                    <LinearGradient
+                      colors={['#1E5A39', '#0A2318']}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                    />
+                    <Text style={s.idAvatarText}>{userInitials}</Text>
+                  </View>
+                  <View>
+                    <Text style={s.idName}>{userName}</Text>
+                    <Text style={s.idHandle}>@{userName.toLowerCase().replace(' ', '')}</Text>
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+
+            {/* ── Landscape grid ── */}
+            <View style={s.mainGrid}>
+              <View style={s.leftCol}>
+                <BalanceCard balance={balance} stats={stats} />
+                <QuickActions onAction={(label) => {
+                  if (label === 'Add Money') { setModalType('deposit'); setModalVisible(true); }
+                  if (label === 'Withdraw') { setModalType('withdrawal'); setModalVisible(true); }
+                  if (label === 'Transfer') { setModalType('transfer'); setModalVisible(true); }
+                  if (label === 'History') { setActiveTab(0); }
+                }} />
+              </View>
+
+              <View style={s.rightCol}>
+                <TransactionsSection
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  filteredTx={filteredTx}
+                />
+              </View>
             </View>
-            <View>
-              <Text style={s.idName}>{userName}</Text>
-              <Text style={s.idHandle}>@{userName.toLowerCase().replace(' ', '')}</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
 
-      {/* ── Landscape grid ── */}
-      <View style={s.mainGrid}>
-        <View style={s.leftCol}>
-          <BalanceCard balance={balance} stats={stats} />
-          <QuickActions onAction={(label) => {
-            if (label === 'Add Money') { setModalType('deposit'); setModalVisible(true); }
-            if (label === 'Withdraw')  { setModalType('withdrawal'); setModalVisible(true); }
-            if (label === 'Transfer')  { setModalType('transfer'); setModalVisible(true); }
-            if (label === 'History')   { setActiveTab(0); }
-          }} />
-        </View>
+          </ScrollView>
+        </DodgeKeyboard>
 
-        <View style={s.rightCol}>
-          <TransactionsSection
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            filteredTx={filteredTx}
-          />
-        </View>
-      </View>
+        <TransactionModal
+          visible={modalVisible}
+          type={modalType}
+          onClose={() => setModalVisible(false)}
+          onRefresh={Object.assign(load, {
+            showSuccess: (data: any) => {
+              setSuccessData(data);
+              setShowSuccessModal(true);
+            }
+          })}
+          userEmail={userEmail}
+        />
 
-        </ScrollView>
-      </DodgeKeyboard>
-
-      <TransactionModal
-        visible={modalVisible}
-        type={modalType}
-        onClose={() => setModalVisible(false)}
-        onRefresh={Object.assign(load, {
-          showSuccess: (data: any) => {
-            setSuccessData(data);
-            setShowSuccessModal(true);
-          }
-        })}
-        userEmail={userEmail}
-      />
-
-      <PaymentSuccessModal 
-        visible={showSuccessModal}
-        data={successData}
-        onClose={() => setShowSuccessModal(false)}
-      />
+        <PaymentSuccessModal
+          visible={showSuccessModal}
+          data={successData}
+          onClose={() => setShowSuccessModal(false)}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -858,12 +943,7 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
 
 export function WalletPanel(props: any) {
   return (
-    <PaystackProvider 
-      publicKey="pk_live_7eb6394cdd76cc2bfe956d3cc1a94085dacf0495"
-      defaultChannels={['card', 'bank', 'ussd', 'qr', 'bank_transfer']}
-    >
-      <WalletPanelContent {...props} />
-    </PaystackProvider>
+    <WalletPanelContent {...props} />
   );
 }
 
@@ -1070,12 +1150,13 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
     marginTop: 8,
+
   },
   modalCancel: {
-    flex: 1,
+    width: '100%',
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1091,7 +1172,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   modalConfirm: {
-    flex: 2,
+    width: '100%',
     height: 56,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1108,5 +1189,47 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+
+  // ── Custom Numpad Styles ──
+  modalMainRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  modalLeftCol: {
+    flex: 1.2,
+    gap: 12,
+  },
+  modalRightCol: {
+    flex: 1,
+  },
+  numpadContainer: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 16,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  numpadGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  numpadKey: {
+    width: '31%',
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  numpadKeyText: {
+    color: C.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

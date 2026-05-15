@@ -14,6 +14,10 @@ let whotLastCardSound: Audio.Sound | null = null;
 let whotContinueSound: Audio.Sound | null = null;
 let whotSuspendedSound: Audio.Sound | null = null;
 let whotDefendedSound: Audio.Sound | null = null;
+let tokenFinishSound: Audio.Sound | null = null;
+let snakeDropSound: Audio.Sound | null = null;
+let ludoCaptureSound: Audio.Sound | null = null;
+let playerFoundSound: Audio.Sound | null = null;
 let whotGMSounds: Record<string, Audio.Sound | null> = {
   circle: null,
   triangle: null,
@@ -113,6 +117,26 @@ export async function loadSounds() {
     const { sound: sBox } = await Audio.Sound.createAsync(require('../assets/sounds/gmbox.mp3'));
     const { sound: sStar } = await Audio.Sound.createAsync(require('../assets/sounds/gmstar.mp3'));
     whotGMSounds = { circle: sCircle, triangle: sTri, cross: sCross, square: sBox, star: sStar };
+  }
+
+  if (!tokenFinishSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/tokenfinish.mp3'));
+    tokenFinishSound = sound;
+  }
+
+  if (!snakeDropSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/snakedrop.wav'));
+    snakeDropSound = sound;
+  }
+
+  if (!ludoCaptureSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/Capture.mp3'));
+    ludoCaptureSound = sound;
+  }
+
+  if (!playerFoundSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/playerfound.mp3'));
+    playerFoundSound = sound;
   }
 }
 
@@ -235,6 +259,34 @@ export async function playWhotGMSound(shape: string) {
       if (soundRetry) await soundRetry.replayAsync();
     }
   } catch (e) { console.log(e); }
+}
+
+export async function playTokenFinishSound() {
+  try {
+    if (!tokenFinishSound) await loadSounds();
+    if (tokenFinishSound) await tokenFinishSound.replayAsync();
+  } catch (e) { console.log('Error playing token finish sound:', e); }
+}
+
+export async function playSnakeDropSound() {
+  try {
+    if (!snakeDropSound) await loadSounds();
+    if (snakeDropSound) await snakeDropSound.replayAsync();
+  } catch (e) { console.log('Error playing snake drop sound:', e); }
+}
+
+export async function playLudoCaptureSound() {
+  try {
+    if (!ludoCaptureSound) await loadSounds();
+    if (ludoCaptureSound) await ludoCaptureSound.replayAsync();
+  } catch (e) { console.log('Error playing ludo capture sound:', e); }
+}
+
+export async function playPlayerFoundSound() {
+  try {
+    if (!playerFoundSound) await loadSounds();
+    if (playerFoundSound) await playerFoundSound.replayAsync();
+  } catch (e) { console.log('Error playing player found sound:', e); }
 }
 
 export async function startProgressLoop() {

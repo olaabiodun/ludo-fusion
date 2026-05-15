@@ -156,7 +156,6 @@ export const calculateScore = (cards: Card[]): number => {
   return cards.reduce((sum, card) => {
     if (card.shape === 'whot') return sum + 20;
     const val = typeof card.value === 'number' ? card.value : parseInt(card.value as string) || 0;
-    if (card.shape === 'star') return sum + (val * 2);
     return sum + val;
   }, 0);
 };
