@@ -94,16 +94,24 @@ CREATE POLICY "Users can update their own profile."
 -- ─── 3. AUTO-CREATE PROFILE ON SIGNUP ────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  seeds TEXT[] := ARRAY['Felix','Aneka','Boo','Jasper','Luna','Milo','Simon','Zara','Oscar','Nala','Kai','Remy','Ivy','Leo','Maya','Theo','Eden','Finn','Nova','Cole','Skye','Blake','Jade','Reese','Avery','Quinn','Rowan','Sage','Wren','Drew'];
+  bgs TEXT[] := ARRAY['b6e3f4','ffdfbf','c0aede','d1d4f9','ffd5dc','c1f4c1','f0d5c1','c1d4f0','d4f0c1','f0c1d4','c1f0e0','e0c1f0','f5e6cc','ccf5e6','e6ccf5','f5cce6','cce6f5','e6f5cc','d4c4f0','f0d4c4','c4f0d4','d4f0c4','c4d4f0','f0c4d4'];
+  chosen_avatar TEXT;
 BEGIN
+  chosen_avatar := new.raw_user_meta_data->>'avatar_url';
+  IF chosen_avatar IS NULL OR chosen_avatar = '' THEN
+    chosen_avatar := 'https://api.dicebear.com/7.x/avataaars/png?seed=' || seeds[floor(random() * array_length(seeds, 1)) + 1] || '&backgroundColor=' || bgs[floor(random() * array_length(bgs, 1)) + 1];
+  END IF;
   INSERT INTO public.profiles (id, full_name, avatar_url, username, created_at)
   VALUES (
     new.id,
     new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'avatar_url',
+    chosen_avatar,
     split_part(new.email, '@', 1) || '_' || floor(random() * 1000)::text,
     NOW()
   )
-  ON CONFLICT (id) DO NOTHING; -- Safe for existing users
+  ON CONFLICT (id) DO NOTHING;
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

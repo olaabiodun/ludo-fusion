@@ -4,7 +4,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,6 +19,12 @@ interface RewardModalProps {
   visible: boolean;
   onClose: () => void;
   amount: number;
+  prefix?: string;
+  unit?: string;
+  title?: string;
+  subtitle?: string;
+  icon?: string;
+  color?: string;
 }
 
 function Particle({ delay, color, shape }: { delay: number; color: string; shape: 'circle' | 'square' | 'coin' }) {
@@ -75,7 +80,17 @@ function Particle({ delay, color, shape }: { delay: number; color: string; shape
   );
 }
 
-export function RewardModal({ visible, onClose, amount }: RewardModalProps) {
+export function RewardModal({
+  visible,
+  onClose,
+  amount,
+  prefix = '₦',
+  unit = 'coins',
+  title = 'BONUS CLAIMED!',
+  subtitle = 'Daily login reward added to wallet',
+  icon = 'wallet-giftcard',
+  color = '#D4AF37',
+}: RewardModalProps) {
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const rotation = useRef(new Animated.Value(0)).current;
@@ -173,15 +188,15 @@ export function RewardModal({ visible, onClose, amount }: RewardModalProps) {
           
           <Animated.View style={[styles.iconCircle, { transform: [{ scale: pulse }] }]}>
             <LinearGradient colors={['#F5D060', '#A07820']} style={styles.iconGrad}>
-              <MaterialCommunityIcons name="wallet-giftcard" size={40} color="#050F09" />
+              <MaterialCommunityIcons name={icon as any} size={40} color="#050F09" />
             </LinearGradient>
           </Animated.View>
 
-          <Animated.Text style={[styles.title, { opacity: pulse.interpolate({ inputRange: [1, 1.1], outputRange: [0.8, 1] }) }]}>BONUS CLAIMED!</Animated.Text>
-          <Text style={styles.subtitle}>Daily login reward added to wallet</Text>
+          <Animated.Text style={[styles.title, { opacity: pulse.interpolate({ inputRange: [1, 1.1], outputRange: [0.8, 1] }) }]}>{title}</Animated.Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
           
           <Animated.View style={[styles.amountWrap, { transform: [{ scale: pulse }] }]}>
-            <Text style={styles.amountSign}>₦</Text>
+            <Text style={styles.amountSign}>{prefix}</Text>
             <Text style={styles.amountText}>{amount}</Text>
           </Animated.View>
 

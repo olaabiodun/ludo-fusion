@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { usePathname } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 import { RewardModal } from './RewardModal';
 import Svg, {
   Circle,
@@ -474,8 +475,11 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   const [showReward, setShowReward] = React.useState(false);
   const [countdown, setCountdown] = React.useState(0);
   const [streak, setStreak] = React.useState(0);
+  const [showStreakReward, setShowStreakReward] = React.useState(false);
+  const [claimedXp, setClaimedXp] = React.useState(0);
   const [searchAnim] = React.useState(new Animated.Value(0));
   const [announceUnread, setAnnounceUnread] = React.useState(0);
+  const gamblingEnabled = useGamblingEnabled();
 
   useEffect(() => {
     if (searching) {
@@ -575,6 +579,31 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
     }
   };
 
+  const handleClaimStreak = async () => {
+    if (streak < 3) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const xpReward = streak * 100;
+      const newStreak = Math.max(0, streak - 3);
+
+      const { data: profile } = await supabase.from('profiles').select('xp, xp_next_level').eq('id', user.id).single();
+      if (!profile) return;
+
+      const newXp = (profile.xp || 0) + xpReward;
+
+      await supabase.from('profiles').update({ xp: newXp, streak: newStreak }).eq('id', user.id);
+
+      setClaimedXp(xpReward);
+      setStreak(newStreak);
+      setShowStreakReward(true);
+      DeviceEventEmitter.emit('wallet_updated');
+    } catch (err) {
+      console.error('Error claiming streak XP:', err);
+    }
+  };
+
   return (
     <View style={[styles.root, !isHome && { width: 168 }]}>
       {/* Top border with glow */}
@@ -593,7 +622,7 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
               <GlowDot color={C.gold} size={5} />
               <Text style={[styles.label, { color: C.goldBright }]}>MEMBER</Text>
             </View>
-            <Text style={styles.sub}>Ludo Royale</Text>
+            <Text style={styles.sub}>Ludo Fusion</Text>
             <View style={[styles.pill, { borderColor: C.goldBorder, backgroundColor: C.goldSoft }]}>
               <Text style={[styles.pillText, { color: C.gold }]}>Expires 24 May</Text>
             </View>
@@ -639,19 +668,19 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
         </BarItem>
 
         {/* ── WIN STREAK ── */}
-        <BarItem accentColor={C.orange}>
+        <BarItem accentColor={streak >= 3 ? C.gold : C.orange} onPress={streak >= 3 ? handleClaimStreak : undefined}>
           <View style={[styles.iconWrap, { marginBottom: 1 }]}>
             <FlameIcon />
           </View>
           <View style={styles.textBlock}>
             <View style={styles.labelRow}>
-              <GlowDot color={C.orangeBright} size={5} />
-              <Text style={[styles.label, { color: C.orangeBright }]}>WIN STREAK</Text>
+              <GlowDot color={streak >= 3 ? C.gold : C.orangeBright} size={5} />
+              <Text style={[styles.label, { color: streak >= 3 ? C.gold : C.orangeBright }]}>{streak >= 3 ? 'CLAIM XP' : 'WIN STREAK'}</Text>
             </View>
-            <Text style={styles.sub}>3 wins → bonus</Text>
+            <Text style={styles.sub}>{streak >= 3 ? `${streak * 100} XP ready!` : '3 wins → bonus'}</Text>
             <StreakBar filled={streak % 3 || (streak > 0 && streak % 3 === 0 ? 3 : 0)} total={3} />
             <View style={styles.streakCount}>
-              <Text style={[styles.pillText, { color: C.orange }]}>{streak % 3 || (streak > 0 && streak % 3 === 0 ? 3 : 0)} / 3</Text>
+              <Text style={[styles.pillText, { color: streak >= 3 ? C.gold : C.orange }]}>{streak % 3 || (streak > 0 && streak % 3 === 0 ? 3 : 0)} / 3</Text>
             </View>
           </View>
         </BarItem>
@@ -696,7 +725,28 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
         </LinearGradient>
       </Animated.View>
 
-      {showReward && <RewardModal visible={showReward} onClose={() => setShowReward(false)} amount={10} />}
+      {showReward && (
+        <RewardModal
+          visible={showReward}
+          onClose={() => setShowReward(false)}
+          amount={10}
+          prefix={gamblingEnabled ? '₦' : ''}
+          subtitle={gamblingEnabled ? 'Daily login reward added to wallet' : 'Daily login bonus claimed'}
+        />
+      )}
+      {showStreakReward && (
+        <RewardModal
+          visible={showStreakReward}
+          onClose={() => setShowStreakReward(false)}
+          amount={claimedXp}
+          prefix="+"
+          unit="XP"
+          title="STREAK BONUS!"
+          subtitle="Win streak reward claimed"
+          icon="fire"
+          color="#FF8C00"
+        />
+      )}
     </View>
   );
 }

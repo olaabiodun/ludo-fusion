@@ -31,6 +31,7 @@ const CONFIGS: Record<string, ActionConfig> = {
   'not-your-turn':  { emoji: '⏳', colors: ['#FF3B30','#330000','#110000'], border: 'rgba(255,255,255,0.25)', text: '#F9FAFB', glow: 'rgba(255,255,255,0.2)', label: "NOT YOUR TURN!" },
   'already-rolled': { emoji: '🎲', colors: ['#FF3B30','#330000','#110000'], border: 'rgba(255,255,255,0.25)', text: '#F9FAFB', glow: 'rgba(255,255,255,0.2)', label: "MOVE A TOKEN!" },
   'timeout':        { emoji: '⏰', colors: ['#FF3B30','#D70015','#8E0000'], border: '#FF3B30', text: '#FFF', glow: '#FF3B30', label: "TIME OUT!" },
+  'time-warning':   { emoji: '⏳', colors: ['#FFD030','#FF9500','#8E5C00'], border: '#FFD030', text: '#1A1100', glow: '#FFD030', label: "30 SECONDS LEFT!" },
   'six':            { emoji: '🎲', colors: ['#FF3B30','#D70015','#8E0000'], border: '#FF3B30', text: '#FFEBEB', glow: '#FF3B30', label: "SIX! ROLL AGAIN" },
   'capture':        { emoji: '⚔️', colors: ['#FF3B30','#D70015','#8E0000'], border: '#FF3B30', text: '#FFEBEB', glow: '#FF3B30', label: "CAPTURED! ROLL AGAIN" },
   'home':           { emoji: '🏠', colors: ['#FF3B30','#D70015','#8E0000'], border: '#FF3B30', text: '#FFEBEB', glow: '#FF3B30', label: "HOME! ROLL AGAIN" },

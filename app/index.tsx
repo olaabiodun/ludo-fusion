@@ -1,6 +1,8 @@
 import { AppBackground } from '@/components/AppBackground';
 import { supabase } from '@/lib/supabase';
+import { getRandomAvatar } from '@/lib/avatars';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +23,7 @@ import {
 } from 'react-native';
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { Path, Svg } from 'react-native-svg';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 // ─── Tokens ────────────────────────────────────────────────────────────────
 const C = {
@@ -166,11 +169,13 @@ function LiveDot({ color = C.green }: { color?: string }) {
 }
 
 // ─── Ticker ─────────────────────────────────────────────────────────────────
-const WINS = 'Chidi_Kings won ₦45,000  •  Oluwa_Femi won ₦12,500  •  Nkechi_P won ₦8,500  •  Abiola_W won ₦22,000  •  Tunde_Legend won ₦50,000  •  Zainab_G won ₦18,000  •  Eze_Money won ₦100,000  •  Bolaji_Rocks won ₦3,200     ';
+const WINS_REAL = 'Chidi_Kings won ₦45,000  •  Oluwa_Femi won ₦12,500  •  Nkechi_P won ₦8,500  •  Abiola_W won ₦22,000  •  Tunde_Legend won ₦50,000  •  Zainab_G won ₦18,000  •  Eze_Money won ₦100,000  •  Bolaji_Rocks won ₦3,200     ';
+const WINS_COINS = 'Chidi_Kings won 45,000 coins  •  Oluwa_Femi won 12,500 coins  •  Nkechi_P won 8,500 coins  •  Abiola_W won 22,000 coins  •  Tunde_Legend won 50,000 coins  •  Zainab_G won 18,000 coins  •  Eze_Money won 100,000 coins  •  Bolaji_Rocks won 3,200 coins     ';
 
-function Ticker() {
+function Ticker({ gamblingEnabled }: { gamblingEnabled: boolean }) {
   const tx = useRef(new Animated.Value(0)).current;
   const [textWidth, setTextWidth] = React.useState(0);
+  const WINS = gamblingEnabled ? WINS_REAL : WINS_COINS;
 
   useEffect(() => {
     if (textWidth > 0) {
@@ -235,6 +240,226 @@ function ModalAlert({ visible, title, message, onClose }: { visible: boolean, ti
   );
 }
 
+// ─── Email Modal ──────────────────────────────────────────────────────────────
+function EmailModal({
+  visible, email, setEmail, loading, onSignIn, onClose,
+}: {
+  visible: boolean; email: string; setEmail: (v: string) => void; loading: boolean;
+  onSignIn: () => void; onClose: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, { toValue: 1, tension: 150, friction: 12, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.85);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000, opacity: opacityAnim }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' }}>
+        <Animated.View style={{ width: '90%', maxWidth: 400, backgroundColor: 'rgba(5, 16, 11, 0.94)', borderRadius: 28, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.28)', padding: 24, gap: 20, transform: [{ scale: scaleAnim }] }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: C.gold + '15', alignItems: 'center', justifyContent: 'center' }}>
+              <MaterialCommunityIcons name="email-outline" size={22} color={C.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '800' }}>Sign in with Email</Text>
+              <Text style={{ color: C.textMuted, fontSize: 12 }}>Enter your email to get started</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+              <MaterialCommunityIcons name="close" size={18} color={C.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Email Input */}
+          <View style={{ height: 48, paddingHorizontal: 14, backgroundColor: C.bgPanel, borderWidth: 1, borderColor: C.border, borderRadius: 6, justifyContent: 'center' }}>
+            <TextInput
+              style={{ flex: 1, color: C.textMain, fontSize: 14, fontWeight: '600' }}
+              placeholder="Enter your email address"
+              placeholderTextColor={C.textDim}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoFocus
+            />
+          </View>
+
+          {/* Action Button */}
+          <TouchableOpacity
+            style={{ height: 48, backgroundColor: C.gold, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderBottomWidth: 4, borderBottomColor: C.goldDark, borderRightWidth: 1, borderRightColor: C.goldDark, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.4)', opacity: loading ? 0.7 : 1 }}
+            onPress={onSignIn}
+            disabled={loading}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '900', color: C.bgDeep, letterSpacing: 2 }}>{loading ? '...' : 'SIGN IN'}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Animated.View>
+  );
+}
+
+// ─── OTP Modal ────────────────────────────────────────────────────────────────
+function OTPModal({
+  visible, otp, setOtp, email, loading, onVerify, onBack,
+}: {
+  visible: boolean; otp: string; setOtp: (v: string) => void; email: string; loading: boolean;
+  onVerify: () => void; onBack: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, { toValue: 1, tension: 150, friction: 12, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.85);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000, opacity: opacityAnim }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' }}>
+        <Animated.View style={{ width: '90%', maxWidth: 400, backgroundColor: 'rgba(5, 16, 11, 0.94)', borderRadius: 28, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.28)', padding: 24, gap: 20, transform: [{ scale: scaleAnim }] }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={onBack} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="arrow-back" size={16} color={C.textMuted} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '800' }}>Verify OTP</Text>
+              <Text style={{ color: C.textMuted, fontSize: 12 }}>Code sent to {email}</Text>
+            </View>
+          </View>
+
+          {/* OTP Boxes */}
+          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={{ width: 44, height: 50, borderRadius: 10, backgroundColor: C.bgPanel, borderWidth: 1, borderColor: otp.length === i ? C.gold : C.border, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#FFF', fontSize: 20, fontWeight: '800' }}>{otp[i] || ''}</Text>
+              </View>
+            ))}
+            <TextInput
+              style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0.02, color: 'transparent' }}
+              value={otp}
+              onChangeText={(val) => setOtp(val.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              maxLength={6}
+              autoFocus
+            />
+          </View>
+
+          {/* Verify Button */}
+          <TouchableOpacity
+          style={{ height: 48, backgroundColor: C.gold, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderBottomWidth: 4, borderBottomColor: C.goldDark, borderRightWidth: 1, borderRightColor: C.goldDark, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.4)', opacity: (loading || otp.length < 6) ? 0.6 : 1 }}
+          onPress={onVerify}
+          disabled={loading || otp.length < 6}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '900', color: C.bgDeep, letterSpacing: 2 }}>{loading ? '...' : 'VERIFY CODE'}</Text>
+        </TouchableOpacity>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Animated.View>
+  );
+}
+
+// ─── Profile Modal ────────────────────────────────────────────────────────────
+function ProfileModal({
+  visible, username, setUsername, fullName, setFullName, isUsernameAvailable, loading, onSave,
+}: {
+  visible: boolean; username: string; setUsername: (v: string) => void; fullName: string; setFullName: (v: string) => void;
+  isUsernameAvailable: boolean | null; loading: boolean; onSave: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, { toValue: 1, tension: 150, friction: 12, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.85);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000, opacity: opacityAnim }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' }}>
+        <Animated.View style={{ width: '90%', maxWidth: 400, backgroundColor: 'rgba(5, 16, 11, 0.94)', borderRadius: 28, borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.28)', padding: 24, gap: 20, transform: [{ scale: scaleAnim }] }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: C.gold + '15', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="person-outline" size={22} color={C.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '800' }}>Setup Profile</Text>
+              <Text style={{ color: C.textMuted, fontSize: 12 }}>Tell us about yourself</Text>
+            </View>
+          </View>
+
+          {/* Username Input */}
+          <View style={{ height: 48, paddingHorizontal: 14, backgroundColor: C.bgPanel, borderWidth: 1, borderColor: C.border, borderRadius: 6, justifyContent: 'center', flexDirection: 'row', alignItems: 'center' }}>
+            <TextInput
+              style={{ flex: 1, color: C.textMain, fontSize: 14, fontWeight: '600' }}
+              placeholder="Pick a unique username (min 4 chars)"
+              placeholderTextColor={C.textDim}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoFocus
+            />
+            {isUsernameAvailable === true && <Ionicons name="checkmark-circle" size={18} color={C.green} />}
+            {isUsernameAvailable === false && <Ionicons name="close-circle" size={18} color={C.red} />}
+          </View>
+
+          {/* Full Name Input */}
+          <View style={{ height: 48, paddingHorizontal: 14, backgroundColor: C.bgPanel, borderWidth: 1, borderColor: C.border, borderRadius: 6, justifyContent: 'center' }}>
+            <TextInput
+              style={{ flex: 1, color: C.textMain, fontSize: 14, fontWeight: '600' }}
+              placeholder="Enter your full name"
+              placeholderTextColor={C.textDim}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
+
+          {/* Save Button */}
+          <TouchableOpacity
+            style={{ height: 48, backgroundColor: C.gold, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderBottomWidth: 4, borderBottomColor: C.goldDark, borderRightWidth: 1, borderRightColor: C.goldDark, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.4)', opacity: (loading || isUsernameAvailable === false || username.length < 4) ? 0.6 : 1 }}
+            onPress={onSave}
+            disabled={loading || isUsernameAvailable === false || username.length < 4}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '900', color: C.bgDeep, letterSpacing: 2 }}>{loading ? '...' : 'CONTINUE'}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Animated.View>
+  );
+}
+
 // ─── Social Button ───────────────────────────────────────────────────────────
 function SocialBtn({
   label,
@@ -272,6 +497,7 @@ function SocialBtn({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function LoginScreen() {
+  const gamblingEnabled = useGamblingEnabled();
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(24)).current;
 
@@ -284,6 +510,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = React.useState(false);
   const [generatedOtp, setGeneratedOtp] = React.useState('');
   const [isUsernameAvailable, setIsUsernameAvailable] = React.useState<boolean | null>(null);
+  const [emailModalVisible, setEmailModalVisible] = React.useState(false);
 
   // Custom Alert State
   const [customAlert, setCustomAlert] = React.useState({ visible: false, title: '', message: '' });
@@ -318,6 +545,7 @@ export default function LoginScreen() {
       
       if (error) throw error;
       setStep('otp');
+      setEmailModalVisible(false);
     } catch (e: any) {
       showAlert('Email Error', e.message);
     } finally {
@@ -402,6 +630,7 @@ export default function LoginScreen() {
           id: user.id,
           username,
           full_name: fullName,
+          avatar_url: getRandomAvatar(),
           updated_at: new Date(),
         });
 
@@ -473,7 +702,7 @@ export default function LoginScreen() {
               <Text style={styles.authSub}>
                 {step === 'email' && 'One-tap login — start winning in seconds'}
                 {step === 'otp' && `We've sent a 6-digit code to ${email}`}
-                {step === 'profile' && 'Tell us your name to claim your ₦500 bonus'}
+                {step === 'profile' && (gamblingEnabled ? 'Tell us your name to claim your ₦500 bonus' : 'Tell us your name to claim your 500 coins bonus')}
               </Text>
 
               {/* Social buttons - Only show in email step */}
@@ -499,114 +728,52 @@ export default function LoginScreen() {
                     <Text style={styles.dividerLabel}>OR USE EMAIL</Text>
                     <View style={styles.dividerLine} />
                   </View>
+
+                  <SocialBtn
+                    label="Continue with Email"
+                    icon={
+                      <View style={styles.socialIconBg}>
+                        <MaterialCommunityIcons name="email-outline" size={16} color={C.gold} />
+                      </View>
+                    }
+                    onPress={() => setEmailModalVisible(true)}
+                    accentColor={C.gold}
+                  />
                 </>
               )}
 
-              {/* Dynamic Auth Inputs */}
-              {step === 'email' && (
-                <View style={styles.phoneRow}>
-                  <View style={styles.phoneInputBox}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your email address"
-                      placeholderTextColor={C.textDim}
-                      value={email}
-                      onChangeText={setEmail}
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.otpBtn, loading && { opacity: 0.7 }]}
-                    onPress={handleSendEmail}
-                    disabled={loading}
-                  >
-                    <Text style={styles.otpBtnText}>{loading ? '...' : 'SIGN IN'}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              {/* Email Modal Popup */}
+              <EmailModal
+                visible={emailModalVisible}
+                email={email}
+                setEmail={setEmail}
+                loading={loading}
+                onSignIn={handleSendEmail}
+                onClose={() => setEmailModalVisible(false)}
+              />
 
-              {step === 'otp' && (
-                <View style={{ gap: 16 }}>
-                  <View style={styles.otpHeaderRow}>
-                    <TouchableOpacity onPress={() => setStep('email')} style={styles.backBtn}>
-                      <Ionicons name="arrow-back" size={14} color={C.gold} />
-                      <Text style={styles.backBtnText}>CHANGE EMAIL</Text>
-                    </TouchableOpacity>
-                  </View>
+              {/* OTP Modal */}
+              <OTPModal
+                visible={step === 'otp'}
+                otp={otp}
+                setOtp={setOtp}
+                email={email}
+                loading={loading}
+                onVerify={handleVerifyOtp}
+                onBack={() => setStep('email')}
+              />
 
-                  <View style={styles.otpBoxesRow}>
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.otpBox,
-                          otp.length === i && styles.otpBoxActive,
-                          otp.length > i && styles.otpBoxFilled
-                        ]}
-                      >
-                        <Text style={styles.otpBoxText}>{otp[i] || ''}</Text>
-                      </View>
-                    ))}
-                    <TextInput
-                      style={styles.hiddenInput}
-                      value={otp}
-                      onChangeText={(val) => {
-                        setOtp(val.replace(/[^0-9]/g, ''));
-                      }}
-                      keyboardType="number-pad"
-                      textContentType="oneTimeCode"
-                      maxLength={6}
-                      autoFocus
-                    />
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.otpBtn, { width: '100%' }, loading && { opacity: 0.7 }]}
-                    onPress={handleVerifyOtp}
-                    disabled={loading}
-                  >
-                    <Text style={styles.otpBtnText}>{loading ? '...' : 'VERIFY CODE'}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {step === 'profile' && (
-                <View style={{ gap: 12 }}>
-                  <View style={[styles.phoneInputBox, { width: '100%', flexDirection: 'row', alignItems: 'center' }]}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Pick a unique username (min 4 chars)"
-                      placeholderTextColor={C.textDim}
-                      value={username}
-                      onChangeText={setUsername}
-                      autoCapitalize="none"
-                    />
-                    {isUsernameAvailable === true && <Ionicons name="checkmark-circle" size={18} color={C.green} />}
-                    {isUsernameAvailable === false && <Ionicons name="close-circle" size={18} color={C.red} />}
-                  </View>
-                  <View style={[styles.phoneInputBox, { width: '100%' }]}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your full name"
-                      placeholderTextColor={C.textDim}
-                      value={fullName}
-                      onChangeText={setFullName}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.otpBtn,
-                      { width: '100%' },
-                      (loading || isUsernameAvailable === false || username.length < 4) && { opacity: 0.6 }
-                    ]}
-                    onPress={handleCompleteProfile}
-                    disabled={loading || isUsernameAvailable === false || username.length < 4}
-                  >
-                    <Text style={styles.otpBtnText}>{loading ? '...' : 'CONTINUE'}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              {/* Profile Modal */}
+              <ProfileModal
+                visible={step === 'profile'}
+                username={username}
+                setUsername={setUsername}
+                fullName={fullName}
+                setFullName={setFullName}
+                isUsernameAvailable={isUsernameAvailable}
+                loading={loading}
+                onSave={handleCompleteProfile}
+              />
 
               {/* Terms */}
               <Text style={styles.termsText}>
@@ -622,7 +789,7 @@ export default function LoginScreen() {
         </ScrollView>
       </DodgeKeyboard>
       {/* ── TICKER ── */}
-      <Ticker />
+      <Ticker gamblingEnabled={gamblingEnabled} />
 
       <ModalAlert
         visible={customAlert.visible}

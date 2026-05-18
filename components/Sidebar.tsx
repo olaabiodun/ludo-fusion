@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path, Polyline, Rect } from 'react-native-svg';
 import { playButtonSound } from '../lib/sounds';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 const C = {
   gold: '#D4AF37',
@@ -41,6 +42,7 @@ const LeaderboardIcon = ({ active }: { active?: boolean }) => (
     />
   </Svg>
 );
+
 
 const FriendsIcon = ({ active }: { active?: boolean }) => (
   <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
@@ -185,9 +187,11 @@ type SidebarProps = {
 };
 
 export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
+  const gamblingEnabled = useGamblingEnabled();
+  const items = gamblingEnabled ? NAV_ITEMS : NAV_ITEMS.filter(i => i.label !== 'WALLET');
   return (
     <View style={s.sidebar}>
-      {NAV_ITEMS.map(({ label, Icon }, index) => (
+      {items.map(({ label, Icon }, index) => (
         <AnimatedNavItem
           key={label}
           label={label}

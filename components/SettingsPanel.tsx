@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { AVATAR_PRESETS } from '@/lib/avatars';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -428,9 +429,759 @@ function SettingsSection({ group, settings, onToggle, onNav, delay }: {
   );
 }
 
-// ─── Profile Banner (Supabase-powered) ───────────────────────────────────────────────
+// ─── Help & FAQ Data ─────────────────────────────────────────────────────────────
 
-// ProfileBanner removed per user request. Modal moved to main SettingsPanel.
+interface FAQCat {
+  category: string;
+  icon: IconName;
+  items: { q: string; a: string }[];
+}
+
+const FAQ_DATA: FAQCat[] = [
+  {
+    category: 'Getting Started',
+    icon: 'rocket-launch-outline',
+    items: [
+      { q: 'How do I create an account?', a: 'Enter your email address on the login screen, tap SIGN IN, check your inbox for a 6-digit verification code, enter it, then pick a username and full name to claim your signup bonus.' },
+      { q: 'How do I play a game?', a: 'From the home screen, tap any game card — Ludo, Whot, Snake & Ladder, or Tournaments. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' },
+      { q: 'What games are available?', a: 'Ludo (classic board game), Whot (Nigerian card game), Snake & Ladder (board game with snakes & ladders), and Tournaments — competitive events across all games with prize pools.' },
+      { q: 'Is the app free to play?', a: 'Yes, you can play free games. Some modes and tournaments require an entry fee from your wallet balance. Free practice rooms are available for every game.' },
+    ],
+  },
+  {
+    category: 'Deposits & Withdrawals',
+    icon: 'wallet-outline',
+    items: [
+      { q: 'How do I deposit funds?', a: 'Go to Wallet from the sidebar, tap DEPOSIT, enter the amount (minimum ₦100), choose your payment method, and complete the Paystack-secured transaction. Funds appear instantly.' },
+      { q: 'How do I withdraw my winnings?', a: 'Go to Wallet, tap WITHDRAW, enter the amount (minimum ₦1,000), and confirm. Withdrawals are processed within 24 hours and sent to the bank account linked to your profile.' },
+      { q: 'What payment methods are supported?', a: 'We support card payments (Visa, Mastercard), bank transfers, and USSD via Paystack. More options are added regularly.' },
+      { q: 'Are there withdrawal fees?', a: 'Withdrawals are free for amounts above ₦2,000. A small processing fee of ₦50 applies to withdrawals under ₦2,000.' },
+      { q: 'How long do withdrawals take?', a: 'Most withdrawals are processed within 2–4 hours during business hours. In rare cases, it may take up to 24 hours for security verification.' },
+    ],
+  },
+  {
+    category: 'Game Rules',
+    icon: 'book-open-variant-outline',
+    items: [
+      { q: 'How is Ludo played?', a: 'Each player has 4 tokens. Roll a 6 to move a token from home to the board. Move clockwise around the path. Landing on an opponent sends them home. First to get all 4 tokens to the center wins.' },
+      { q: 'What are the rules of Whot?', a: 'Players take turns matching the discard pile by suit, number, or special card. Special cards (Star, Circle, Cross, Triangle, Square, Whot!) force opponents to draw or skip. Last player holding cards loses.' },
+      { q: 'How does Snake & Ladder work?', a: 'Roll the dice to move your piece from 1 to 100. Ladders boost you up. Snakes send you back down. First to reach exactly 100 wins. Landing on a ladder or snake triggers an automatic move.' },
+      { q: 'What happens if I disconnect mid-game?', a: 'You have 30 seconds to reconnect before the game forfeits. If you rejoin in time, play resumes from where you left off. Your opponent is notified of the disconnect.' },
+      { q: 'How does scoring work in tournaments?', a: 'Tournaments use a points system. Wins earn 3 points, draws earn 1 point, losses earn 0. Top players advance to the next round. Prizes are distributed based on final rank.' },
+    ],
+  },
+  {
+    category: 'Account & Security',
+    icon: 'shield-account-outline',
+    items: [
+      { q: 'How do I change my username?', a: 'Open Settings, tap Edit Profile. You can change your username here. Choose wisely — changes are limited to once every 30 days. Your full name cannot be changed after verification.' },
+      { q: 'How do I protect my account?', a: 'Use a strong email account password. Never share your OTP codes. Enable "Show Online Status" controls in Settings > Privacy & Security. Report suspicious activity immediately.' },
+      { q: 'Can I delete my account?', a: 'Contact live support via Settings > Live Support to request account deletion. Your wallet balance must be zero. Deletion is permanent and cannot be reversed.' },
+      { q: 'How do I block a player?', a: 'Go to Settings > Privacy & Security > Blocked Players, or tap the player\'s profile during a match and select Block. Blocked players cannot send you invites or messages.' },
+    ],
+  },
+  {
+    category: 'Troubleshooting',
+    icon: 'wrench-outline',
+    items: [
+      { q: 'The app is loading slowly or stuck.', a: 'Check your internet connection. Force close the app and reopen. If the issue persists, clear the app cache in your device settings or reinstall the app.' },
+      { q: 'My deposit hasn\'t arrived yet.', a: 'Most deposits are instant. If you haven\'t received funds after 10 minutes, check your bank statement to confirm the charge. If charged, contact support with the transaction reference.' },
+      { q: 'I\'m having trouble with OTP login.', a: 'Ensure you\'re using the correct email address. Check your spam folder for the OTP. Request a new code after 60 seconds. If problems persist, try using a different email.' },
+      { q: 'Game is lagging or crashing.', a: 'Close background apps, reduce device brightness, ensure you\'re on a stable connection (WiFi recommended). Update the app to the latest version from your app store.' },
+      { q: 'How do I report a bug or issue?', a: 'Use the Live Support chat in Settings > Live Support, or email support@ludofusion.app with a screenshot and description. Our team typically responds within 2 hours.' },
+    ],
+  },
+];
+
+// ─── Help & FAQ Component ─────────────────────────────────────────────────────
+
+function HelpContent({ onClose }: { onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, damping: 18, stiffness: 140, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const toggleItem = (key: string) => {
+    setExpanded(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const filtered = FAQ_DATA.map(cat => ({
+    ...cat,
+    items: cat.items.filter(item =>
+      item.q.toLowerCase().includes(search.toLowerCase()) ||
+      item.a.toLowerCase().includes(search.toLowerCase())
+    ),
+  })).filter(cat => cat.items.length > 0);
+
+  const helpStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      paddingHorizontal: 12,
+      height: 40,
+      gap: 8,
+    },
+    searchInput: {
+      flex: 1,
+      color: C.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+      padding: 0,
+    },
+    categoryBlock: {
+      marginBottom: 4,
+    },
+    categoryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+    },
+    categoryTitle: {
+      color: C.gold,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
+    categoryLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: 'rgba(212,175,55,0.15)',
+    },
+    faqItem: {
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.02)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.05)',
+      marginBottom: 6,
+      overflow: 'hidden',
+    },
+    faqHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+    },
+    faqQuestion: {
+      flex: 1,
+      color: C.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+      lineHeight: 17,
+    },
+    expandIcon: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.05)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+    },
+    answerBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 14,
+      paddingTop: 2,
+    },
+    answerText: {
+      color: C.textMuted,
+      fontSize: 11,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+      gap: 8,
+    },
+    emptyText: {
+      color: C.textFaint,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    contactRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+      marginTop: 8,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    contactChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+    },
+    contactChipText: {
+      color: C.textMuted,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    resultsCount: {
+      color: C.textFaint,
+      fontSize: 10,
+      fontWeight: '600',
+      textAlign: 'right',
+      paddingRight: 4,
+      marginBottom: 4,
+    },
+  });
+
+  const totalResults = filtered.reduce((sum, cat) => sum + cat.items.length, 0);
+
+  return (
+    <Animated.View style={[helpStyles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[s.settingIcon, { backgroundColor: C.goldSoft, borderColor: C.goldBorder }]}>
+            <MaterialCommunityIcons name="help-circle-outline" size={18} color={C.gold} />
+          </View>
+          <View>
+            <Text style={{ color: C.textPrimary, fontSize: 16, fontWeight: '900' }}>Help & FAQ</Text>
+            <Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '500' }}>Find answers fast</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={onClose} style={s.notifBtn}>
+          <MaterialCommunityIcons name="close" size={18} color={C.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search */}
+      <View style={helpStyles.searchRow}>
+        <MaterialCommunityIcons name="magnify" size={16} color={C.textFaint} />
+        <TextInput
+          style={helpStyles.searchInput}
+          placeholder="Search questions..."
+          placeholderTextColor={C.textFaint}
+          value={search}
+          onChangeText={setSearch}
+          autoCapitalize="none"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <MaterialCommunityIcons name="close-circle" size={16} color={C.textFaint} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {search.length > 0 && (
+        <Text style={helpStyles.resultsCount}>{totalResults} result{totalResults !== 1 ? 's' : ''}</Text>
+      )}
+
+      {/* FAQ List */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
+        {filtered.length === 0 ? (
+          <View style={helpStyles.emptyState}>
+            <MaterialCommunityIcons name="search-off" size={32} color={C.textFaint} />
+            <Text style={helpStyles.emptyText}>No results found for "{search}"</Text>
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Text style={{ color: C.gold, fontSize: 11, fontWeight: '700' }}>Clear search</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          filtered.map((cat, ci) => (
+            <View key={cat.category} style={helpStyles.categoryBlock}>
+              <View style={helpStyles.categoryHeader}>
+                <MaterialCommunityIcons name={cat.icon} size={14} color={C.gold} />
+                <Text style={helpStyles.categoryTitle}>{cat.category}</Text>
+                <View style={helpStyles.categoryLine} />
+              </View>
+              {cat.items.map((item, ii) => {
+                const key = `${ci}-${ii}`;
+                const isExpanded = expanded.includes(key);
+                return (
+                  <View key={key} style={helpStyles.faqItem}>
+                    <TouchableOpacity
+                      style={helpStyles.faqHeader}
+                      onPress={() => toggleItem(key)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ width: 2, height: 16, borderRadius: 1, backgroundColor: isExpanded ? C.gold : 'rgba(255,255,255,0.1)' }} />
+                      <Text style={helpStyles.faqQuestion}>{item.q}</Text>
+                      <View style={helpStyles.expandIcon}>
+                        <MaterialCommunityIcons
+                          name={isExpanded ? 'minus' : 'plus'}
+                          size={10}
+                          color={isExpanded ? C.gold : C.textFaint}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                    {isExpanded && (
+                      <View style={helpStyles.answerBody}>
+                        <Text style={helpStyles.answerText}>{item.a}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ))
+        )}
+
+        {/* Contact footer */}
+        <View style={helpStyles.contactRow}>
+          <View style={helpStyles.contactChip}>
+            <MaterialCommunityIcons name="email-outline" size={13} color={C.gold} />
+            <Text style={helpStyles.contactChipText}>support@ludofusion.app</Text>
+          </View>
+          <View style={helpStyles.contactChip}>
+            <MaterialCommunityIcons name="chat-processing-outline" size={13} color={C.success} />
+            <Text style={helpStyles.contactChipText}>Live Chat</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+// ─── Live Support Component ────────────────────────────────────────────────────
+
+type QuickIssue = {
+  id: string;
+  label: string;
+  icon: IconName;
+  color: string;
+  bg: string;
+  border: string;
+};
+
+const QUICK_ISSUES: QuickIssue[] = [
+  { id: 'deposit', label: 'Deposit Issue', icon: 'bank-transfer', color: C.gold, bg: C.goldSoft, border: C.goldBorder },
+  { id: 'withdrawal', label: 'Withdrawal', icon: 'cash-remove', color: C.danger, bg: C.dangerSoft, border: C.dangerBorder },
+  { id: 'game_bug', label: 'Game Bug', icon: 'gamepad-variant-outline', color: C.info, bg: C.infoSoft, border: C.infoBorder },
+  { id: 'account', label: 'Account Issue', icon: 'account-alert-outline', color: C.gold, bg: C.successSoft + '333', border: C.successBorder },
+  { id: 'fairness', label: 'Fair Play', icon: 'shield-check-outline', color: C.success, bg: C.successSoft, border: C.successBorder },
+  { id: 'other', label: 'Other', icon: 'forum-outline', color: C.textMuted, bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' },
+];
+
+const AUTO_REPLIES: Record<string, { title: string; message: string }> = {
+  deposit: {
+    title: 'Deposit Issue',
+    message: "I'm sorry you're having trouble with your deposit. Most deposits are credited instantly. If you've been charged but didn't receive funds, please wait 10 minutes and refresh your wallet. If the issue persists, share your transaction reference and our team will investigate within 2 hours.",
+  },
+  withdrawal: {
+    title: 'Withdrawal Help',
+    message: "Need help with a withdrawal? Ensure your bank details are correct in Settings. Withdrawals under ₦2,000 incur a ₦50 fee. Most requests process within 2–4 hours. If yours is taking longer, drop your transaction ID and we'll look into it right away.",
+  },
+  game_bug: {
+    title: 'Game Bug Report',
+    message: "Thanks for reporting this! Please describe what happened — which game, what you were doing, and any error message you saw. Screenshots are very helpful. Our engineering team typically fixes reported bugs within 24–48 hours.",
+  },
+  account: {
+    title: 'Account Issue',
+    message: "Let's get your account sorted. Common issues include login problems, username changes, and account verification. Please describe what's happening so I can help. For security, never share your password or OTP codes.",
+  },
+  fairness: {
+    title: 'Fair Play Inquiry',
+    message: "We take fair play seriously. All our games use verified random number generation and are audited regularly. If you suspect unfair play, please provide match details and we'll investigate thoroughly.",
+  },
+  other: {
+    title: 'General Inquiry',
+    message: "Hi there! How can I help you today? Please describe your issue or question and our support team will get back to you as soon as possible. You can also reach us directly at support@ludofusion.app.",
+  },
+};
+
+function LiveSupportContent({ onClose }: { onClose: () => void }) {
+  const [messages, setMessages] = useState<{ role: 'bot' | 'user' | 'support'; text: string; time: string; showTag?: boolean }[]>([]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, damping: 18, stiffness: 140, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  useEffect(() => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  }, [messages]);
+
+  // Load existing support messages
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.rpc('get_my_support_messages');
+        if (error) throw error;
+
+        const msgs = data?.messages || [];
+        const formatted = msgs.map(m => ({
+          role: m.sender === 'User' ? 'user' : 'support' as 'user' | 'support',
+          text: m.content,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+
+        if (formatted.length === 0) {
+          formatted.unshift({
+            role: 'bot' as const,
+            text: "👋 Hi! I'm the Ludo Fusion assistant. Select a topic below for instant help, or type your question to message our support team.",
+            time: 'Just now',
+          });
+        }
+
+        setMessages(formatted);
+      } catch (e) {
+        console.error('Failed to load support messages:', e);
+      }
+    })();
+  }, []);
+
+  // Realtime subscription for new support replies
+  useEffect(() => {
+    const sub = supabase
+      .channel('support_messages')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'inbox', filter: `type=eq.support` },
+        async (payload) => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          const msg = payload.new as any;
+          if (msg.user_id !== user.id) return;
+
+          const { data } = await supabase.rpc('get_my_support_messages');
+          const msgs = data?.messages || [];
+          const formatted = msgs.map(m => ({
+            role: m.sender === 'User' ? 'user' as const : 'support' as const,
+            text: m.content,
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }));
+          setMessages(formatted);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(sub); };
+  }, []);
+
+  const addBotMessage = (text: string) => {
+    const now = new Date();
+    setMessages(prev => [...prev, {
+      role: 'bot' as const,
+      text,
+      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
+  };
+
+  const persistMessage = async (text: string) => {
+    try {
+      await supabase.rpc('send_support_message', { p_content: text });
+    } catch (e) {
+      console.error('Failed to persist support message:', e);
+    }
+  };
+
+  const handleQuickIssue = async (issueId: string) => {
+    const reply = AUTO_REPLIES[issueId];
+    if (!reply) return;
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setMessages(prev => [...prev,
+      { role: 'user', text: `I need help with: ${reply.title}`, time: timeStr },
+      { role: 'bot', text: reply.message, time: timeStr },
+    ]);
+
+    // Persist the issue to support team in background
+    persistMessage(`Issue: ${reply.title} — user was shown FAQ answer`);
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput('');
+    setSending(true);
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistically show user message
+    setMessages(prev => [...prev, { role: 'user', text, time: timeStr }]);
+
+    const success = await supabase.rpc('send_support_message', { p_content: text })
+      .then(({ error }) => !error)
+      .catch(() => false);
+
+    setSending(false);
+
+    if (success) {
+      addBotMessage("Thanks for reaching out! Our support team has been notified and will get back to you within 24 hours. If it's urgent, email support@ludofusion.app directly.");
+    } else {
+      addBotMessage("Failed to send your message. Please try again or email support@ludofusion.app.");
+    }
+  };
+
+  const ls = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255,255,255,0.06)',
+    },
+    agentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    agentDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: C.success,
+    },
+    agentName: {
+      color: C.textPrimary,
+      fontSize: 13,
+      fontWeight: '900',
+    },
+    agentStatus: {
+      color: C.success,
+      fontSize: 8,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    quickRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 5,
+      marginBottom: 6,
+    },
+    quickChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    quickChipText: {
+      fontSize: 9,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    chatArea: {
+      flex: 1,
+      marginBottom: 6,
+    },
+    msgRow: {
+      marginBottom: 6,
+      flexDirection: 'row',
+    },
+    msgRowBot: {
+      justifyContent: 'flex-start',
+    },
+    msgRowUser: {
+      justifyContent: 'flex-end',
+    },
+    msgBubble: {
+      maxWidth: '85%',
+      borderRadius: 12,
+      padding: 10,
+    },
+    msgBubbleBot: {
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.06)',
+      borderBottomLeftRadius: 4,
+    },
+    msgBubbleUser: {
+      backgroundColor: C.goldSoft,
+      borderWidth: 1,
+      borderColor: C.goldBorder,
+      borderBottomRightRadius: 4,
+    },
+    msgText: {
+      color: C.textPrimary,
+      fontSize: 11.5,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    msgTextUser: {
+      color: C.textPrimary,
+    },
+    msgTime: {
+      color: C.textFaint,
+      fontSize: 8,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(255,255,255,0.03)',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.07)',
+      paddingLeft: 10,
+    },
+    textInput: {
+      flex: 1,
+      color: C.textPrimary,
+      fontSize: 12,
+      fontWeight: '600',
+      paddingVertical: 8,
+    },
+    sendBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: C.gold,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 2,
+    },
+    channelsRow: {
+      flexDirection: 'row',
+      gap: 6,
+      marginTop: 4,
+    },
+    channelCard: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 5,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      backgroundColor: 'rgba(255,255,255,0.02)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.06)',
+    },
+    channelText: {
+      color: C.textMuted,
+      fontSize: 8,
+      fontWeight: '600',
+    },
+    emptyChat: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 30,
+    },
+  });
+
+  return (
+    <Animated.View style={[ls.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+      {/* Header */}
+      <View style={ls.header}>
+        <View style={ls.agentRow}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(87,208,139,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(87,208,139,0.3)' }}>
+            <MaterialCommunityIcons name="headset" size={16} color={C.success} />
+          </View>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={ls.agentName}>Help & Support</Text>
+            </View>
+            <Text style={ls.agentStatus}>Select a topic for instant help, or send a message to our team</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={onClose} style={s.notifBtn}>
+          <MaterialCommunityIcons name="close" size={18} color={C.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick Issue Buttons */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10, marginLeft: -2 }}>
+        <View style={ls.quickRow}>
+          {QUICK_ISSUES.map(issue => (
+            <TouchableOpacity
+              key={issue.id}
+              style={[ls.quickChip, { backgroundColor: issue.bg, borderColor: issue.border }]}
+              onPress={() => handleQuickIssue(issue.id)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name={issue.icon} size={12} color={issue.color} />
+              <Text style={[ls.quickChipText, { color: issue.color }]}>{issue.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Chat Messages */}
+      <ScrollView ref={scrollRef} style={ls.chatArea} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 6 }}>
+        {messages.map((msg, i) => (
+          <View key={i} style={[ls.msgRow, msg.role === 'user' ? ls.msgRowUser : ls.msgRowBot]}>
+            <View style={[ls.msgBubble, msg.role === 'user' ? ls.msgBubbleUser : ls.msgBubbleBot]}>
+              <Text style={[ls.msgText, msg.role === 'user' && ls.msgTextUser]}>{msg.text}</Text>
+              <Text style={[ls.msgTime, { textAlign: msg.role === 'user' ? 'right' : 'left' }]}>{msg.time}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Input */}
+      <View style={ls.inputRow}>
+        <TextInput
+          style={ls.textInput}
+          placeholder="Type your message..."
+          placeholderTextColor={C.textFaint}
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={handleSend}
+        />
+        <TouchableOpacity style={ls.sendBtn} onPress={handleSend} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="send" size={14} color="#000" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Other channels */}
+      <View style={ls.channelsRow}>
+        <View style={ls.channelCard}>
+          <MaterialCommunityIcons name="email-outline" size={13} color={C.gold} />
+          <Text style={ls.channelText}>support@ludofusion.app</Text>
+        </View>
+        <View style={ls.channelCard}>
+          <MaterialCommunityIcons name="clock-outline" size={13} color={C.textFaint} />
+          <Text style={ls.channelText}>24/7 Support</Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 interface UserSettings {
@@ -459,15 +1210,6 @@ export function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-
-  const AVATAR_PRESETS = [
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Felix&backgroundColor=b6e3f4',
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka&backgroundColor=ffdfbf',
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Boo&backgroundColor=c0aede',
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Jasper&backgroundColor=d1d4f9',
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Luna&backgroundColor=ffd5dc',
-    'https://api.dicebear.com/7.x/avataaars/png?seed=Milo&backgroundColor=c1f4c1',
-  ];
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -643,33 +1385,174 @@ export function SettingsPanel() {
       {/* Generic Modal Overlay (Non-Native) */}
       {activeModal && (
         <View style={s.modalOverlay}>
-          <View style={[s.editModal, { width: '95%', maxHeight: '80%', padding: 20 }]}>
+          {activeModal === 'help' ? (
+            <View style={[s.editModal, { width: '95%', maxWidth: 640, height: '85%', padding: 16 }]}>
+              <HelpContent onClose={() => setActiveModal(null)} />
+            </View>
+          ) : activeModal === 'chat' ? (
+            <View style={[s.editModal, { width: '92%', maxWidth: 480, height: '85%', padding: 14 }]}>
+              <LiveSupportContent onClose={() => setActiveModal(null)} />
+            </View>
+          ) : (
+          <View style={[s.editModal, { width: '92%', maxWidth: 500, maxHeight: '80%', padding: 16 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={[s.modalTitle, { fontSize: 18 }]}>{activeModal.charAt(0).toUpperCase() + activeModal.slice(1).replace('_', ' ')}</Text>
+              <Text style={[s.modalTitle, { fontSize: 16 }]}>{activeModal.charAt(0).toUpperCase() + activeModal.slice(1).replace('_', ' ')}</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)} style={s.notifBtn}>
-                <MaterialCommunityIcons name="close" size={20} color={C.textPrimary} />
+                <MaterialCommunityIcons name="close" size={18} color={C.textPrimary} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ marginTop: 10 }}>
+            <ScrollView style={{ marginTop: 8 }}>
               {activeModal === 'blocked' ? (
-                <Text style={{ color: C.textMuted }}>No players currently blocked. You can block players from their profile or during a match.</Text>
-              ) : activeModal === 'sessions' ? (
                 <View style={{ gap: 10 }}>
-                  <View style={[s.settingRow, s.settingDivider]}>
-                    <MaterialCommunityIcons name="cellphone" size={24} color={C.success} />
-                    <View>
-                      <Text style={s.settingLabel}>Current Device</Text>
-                      <Text style={s.settingSub}>Active now · Lagos, Nigeria</Text>
-                    </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 10, height: 36 }}>
+                    <MaterialCommunityIcons name="magnify" size={14} color={C.textFaint} />
+                    <TextInput
+                      placeholder="Search blocked players..."
+                      placeholderTextColor={C.textFaint}
+                      style={{ flex: 1, color: C.textPrimary, fontSize: 11, fontWeight: '600', padding: 0 }}
+                    />
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 14, alignItems: 'center', gap: 8 }}>
+                    <MaterialCommunityIcons name="account-cancel-outline" size={28} color={C.textFaint} />
+                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>No players currently blocked</Text>
+                    <Text style={{ color: C.textFaint, fontSize: 9, fontWeight: '500', textAlign: 'center' }}>You can block players from their profile or during a match.</Text>
                   </View>
                 </View>
+              ) : activeModal === 'sessions' ? (
+                <View style={{ gap: 10 }}>
+                  <View style={{ backgroundColor: 'rgba(87,208,139,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(87,208,139,0.2)', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(87,208,139,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(87,208,139,0.25)' }}>
+                      <MaterialCommunityIcons name="cellphone" size={16} color={C.success} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ color: C.textPrimary, fontSize: 12, fontWeight: '800' }}>Current Device</Text>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }} />
+                        <Text style={{ color: C.success, fontSize: 8, fontWeight: '700' }}>ACTIVE</Text>
+                      </View>
+                      <Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '500', marginTop: 2 }}>Windows · Chrome 125 · Lagos, Nigeria</Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' }}>
+                      <Text style={{ color: C.textFaint, fontSize: 8, fontWeight: '700' }}>NOW</Text>
+                    </View>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(242,107,107,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(242,107,107,0.15)' }}>
+                        <MaterialCommunityIcons name="tablet" size={16} color={C.danger} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: C.textPrimary, fontSize: 12, fontWeight: '800' }}>Android Tablet</Text>
+                        <Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '500', marginTop: 2 }}>Samsung Galaxy Tab S9 · Lagos, Nigeria</Text>
+                      </View>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(242,107,107,0.08)', borderWidth: 1, borderColor: 'rgba(242,107,107,0.15)' }}>
+                        <Text style={{ color: C.danger, fontSize: 8, fontWeight: '700' }}>3h AGO</Text>
+                      </View>
+                    </View>
+                    <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 10 }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(242,107,107,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(242,107,107,0.15)' }}>
+                        <MaterialCommunityIcons name="cellphone-iphone" size={16} color={C.danger} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: C.textPrimary, fontSize: 12, fontWeight: '800' }}>iPhone 15 Pro</Text>
+                        <Text style={{ color: C.textMuted, fontSize: 9, fontWeight: '500', marginTop: 2 }}>iOS 18.4 · Abuja, Nigeria</Text>
+                      </View>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(242,107,107,0.08)', borderWidth: 1, borderColor: 'rgba(242,107,107,0.15)' }}>
+                        <Text style={{ color: C.danger, fontSize: 8, fontWeight: '700' }}>2d AGO</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <TouchableOpacity style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: 'rgba(242,107,107,0.08)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(242,107,107,0.15)' }} activeOpacity={0.7}>
+                    <Text style={{ color: C.danger, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>REVOKE ALL OTHER SESSIONS</Text>
+                  </TouchableOpacity>
+                </View>
               ) : activeModal === 'terms' ? (
-                <Text style={{ color: C.textMuted, lineHeight: 20 }}>Welcome to Winnerson Plexus. By using our services, you agree to follow the rules of the games and maintain fair play...</Text>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: C.textFaint, fontSize: 9, fontWeight: '600', textAlign: 'right' }}>Last updated: May 2026</Text>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 14, maxWidth: 680 }}>
+                    <Text style={{ color: C.textMuted, fontSize: 11, lineHeight: 20, fontWeight: '500' }}>
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>1. Acceptance of Terms</Text>{'\n'}
+                      By accessing or using Ludo Fusion ("the App"), you agree to be bound by these Terms & Conditions. If you do not agree, do not use the App. We reserve the right to update these terms at any time.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>2. Eligibility</Text>{'\n'}
+                      You must be 18 years or older to use the App. By using the App, you confirm that you are of legal age in your jurisdiction. The App is intended for users in Nigeria and jurisdictions where permitted by law.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>3. Account Registration</Text>{'\n'}
+                      You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Each user may maintain only one account. Duplicate accounts may be suspended or terminated.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>4. Virtual Currency & Wallet</Text>{'\n'}
+                      The App uses a virtual currency system for gameplay. Virtual currency has no real-world value and cannot be exchanged for real money, goods, or services outside the App. All purchases of virtual currency are final and non-refundable. We reserve the right to modify, suspend, or terminate the virtual currency system at any time.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>5. Game Rules & Fair Play</Text>{'\n'}
+                      All games are governed by their respective rules as displayed within the App. We employ anti-cheat measures to detect bots, collusion, and other unfair practices. Violations may result in forfeiture of winnings, suspension, or permanent account ban.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>6. Prohibited Conduct</Text>{'\n'}
+                      You agree not to: (a) exploit bugs or glitches; (b) use automated scripts or bots; (c) harass other players; (d) create multiple accounts; (e) engage in money laundering; (f) reverse-engineer the App; or (g) use the App for any illegal purpose.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>7. Intellectual Property</Text>{'\n'}
+                      All content, trademarks, logos, and software within the App are the property of Ludo Fusion or its licensors. You may not copy, modify, distribute, or create derivative works without express written permission.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>8. Limitation of Liability</Text>{'\n'}
+                      The App is provided "as is" without warranties of any kind. To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, or consequential damages arising from your use of the App.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>9. Termination</Text>{'\n'}
+                      We reserve the right to suspend or terminate your account at any time, with or without cause, including for violation of these terms. Upon termination, your right to use the App ceases immediately.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>10. Governing Law</Text>{'\n'}
+                      These terms are governed by the laws of the Federal Republic of Nigeria. Any disputes shall be resolved through binding arbitration in Lagos, Nigeria.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>11. Contact</Text>{'\n'}
+                      For questions about these terms, contact us at support@ludofusion.app.
+                    </Text>
+                  </View>
+                </View>
+              ) : activeModal === 'privacy' ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: C.textFaint, fontSize: 9, fontWeight: '600', textAlign: 'right' }}>Last updated: May 2026</Text>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', padding: 14, maxWidth: 680 }}>
+                    <Text style={{ color: C.textMuted, fontSize: 11, lineHeight: 20, fontWeight: '500' }}>
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>1. Information We Collect</Text>{'\n'}
+                      We collect information you provide directly: name, email address, username, profile photo, and communications with support. We also collect usage data: game activity, device information, IP address, and session duration.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>2. How We Use Your Information</Text>{'\n'}
+                      We use your information to operate the App, process transactions, provide customer support, improve our services, send important updates, and detect fraudulent or unauthorized activity.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>3. Payment Information</Text>{'\n'}
+                      All payment processing is handled securely by Paystack. We do not store full credit card numbers, CVV codes, or bank account details on our servers. Paystack is PCI-DSS compliant.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>4. Data Sharing</Text>{'\n'}
+                      We do not sell your personal information. We may share data with service providers who help us operate (e.g., Paystack, Supabase, hosting providers) under strict confidentiality agreements. We may disclose data if required by law.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>5. Data Retention</Text>{'\n'}
+                      We retain your account data for as long as your account is active. Upon account deletion, we delete or anonymize your data within 30 days. Transaction records are retained for 6 years for legal compliance.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>6. Your Rights</Text>{'\n'}
+                      You may access, update, or delete your personal data at any time via Settings. You may request a copy of your data by contacting support. You may opt out of marketing communications at any time.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>7. Security</Text>{'\n'}
+                      We implement industry-standard encryption (SSL/TLS) for data transmission. Account access is protected by email OTP verification. We regularly audit our systems for vulnerabilities.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>8. Cookies</Text>{'\n'}
+                      We use essential cookies for authentication and session management. We do not use third-party tracking cookies. You may disable cookies in your device settings, but this may affect App functionality.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>9. Children's Privacy</Text>{'\n'}
+                      The App is not intended for users under 18. We do not knowingly collect data from minors. If we discover a minor's data has been collected, we will delete it immediately.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>10. Changes to This Policy</Text>{'\n'}
+                      We may update this policy from time to time. Material changes will be notified via email or in-app notice. Continued use after changes constitutes acceptance.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>11. Contact</Text>{'\n'}
+                      For privacy-related inquiries, contact our Data Protection Officer at privacy@ludofusion.app.
+                    </Text>
+                  </View>
+                </View>
               ) : (
                 <Text style={{ color: C.textMuted }}>Details for {activeModal} will appear here soon.</Text>
               )}
             </ScrollView>
           </View>
+          )}
         </View>
       )}
 
@@ -719,19 +1602,25 @@ export function SettingsPanel() {
                   </View>
 
                   {showAvatarPicker && (
-                    <View style={s.avatarGrid}>
-                      {AVATAR_PRESETS.map((url, i) => (
-                        <TouchableOpacity 
-                          key={i} 
-                          onPress={() => {
-                            setEditAvatar(url);
-                            setShowAvatarPicker(false);
-                          }}
-                          style={[s.avatarThumbContainer, editAvatar === url && s.avatarThumbActive]}
-                        >
-                          <Image source={{ uri: url }} style={s.fullImg} />
-                        </TouchableOpacity>
-                      ))}
+                    <View>
+                      <ScrollView
+                        showsVerticalScrollIndicator={true}
+                        style={{ maxHeight: 114 }}
+                        contentContainerStyle={s.avatarGrid}
+                      >
+                        {AVATAR_PRESETS.map((url, i) => (
+                          <TouchableOpacity 
+                            key={i} 
+                            onPress={() => {
+                              setEditAvatar(url);
+                              setShowAvatarPicker(false);
+                            }}
+                            style={[s.avatarThumbContainer, editAvatar === url && s.avatarThumbActive]}
+                          >
+                            <Image source={{ uri: url }} style={s.fullImg} />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                     </View>
                   )}
                 </View>
@@ -1281,17 +2170,16 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
     padding: 6,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
   avatarThumbContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: '30%',
+    aspectRatio: 1,
+    borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',

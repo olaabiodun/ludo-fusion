@@ -208,6 +208,7 @@ function EnginePawn({
   TOTAL,
   diceValue,
   action,
+  onCaptureComplete,
 }: {
   pawn: PawnState;
   onPress: (id: string) => void;
@@ -223,6 +224,7 @@ function EnginePawn({
   TOTAL: number;
   diceValue: number | null;
   action: any;
+  onCaptureComplete?: (capturedPawnId: string) => void;
 }) {
   const getAbsoluteCoords = (pos: { c: number; r: number }) => ({
     x: pos.c * U + offsetX,
@@ -236,16 +238,23 @@ function EnginePawn({
   const scale = useRef(
     new Animated.Value(
       pawn.state === 'finished' ? 0.1
-        : (clusterCount || 0) >= 2 ? 0.8
-          : pawn.state === 'home' ? 2.0
-            : 1.3,
+        : (clusterCount || 0) >= 2 ? 0.9
+          : pawn.state === 'home' ? 1.6
+            : 1.2,
     ),
   ).current;
   const opacity = useRef(new Animated.Value(pawn.state === 'finished' ? 0 : 1)).current;
+  const onCaptureCompleteRef = useRef<((id: string) => void) | undefined>(undefined);
+  onCaptureCompleteRef.current = onCaptureComplete;
   const prevPawnRef = useRef(pawn);
 
   // Position & scale on cluster/offset changes
   useEffect(() => {
+    // Skip spring for transitions where effect 2 starts immediately (no long delay).
+    // Home→board has a 1200ms delay in effect 2, so spring right away for responsiveness.
+    if (prevPawnRef.current.state !== pawn.state) {
+      if (!(prevPawnRef.current.state === 'home' && pawn.state === 'board')) return;
+    }
     const targetPos = getAbsoluteCoords(
       getCellPosition(pawn.color, pawn.state, pawn.pathIndex, pawn.index),
     );
@@ -253,9 +262,9 @@ function EnginePawn({
       Animated.spring(pan, { toValue: targetPos, damping: 18, stiffness: 120, useNativeDriver: true }),
       Animated.spring(scale, {
         toValue: pawn.state === 'finished' ? 0.2
-          : (clusterCount || 0) >= 2 ? 0.8
-            : pawn.state === 'home' ? 1.5
-              : 1.05,
+          : (clusterCount || 0) >= 2 ? 0.9
+            : pawn.state === 'home' ? 1.6
+              : 1.15,
         damping: 15,
         useNativeDriver: true,
       }),
@@ -268,6 +277,10 @@ function EnginePawn({
 
     const sMult = (clusterCount || 0) >= 2 ? 0.76 : 1;
 
+    const capturingPawnId = (pawn.state === 'finished' && pawn.captureCell !== undefined && action?.msg === 'capture')
+      ? action.capturedPawnId
+      : undefined;
+
     if (pawn.pathIndex !== prev.pathIndex && pawn.state === 'board' && prev.state === 'board') {
       const path: { x: number; y: number }[] = [];
       for (let i = prev.pathIndex + 1; i <= pawn.pathIndex; i++) {
@@ -275,7 +288,10 @@ function EnginePawn({
       }
 
       const animateStep = (idx: number) => {
-        if (idx >= path.length) return;
+        if (idx >= path.length) {
+          Animated.spring(scale, { toValue: (clusterCount || 0) >= 2 ? 0.9 : 1.15, damping: 15, useNativeDriver: true }).start();
+          return;
+        }
         playMoveSound();
         const isLast = idx === path.length - 1;
         const dur = isLast ? 250 : 120;
@@ -295,7 +311,10 @@ function EnginePawn({
       }
 
       const animateStep = (idx: number) => {
-        if (idx >= path.length) return;
+        if (idx >= path.length) {
+          Animated.spring(scale, { toValue: (clusterCount || 0) >= 2 ? 0.9 : 1.15, damping: 15, useNativeDriver: true }).start();
+          return;
+        }
         playMoveSound();
         const isLast = idx === path.length - 1;
         const dur = isLast ? 250 : 120;
@@ -348,6 +367,13 @@ function EnginePawn({
       const animateStep = (idx: number) => {
         if (idx >= path.length) {
           playTokenFinishSound();
+          if (capturingPawnId) {
+            playLudoCaptureSound();
+          }
+          const capturedId = capturingPawnId;
+          if (capturedId && onCaptureCompleteRef.current) {
+            onCaptureCompleteRef.current(capturedId);
+          }
           victoryJump.start();
           return;
         }
@@ -362,31 +388,36 @@ function EnginePawn({
       };
       animateStep(0);
     } else if (pawn.state === 'home' && prev.state === 'board') {
-      const targetPos = getAbsoluteCoords(getCellPosition(pawn.color, 'home', 0, pawn.index));
-      
-      // Calculate delay based on attacker's movement time
-      // Attacker takes (diceValue - 1) * 120ms + 250ms to reach the cell
-      const isCaptured = action?.msg === 'capture';
-      const moveDelay = isCaptured ? ((diceValue || 1) * 120 + 200) : 0;
-
-      if (isCaptured) {
-        setTimeout(() => { playLudoCaptureSound(); }, moveDelay);
+      const path: { x: number; y: number }[] = [];
+      for (let i = prev.pathIndex; i >= 0; i--) {
+        path.push(getAbsoluteCoords(getCellPosition(pawn.color, 'board', i, pawn.index)));
       }
+      path.push(getAbsoluteCoords(getCellPosition(pawn.color, 'home', 0, pawn.index)));
 
-      Animated.parallel([
-        Animated.spring(pan, { 
-          toValue: targetPos, 
-          damping: 12, 
-          stiffness: 80, 
-          useNativeDriver: true,
-          delay: moveDelay
-        }),
-        Animated.sequence([
-          Animated.delay(moveDelay),
-          Animated.timing(scale, { toValue: 2.2, duration: 300, useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 1.5, duration: 300, useNativeDriver: true }),
-        ])
-      ]).start();
+      const animateStep = (idx: number) => {
+          if (idx >= path.length) {
+            Animated.spring(scale, { toValue: 1.6, damping: 15, useNativeDriver: true }).start();
+            return;
+          }
+          const isLast = idx === path.length - 1;
+          const dur = isLast ? 150 : 70;
+          Animated.timing(pan, { toValue: path[idx], duration: dur, easing: Easing.linear, useNativeDriver: true })
+            .start(() => animateStep(idx + 1));
+        };
+        animateStep(0);
+    } else if (pawn.state === 'finished' || prev.state === 'finished' || pawn.state !== prev.state) {
+      // Catch-all: snap to correct position for unhandled transitions
+      // (e.g. finished→home on rematch, board→home via skip, etc.)
+      const target = getAbsoluteCoords(
+        getCellPosition(pawn.color, pawn.state, pawn.pathIndex, pawn.index),
+      );
+      pan.setValue({ x: target.x, y: target.y });
+      scale.setValue(
+        pawn.state === 'finished' ? 0.2
+          : (clusterCount || 0) >= 2 ? 0.9
+            : pawn.state === 'home' ? 1.6
+              : 1.15,
+      );
     }
 
     prevPawnRef.current = pawn;
@@ -560,7 +591,7 @@ export function LudoBoard({
   const TOTAL = BOARD_SIZE + FRAME * 8;
 
   // ── Engine ─────────────────────────────────────────────────────────────────
-  const { state, rollDice, movePawn, getPossibleMoves, getBestMove, setState: setEngineState, nextTurn } = engine;
+  const { state, rollDice, movePawn, getPossibleMoves, getBestMove, setState: setEngineState, nextTurn, resolveCaptures } = engine;
   const dicePan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const diceScale = useRef(new Animated.Value(1)).current;
   const diceRef = useRef<any>(null);
@@ -568,8 +599,21 @@ export function LudoBoard({
   const [lastResult, setLastResult] = React.useState(1);
   const turnIdRef = useRef(state.turnId);
   const hasRolledRef = useRef(state.hasRolled);
+  const getBestMoveRef = useRef(getBestMove);
+  const movePawnRef = useRef(movePawn);
+  const nextTurnRef = useRef(nextTurn);
+  const stateRef = useRef(state);
+  const resolveCapturesRef = useRef(resolveCaptures);
 
-  useEffect(() => { turnIdRef.current = state.turnId; hasRolledRef.current = state.hasRolled; }, [state.turnId, state.hasRolled]);
+  useEffect(() => {
+    turnIdRef.current = state.turnId;
+    hasRolledRef.current = state.hasRolled;
+    getBestMoveRef.current = getBestMove;
+    movePawnRef.current = movePawn;
+    nextTurnRef.current = nextTurn;
+    stateRef.current = state;
+    resolveCapturesRef.current = resolveCaptures;
+  }, [state, getBestMove, movePawn, nextTurn, resolveCaptures]);
 
   // Remember last result for display
   useEffect(() => {
@@ -609,8 +653,8 @@ export function LudoBoard({
 
     if (isBot && !state.hasRolled && !state.diceValue) {
       const t = setTimeout(() => {
-        // Re-check state is still the same turn before acting
-        if (state.turnId === currentTurnId && state.turnIndex === currentTurnIndex) {
+        const s = stateRef.current;
+        if (s.turnId === currentTurnId && s.turnIndex === currentTurnIndex) {
           diceRef.current?.roll();
         }
       }, 1200);
@@ -619,24 +663,25 @@ export function LudoBoard({
 
     if (isBot && state.hasRolled && state.diceValue) {
       const t = setTimeout(() => {
-        if (state.turnId === currentTurnId && state.turnIndex === currentTurnIndex) {
-          const bestPawnId = getBestMove(state.diceValue!);
-          if (bestPawnId) {
-            // Snapshot turnId before moving
-            const turnIdBefore = state.turnId;
-            movePawn(bestPawnId);
-            // If after a short delay the turnId hasn't changed, movePawn was rejected
-            // (e.g. blockade, capture rule mismatch). Force next turn to unblock.
-            setTimeout(() => {
-              if (turnIdRef.current === turnIdBefore && hasRolledRef.current) {
-                // Still stuck — pass the turn
-                nextTurn(turnIdBefore);
-              }
-            }, 600);
-          } else {
-            // No valid move at all — pass the turn immediately
-            nextTurn(currentTurnId);
-          }
+        const s = stateRef.current;
+        const gbm = getBestMoveRef.current;
+        const mp = movePawnRef.current;
+        const nt = nextTurnRef.current;
+        if (s.turnId !== currentTurnId || s.turnIndex !== currentTurnIndex) return;
+
+        const bestPawnId = gbm(s.diceValue!);
+        if (bestPawnId) {
+          const turnIdBefore = s.turnId;
+          mp(bestPawnId);
+          setTimeout(() => {
+            if (turnIdRef.current === turnIdBefore && hasRolledRef.current) {
+              nextTurnRef.current(turnIdBefore);
+            }
+          }, 600);
+        } else if (s.diceValue !== 6) {
+          // Non-6 with no valid moves → pass the turn.
+          // If it's a 6, the engine auto-resets for an extra roll (line 232-241).
+          nt(currentTurnId);
         }
       }, 1000);
       return () => clearTimeout(t);
@@ -873,6 +918,7 @@ export function LudoBoard({
                         TOTAL={TOTAL}
                         diceValue={state.diceValue}
                         action={state.action}
+                        onCaptureComplete={(capturedPawnId) => resolveCaptures([capturedPawnId])}
                       />
                     );
                   });

@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 // ─── Landscape dimensions ─────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -69,6 +70,7 @@ export interface ResultPlayer {
   captures: number;
   score?: number; // Whot score
   isBot?: boolean;
+  eliminated?: boolean;
 }
 
 export interface GameResultScreenProps {
@@ -286,6 +288,8 @@ function PlayerRow({
   const tokensOut = 4 - p.tokensHome;
   const rankCol = RANK_COLOR[p.rank] ?? C.faint;
   const isFirst = p.rank === 1;
+  const isEliminated = p.eliminated || p.lives === 0;
+  const gamblingEnabled = useGamblingEnabled();
 
   useEffect(() => {
     const intro = Animated.parallel([
@@ -296,12 +300,12 @@ function PlayerRow({
         easing: Easing.out(Easing.back(1.3)),
         useNativeDriver: true,
       }),
-      Animated.timing(opacity, { toValue: 1, duration: 380, delay, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: isEliminated ? 0.5 : 1, duration: 380, delay, useNativeDriver: true }),
     ]);
     intro.start();
 
     let shimmerAnim: Animated.CompositeAnimation | null = null;
-    if (isFirst) {
+    if (isFirst && !isEliminated) {
       shimmerAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(shimmer, {
@@ -327,16 +331,20 @@ function PlayerRow({
     };
   }, []);
 
-  const rowBg = isFirst
+  const rowBg = isFirst && !isEliminated
     ? 'rgba(212,175,55,0.1)'
     : p.isLocal
     ? `${col}14`
+    : isEliminated
+    ? 'rgba(80,20,20,0.12)'
     : C.glass;
 
-  const rowBorderCol = isFirst
+  const rowBorderCol = isFirst && !isEliminated
     ? 'rgba(212,175,55,0.35)'
     : p.isLocal
     ? `${col}44`
+    : isEliminated
+    ? 'rgba(200,60,60,0.2)'
     : C.glassBorder;
 
   return (
@@ -405,6 +413,11 @@ function PlayerRow({
               <Text style={[st.youTagTxt, { color: 'rgba(255,255,255,0.5)' }]}>AI</Text>
             </View>
           )}
+          {isEliminated && (
+            <View style={[st.youTag, { borderColor: 'rgba(232,96,106,0.5)', backgroundColor: 'rgba(232,96,106,0.15)' }]}>
+              <Text style={[st.youTagTxt, { color: '#E8606A', fontSize: 5.5 }]}>ELIMINATED</Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>
           <View style={[st.colorDot, { backgroundColor: col }]} />
@@ -462,8 +475,10 @@ function PlayerRow({
       {/* Captures / Status */}
       {!isSnake && (
         <View style={[st.statCell, { alignItems: 'center' }]}>
-          <Text style={st.statVal}>{isWhot ? (p.score === 0 ? 'WIN' : 'OUT') : p.captures}</Text>
-          <Text style={st.rowSub}>{isWhot ? 'status' : 'cap.'}</Text>
+          <Text style={[st.statVal, isEliminated && !isWhot && { color: C.lose, fontSize: 7.5 }]}>
+            {isWhot ? (p.score === 0 ? 'WIN' : 'OUT') : isEliminated ? 'ELIM' : p.captures}
+          </Text>
+          <Text style={st.rowSub}>{isWhot ? 'status' : isEliminated ? '' : 'cap.'}</Text>
         </View>
       )}
 
@@ -471,7 +486,7 @@ function PlayerRow({
       <View style={[st.statCell, { alignItems: 'flex-end' }]}>
         {p.prize > 0 && !isBotGame ? (
           <>
-            <Text style={st.prizeVal}>+₦{(p.prize / 1000).toFixed(1)}k</Text>
+            <Text style={st.prizeVal}>+{gamblingEnabled ? '₦' : ''}{(p.prize / 1000).toFixed(1)}k</Text>
             <Text style={st.rowSub}>prize</Text>
           </>
         ) : (
@@ -547,6 +562,7 @@ export function GameResultScreen({
   onShare,
 }: GameResultScreenProps) {
   const sorted = useMemo(() => [...players].sort((a, b) => a.rank - b.rank), [players]);
+  const gamblingEnabled = useGamblingEnabled();
   const local = sorted.find(p => p.isLocal);
   const isWin = local?.rank === 1;
   const winner = sorted[0];
@@ -697,13 +713,13 @@ export function GameResultScreen({
           {!isBotGame && (
             <MetaPill
               icon="trophy-outline"
-              value={`₦${(totalPrize / 1000).toFixed(0)}k`}
+              value={`${gamblingEnabled ? '₦' : ''}${(totalPrize / 1000).toFixed(0)}k`}
               accent={C.gold}
               animated
               value2={totalPrize}
               divisor={1000}
               suffix="k"
-              prefix="₦"
+              prefix={gamblingEnabled ? '₦' : ''}
               duration={1800}
             />
           )}
@@ -804,7 +820,7 @@ export function GameResultScreen({
               <Text style={st.yourName}>{local?.name ?? '—'}</Text>
               {!isBotGame && (
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2 }}>
-                  <Text style={[st.yourPrizeCur, { color: isWin ? C.win : C.faint }]}>₦</Text>
+                  <Text style={[st.yourPrizeCur, { color: isWin ? C.win : C.faint }]}>{gamblingEnabled ? '₦' : ''}</Text>
                   <AnimatedNumber
                     value={localPrize}
                     duration={2200}
@@ -849,7 +865,7 @@ export function GameResultScreen({
               <StatCell
                 icon="trophy-variant-outline"
                 label={isBotGame ? 'Match' : 'Pot'}
-                value={isBotGame ? 'Practice' : `₦${(totalPrize / 1000).toFixed(0)}k`}
+                value={isBotGame ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${(totalPrize / 1000).toFixed(0)}k`}
                 accent={isBotGame ? C.faint : C.gold}
                 delay={1200}
               />

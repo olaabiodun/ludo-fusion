@@ -1,11 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -61,7 +61,7 @@ function Panel({
   if (!visible) return null;
 
   return (
-    <Modal transparent animationType="none" visible={visible} onRequestClose={onClose}>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 9999 }]}>
       <Pressable style={ps.backdrop} onPress={onClose}>
         <Animated.View
           style={[ps.panel, { opacity, transform: [{ translateY: slideY }] }]}
@@ -85,12 +85,12 @@ function Panel({
           {children}
         </Animated.View>
       </Pressable>
-    </Modal>
+    </View>
   );
 }
 
 const ps = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 9999 },
   panel: {
     position: 'absolute',
     top: 52,
@@ -134,17 +134,7 @@ const ps = StyleSheet.create({
 
 // ── GIFT / DAILY REWARD PANEL ─────────────────────────────────────────────────
 
-const REWARDS = [
-  { day: 1, label: '₦50',    icon: 'cash',          color: SUCCESS,  claimed: true  },
-  { day: 2, label: '₦100',   icon: 'cash-multiple',  color: SUCCESS,  claimed: true  },
-  { day: 3, label: 'XP ×2',  icon: 'star-shooting',  color: '#A78BFA',claimed: true  },
-  { day: 4, label: '₦200',   icon: 'cash',           color: GOLD,     claimed: false, today: true },
-  { day: 5, label: '₦300',   icon: 'cash-multiple',  color: GOLD,     claimed: false },
-  { day: 6, label: 'XP ×3',  icon: 'star-shooting',  color: '#A78BFA',claimed: false },
-  { day: 7, label: '₦1,000', icon: 'trophy',         color: GOLD,     claimed: false },
-];
-
-function RewardDay({ r, index }: { r: typeof REWARDS[0]; index: number }) {
+function RewardDay({ r, index }: { r: any; index: number }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, delay: index * 50, damping: 14, stiffness: 200, useNativeDriver: true }).start();
@@ -228,169 +218,108 @@ const gps = StyleSheet.create({
 });
 
 export function GiftPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [rewards, setRewards] = useState<any[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [claiming, setClaiming] = useState(false);
+
+  const fetchRewards = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch reward definitions
+      const { data: defs } = await supabase.from('daily_rewards').select('*').order('day_number', { ascending: true });
+      // Fetch user claims
+      const { data: claims } = await supabase.from('user_daily_claims').select('day_number').eq('user_id', user.id);
+      // Fetch user streak
+      const { data: profile } = await supabase.from('profiles').select('streak').eq('id', user.id).single();
+
+      if (defs) {
+        const claimSet = new Set(claims?.map(c => c.day_number));
+        const lastClaimed = Math.max(0, ...Array.from(claimSet));
+        const nextToClaim = lastClaimed + 1;
+
+        const mapped = defs.map(d => ({
+          day: d.day_number,
+          label: d.label,
+          icon: d.icon,
+          color: d.color,
+          claimed: claimSet.has(d.day_number),
+          today: d.day_number === nextToClaim
+        }));
+        setRewards(mapped);
+      }
+      if (profile) setStreak(profile.streak || 0);
+    } catch (err) {
+      console.error('Error fetching rewards:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) fetchRewards();
+  }, [visible]);
+
+  const handleClaim = async () => {
+    const todayReward = rewards.find(r => r.today);
+    if (!todayReward || claiming) return;
+
+    setClaiming(true);
+    try {
+      const { data, error } = await supabase.rpc('claim_daily_reward', { p_day: todayReward.day });
+      if (error) throw error;
+      
+      // Refresh
+      await fetchRewards();
+      alert(`Success! Claimed ${todayReward.label}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to claim reward');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const todayReward = rewards.find(r => r.today);
+
   return (
     <Panel visible={visible} onClose={onClose} title="Daily Rewards" icon="gift-outline">
       <ScrollView style={{ maxHeight: 390 }} contentContainerStyle={gps.body} showsVerticalScrollIndicator={false}>
         <View style={gps.streakRow}>
           <MaterialCommunityIcons name="fire" size={20} color={GOLD} />
           <Text style={gps.streakText}>Login streak — keep it going!</Text>
-          <Text style={gps.streakVal}>3🔥</Text>
+          <Text style={gps.streakVal}>{streak}🔥</Text>
         </View>
         <View style={gps.grid}>
-          {REWARDS.map((r, i) => <RewardDay key={r.day} r={r} index={i} />)}
+          {loading ? (
+            <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', width: '100%', marginVertical: 20 }}>Loading rewards...</Text>
+          ) : (
+            rewards.map((r, i) => <RewardDay key={r.day} r={r} index={i} />)
+          )}
         </View>
-        <TouchableOpacity style={gps.claimBtn} activeOpacity={0.8}>
-          <Text style={gps.claimBtnText}>CLAIM DAY 4 REWARD</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </Panel>
-  );
-}
-
-// ── LEADERBOARD PANEL ─────────────────────────────────────────────────────────
-
-const LEADERS = [
-  { rank: 1, name: 'AbujaBoss',   earnings: '₦84,200', winRate: '91%', badge: '🥇' },
-  { rank: 2, name: 'FujiQueen',   earnings: '₦61,500', winRate: '88%', badge: '🥈' },
-  { rank: 3, name: 'DiceSlayer',  earnings: '₦49,800', winRate: '82%', badge: '🥉' },
-  { rank: 4, name: 'LagosKing',   earnings: '₦38,100', winRate: '77%', badge: null },
-  { rank: 5, name: 'ZikoRoyal',   earnings: '₦27,400', winRate: '73%', badge: null },
-  { rank: 6, name: 'CardEze',     earnings: '₦19,900', winRate: '69%', badge: null },
-  { rank: 7, name: 'KingObi',     earnings: '₦14,200', winRate: '65%', badge: null },
-];
-
-function LeaderRow({ p, index }: { p: typeof LEADERS[0]; index: number }) {
-  const x = useRef(new Animated.Value(-20)).current;
-  const op = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(x, { toValue: 0, delay: index * 60, damping: 16, stiffness: 180, useNativeDriver: true }),
-      Animated.timing(op, { toValue: 1, delay: index * 60, duration: 250, useNativeDriver: true }),
-    ]).start();
-  }, []);
-
-  const isTop3 = p.rank <= 3;
-  return (
-    <Animated.View style={[lps.row, isTop3 && lps.rowTop, { opacity: op, transform: [{ translateX: x }] }]}>
-      <Text style={lps.rankBadge}>{p.badge || `#${p.rank}`}</Text>
-      <View style={[lps.avatar, isTop3 && { borderColor: GOLD }]}>
-        <Text style={lps.avatarText}>{p.name.substring(0, 2).toUpperCase()}</Text>
-      </View>
-      <Text style={[lps.name, isTop3 && { color: TEXT }]} numberOfLines={1}>{p.name}</Text>
-      <View style={lps.meta}>
-        <Text style={[lps.earnings, { color: isTop3 ? GOLD : MUTED }]}>{p.earnings}</Text>
-        <Text style={lps.winRate}>{p.winRate} WR</Text>
-      </View>
-    </Animated.View>
-  );
-}
-
-const lps = StyleSheet.create({
-  tabs: {
-    flexDirection: 'row',
-    gap: 6,
-    padding: 12,
-    paddingBottom: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: DIVIDER,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignItems: 'center',
-  },
-  tabActive: { backgroundColor: GOLD_SOFT, borderColor: GOLD_BORDER },
-  tabText: { color: MUTED, fontSize: 10, fontWeight: '700' },
-  tabTextActive: { color: GOLD },
-  list: { paddingHorizontal: 12, paddingBottom: 12, gap: 6 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: DIVIDER,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  rowTop: { backgroundColor: GOLD_SOFT, borderColor: GOLD_BORDER },
-  rankBadge: { fontSize: 14, width: 24, textAlign: 'center' },
-  avatar: {
-    width: 28, height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(212,175,55,0.1)',
-    borderWidth: 1,
-    borderColor: GOLD_BORDER,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: GOLD, fontSize: 9, fontWeight: '900' },
-  name: { flex: 1, color: MUTED, fontSize: 11, fontWeight: '700' },
-  meta: { alignItems: 'flex-end', gap: 1 },
-  earnings: { fontSize: 11, fontWeight: '800' },
-  winRate: { color: FAINT, fontSize: 8, fontWeight: '600' },
-  youRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    margin: 12,
-    marginTop: 0,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(87,208,139,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(87,208,139,0.25)',
-  },
-  youLabel: { color: SUCCESS, fontSize: 10, fontWeight: '900', flex: 1 },
-  youRank: { color: SUCCESS, fontSize: 14, fontWeight: '900' },
-});
-
-export function LeaderboardPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const [tab, setTab] = React.useState<'weekly' | 'alltime'>('weekly');
-  return (
-    <Panel visible={visible} onClose={onClose} title="Leaderboard" icon="trophy-outline" accentColor={GOLD}>
-      <View style={lps.tabs}>
-        {(['weekly', 'alltime'] as const).map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[lps.tab, tab === t && lps.tabActive]}
-            onPress={() => setTab(t)}
+        {todayReward && (
+          <TouchableOpacity 
+            style={[gps.claimBtn, claiming && { opacity: 0.6 }]} 
+            onPress={handleClaim}
+            disabled={claiming}
             activeOpacity={0.8}
           >
-            <Text style={[lps.tabText, tab === t && lps.tabTextActive]}>
-              {t === 'weekly' ? '🗓 This Week' : '🏆 All-Time'}
-            </Text>
+            <Text style={gps.claimBtnText}>{claiming ? 'CLAIMING...' : `CLAIM DAY ${todayReward.day} REWARD`}</Text>
           </TouchableOpacity>
-        ))}
-      </View>
-      <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={lps.list} showsVerticalScrollIndicator={false}>
-        {LEADERS.map((p, i) => <LeaderRow key={p.rank} p={p} index={i} />)}
+        )}
       </ScrollView>
-      <View style={lps.youRow}>
-        <MaterialCommunityIcons name="account-circle-outline" size={16} color={SUCCESS} />
-        <Text style={lps.youLabel}>Your position</Text>
-        <Text style={lps.youRank}>#42</Text>
-      </View>
     </Panel>
   );
 }
+
 
 // ── MISSIONS PANEL ────────────────────────────────────────────────────────────
 
-const MISSIONS = [
-  { id: 1, title: 'Win 3 Ludo games',      reward: '₦150',  xp: 120, progress: 2, total: 3,  icon: 'dice-5',           color: GOLD    },
-  { id: 2, title: 'Play 5 Whot rounds',    reward: '₦100',  xp: 80,  progress: 5, total: 5,  icon: 'cards-playing-outline', color: DANGER },
-  { id: 3, title: 'Top the leaderboard',   reward: '₦500',  xp: 300, progress: 0, total: 1,  icon: 'podium',           color: GOLD    },
-  { id: 4, title: 'Invite a friend',        reward: '₦200',  xp: 150, progress: 0, total: 1,  icon: 'account-plus',     color: SUCCESS },
-  { id: 5, title: 'Win a ₦500 stake game', reward: '₦250',  xp: 200, progress: 1, total: 1,  icon: 'cash',             color: SUCCESS },
-];
-
-function MissionRow({ m, index }: { m: typeof MISSIONS[0]; index: number }) {
-  const pct = Math.min(1, m.progress / m.total);
-  const done = pct >= 1;
+function MissionRow({ m, index, onClaim, claiming }: { m: any; index: number; onClaim: () => void; claiming: boolean }) {
+  const pct = Math.min(1, m.progress / m.target);
+  const done = m.is_claimed;
+  const canClaim = m.progress >= m.target && !m.is_claimed;
   const barWidth = useRef(new Animated.Value(0)).current;
   const op = useRef(new Animated.Value(0)).current;
 
@@ -399,7 +328,7 @@ function MissionRow({ m, index }: { m: typeof MISSIONS[0]; index: number }) {
       Animated.timing(op, { toValue: 1, delay: index * 70, duration: 250, useNativeDriver: true }),
       Animated.timing(barWidth, { toValue: pct, delay: index * 70 + 200, duration: 500, useNativeDriver: false }),
     ]).start();
-  }, []);
+  }, [pct]);
 
   return (
     <Animated.View style={[mps.row, done && mps.rowDone, { opacity: op }]}>
@@ -417,17 +346,31 @@ function MissionRow({ m, index }: { m: typeof MISSIONS[0]; index: number }) {
             backgroundColor: done ? SUCCESS : m.color,
           }]} />
         </View>
-        <Text style={mps.progress}>{m.progress}/{m.total} · {m.xp} XP</Text>
+        <Text style={mps.progress}>{m.progress}/{m.target} · {m.xp_reward} XP</Text>
       </View>
-      <View style={[mps.reward, done && { backgroundColor: 'rgba(87,208,139,0.12)', borderColor: 'rgba(87,208,139,0.3)' }]}>
-        <Text style={[mps.rewardText, done && { color: SUCCESS }]}>{done ? 'DONE' : m.reward}</Text>
-      </View>
+      <TouchableOpacity 
+        onPress={onClaim}
+        disabled={!canClaim || claiming}
+        style={[
+          mps.reward, 
+          done && { backgroundColor: 'rgba(87,208,139,0.12)', borderColor: 'rgba(87,208,139,0.3)' },
+          canClaim && { backgroundColor: GOLD, borderColor: GOLD }
+        ]}
+      >
+        <Text style={[
+          mps.rewardText, 
+          done && { color: SUCCESS },
+          canClaim && { color: '#000' }
+        ]}>
+          {claiming ? '...' : (done ? 'DONE' : (canClaim ? 'CLAIM' : `₦${m.reward}`))}
+        </Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
 
 const mps = StyleSheet.create({
-  body: { padding: 12, paddingTop: 8, gap: 8 },
+  body: { padding: 12, paddingTop: 8, gap: 8, height: '63%' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,17 +431,79 @@ const mps = StyleSheet.create({
 });
 
 export function MissionsPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [missions, setMissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+
+  const fetchMissions = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: allMissions } = await supabase.from('missions').select('*');
+      const { data: userMissions } = await supabase.from('user_missions').select('*').eq('user_id', user.id);
+
+      if (allMissions) {
+        const userMap = new Map(userMissions?.map(um => [um.mission_id, um]));
+        const mapped = allMissions.map(m => {
+          const um = userMap.get(m.id);
+          return {
+            ...m,
+            progress: um?.progress || 0,
+            is_claimed: um?.is_claimed || false,
+          };
+        });
+        setMissions(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching missions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) fetchMissions();
+  }, [visible]);
+
+  const handleClaim = async (missionId: string) => {
+    if (claimingId) return;
+    setClaimingId(missionId);
+    try {
+      const { data, error } = await supabase.rpc('claim_mission_reward', { p_mission_id: missionId });
+      if (error) throw error;
+      await fetchMissions();
+      alert(`Claimed reward! +${data.reward} Coins, +${data.xp} XP`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to claim mission reward');
+    } finally {
+      setClaimingId(null);
+    }
+  };
+
   return (
     <Panel visible={visible} onClose={onClose} title="Missions" icon="clipboard-text-outline" accentColor="#A78BFA">
       <ScrollView style={{ maxHeight: 390 }} contentContainerStyle={mps.body} showsVerticalScrollIndicator={false}>
         <View style={mps.header}>
           <Text style={mps.headerSub}>Daily · resets midnight</Text>
-          <TouchableOpacity style={mps.refreshBtn} activeOpacity={0.8}>
+          <TouchableOpacity style={mps.refreshBtn} onPress={fetchMissions} activeOpacity={0.8}>
             <MaterialCommunityIcons name="refresh" size={10} color={GOLD} />
             <Text style={mps.refreshText}>REFRESH</Text>
           </TouchableOpacity>
         </View>
-        {MISSIONS.map((m, i) => <MissionRow key={m.id} m={m} index={i} />)}
+        {loading ? (
+          <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', marginVertical: 20 }}>Loading missions...</Text>
+        ) : (
+          missions.map((m, i) => (
+            <MissionRow 
+              key={m.id} 
+              m={m} 
+              index={i} 
+              onClaim={() => handleClaim(m.id)}
+              claiming={claimingId === m.id}
+            />
+          ))
+        )}
       </ScrollView>
     </Panel>
   );

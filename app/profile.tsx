@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
   BackHandler,
+  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -162,7 +163,11 @@ export default function ProfileScreen() {
               <View style={styles.identityRow}>
                 <View style={styles.avatarShell}>
                   <View style={styles.avatarCore}>
-                    <MaterialCommunityIcons name="account" size={54} color="#f5c535" />
+                    {profile?.avatar_url ? (
+                      <Image source={{ uri: profile.avatar_url }} style={{ width: 72, height: 72, borderRadius: 36 }} />
+                    ) : (
+                      <MaterialCommunityIcons name="account" size={54} color="#f5c535" />
+                    )}
                   </View>
                   <View style={styles.crownBadge}>
                     <MaterialCommunityIcons name="crown" size={18} color="#161105" />
@@ -244,7 +249,7 @@ export default function ProfileScreen() {
                         />
                       </View>
                       <View>
-                        <Text style={styles.matchTitle}>{match.game_type === 'ludo' ? 'Ludo Royale' : 'Whot Classic'}</Text>
+                        <Text style={styles.matchTitle}>{match.game_type === 'ludo' ? 'Ludo Fusion' : 'Whot Classic'}</Text>
                         <Text style={styles.matchTime}>{getTimeAgo(match.created_at)}</Text>
                       </View>
                     </View>

@@ -8,7 +8,7 @@ import {
   ImageBackground,
   Pressable,
 } from 'react-native';
-import { animated, useSpring, useSprings, config } from '@react-spring/native';
+import { animated, useSpring, config } from '@react-spring/native';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WhotFrontCard } from './WhotFrontCard';
@@ -34,9 +34,15 @@ interface ScoringSystemProps {
 }
 
 const calculateCardValue = (card: Card): number => {
+  if (!card || !card.shape) return 0;
   if (card.shape === 'whot') return 20;
-  const val = typeof card.value === 'number' ? card.value : parseInt(card.value as string) || 0;
-  return val;
+  const v = card.value;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = parseInt(v, 10);
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
 };
 
 const RANK_META = [
@@ -47,9 +53,9 @@ const RANK_META = [
 ];
 
 const PlayerRow = ({
-  player, scoreAnim, rank, delay, isSelected, onPress,
+  player, score, rank, delay, isSelected, onPress,
 }: {
-  player: Player; scoreAnim: any; rank: number; delay: number;
+  player: Player; score: number; rank: number; delay: number;
   isSelected: boolean; onPress: () => void;
 }) => {
   const meta = RANK_META[rank] ?? RANK_META[3];
@@ -105,9 +111,9 @@ const PlayerRow = ({
             )}
           </View>
 
-          <animated.Text style={{ color: meta.color, fontSize: rs(13), fontWeight: '900' }}>
-            {scoreAnim.to((n: number) => Math.round(n)) as any}
-          </animated.Text>
+          <Text style={{ color: meta.color, fontSize: rs(13), fontWeight: '900' }}>
+            {score}
+          </Text>
         </View>
       </Pressable>
     </animated.View>
@@ -173,18 +179,8 @@ export const WhotScoringSystem = React.memo(
     const isCountingRef = React.useRef(false);
 
     const [progressMap, setProgressMap] = React.useState<number[]>([]);
-    React.useEffect(() => {
-      if (!visible) {
-        setProgressMap(new Array(players.length).fill(0));
-      }
-    }, [players.length, visible]);
-
     const [countingFinished, setCountingFinished] = React.useState(false);
-
-    const [scoreSprings, api] = useSprings(players.length, () => ({
-      val: 0,
-      config: { mass: 1, tension: 120, friction: 14 }
-    }), [players.length]);
+    const [runningScores, setRunningScores] = React.useState<number[]>([]);
 
     const overlay = useSpring({
       opacity: visible ? 1 : 0,
@@ -203,61 +199,89 @@ export const WhotScoringSystem = React.memo(
       config: { tension: 430, friction: 14 },
     });
 
+    // Rank order indices: winner (score 0 / 0 cards) first, then ascending score
+    const sortedIndices = React.useMemo(() =>
+      players
+        .map((_, i) => i)
+        .sort((a, b) => {
+          const aCards = players[a].cards.length;
+          const bCards = players[b].cards.length;
+          if (aCards === 0 && bCards > 0) return -1;
+          if (bCards === 0 && aCards > 0) return 1;
+          const aScore = calculateScore(players[a].cards);
+          const bScore = calculateScore(players[b].cards);
+          return aScore - bScore;
+        }),
+      [players]
+    );
+
     React.useEffect(() => {
-      if (visible && !countingFinished) {
-        let playerIdx = 0;
-        
-        const startCountingPlayer = (pIdx: number) => {
-          if (!visible) return;
-          if (pIdx >= players.length) {
-            setCountingFinished(true);
-            isCountingRef.current = false;
-            return;
-          }
-          
-          setSelectedIdx(pIdx);
-          const p = players[pIdx];
-          
-          if (!p || p.cards.length === 0) {
-            api.start(i => i === pIdx ? { val: 0 } : {});
-            startCountingPlayer(pIdx + 1);
-            return;
-          }
+      if (!visible || countingFinished) return;
 
-          let cardIdx = 0;
-          let runningScore = 0;
-          
-          cardIntervalRef.current = setInterval(() => {
-            if (cardIdx < p.cards.length) {
-              const val = calculateCardValue(p.cards[cardIdx]);
-              runningScore += val;
-              cardIdx += 1;
-              
-              setProgressMap(prev => {
-                const next = [...prev];
-                next[pIdx] = cardIdx;
-                return next;
-              });
+      const timeoutRef: { current: any } = { current: null };
+      const order = sortedIndices;
+      let step = 0;
 
-              api.start(i => i === pIdx ? { val: runningScore } : {});
-
-            } else {
-              if (cardIntervalRef.current) clearInterval(cardIntervalRef.current);
-              setTimeout(() => startCountingPlayer(pIdx + 1), 700);
-            }
-          }, 220);
-        };
-
-        if (!isCountingRef.current) {
-          isCountingRef.current = true;
-          startCountingPlayer(0);
+      const startCountingPlayer = () => {
+        if (step >= order.length) {
+          setCountingFinished(true);
+          isCountingRef.current = false;
+          return;
         }
+
+        const pIdx = order[step];
+        setSelectedIdx(pIdx);
+        const p = players[pIdx];
+
+        if (!p || p.cards.length === 0) {
+          setRunningScores(prev => {
+            const next = [...prev];
+            next[pIdx] = 0;
+            return next;
+          });
+          step += 1;
+          timeoutRef.current = setTimeout(() => startCountingPlayer(), 400);
+          return;
+        }
+
+        let cardIdx = 0;
+        let score = 0;
+
+        cardIntervalRef.current = setInterval(() => {
+          if (cardIdx < p.cards.length) {
+            const val = calculateCardValue(p.cards[cardIdx]);
+            score += val;
+            cardIdx += 1;
+
+            setProgressMap(prev => {
+              const next = [...prev];
+              next[pIdx] = cardIdx;
+              return next;
+            });
+
+            setRunningScores(prev => {
+              const next = [...prev];
+              next[pIdx] = score;
+              return next;
+            });
+          } else {
+            if (cardIntervalRef.current) clearInterval(cardIntervalRef.current);
+            step += 1;
+            timeoutRef.current = setTimeout(() => startCountingPlayer(), 600);
+          }
+        }, 220);
+      };
+
+      if (!isCountingRef.current) {
+        isCountingRef.current = true;
+        startCountingPlayer();
       }
 
       return () => {
         if (cardIntervalRef.current) clearInterval(cardIntervalRef.current);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
       };
-    }, [visible, countingFinished, players, api]);
+    }, [visible, countingFinished, players, sortedIndices]);
 
     React.useEffect(() => {
       if (countingFinished && visible) {
@@ -273,10 +297,10 @@ export const WhotScoringSystem = React.memo(
         setCountingFinished(false);
         isCountingRef.current = false;
         setProgressMap(new Array(players.length).fill(0));
-        api.start({ val: 0, immediate: true });
+        setRunningScores(new Array(players.length).fill(0));
         setSelectedIdx(0);
       }
-    }, [visible, players.length, api]);
+    }, [visible, players.length]);
 
     if (!visible) return null;
 
@@ -291,7 +315,7 @@ export const WhotScoringSystem = React.memo(
           originalIdx: i,
         }))
         .sort((a, b) => a.score - b.score),
-      [] 
+      [players]
     );
 
     const active = players[selectedIdx];
@@ -345,11 +369,11 @@ export const WhotScoringSystem = React.memo(
                   LEADERBOARD
                 </Text>
                 <ScrollView showsVerticalScrollIndicator={false}>
-                  {sorted.map(({ player, originalIdx }, rank) => (
+                  {sorted.map(({ player, originalIdx, score }, rank) => (
                     <PlayerRow
                       key={player.name}
                       player={player} 
-                      scoreAnim={scoreSprings[originalIdx].val} 
+                      score={runningScores[originalIdx] !== undefined ? runningScores[originalIdx] : score}
                       rank={rank}
                       delay={rank * 65}
                       isSelected={selectedIdx === originalIdx}
@@ -424,9 +448,9 @@ export const WhotScoringSystem = React.memo(
                       borderRadius: rs(9), paddingHorizontal: rs(9), paddingVertical: rs(3),
                       alignItems: 'center',
                     }}>
-                      <animated.Text style={{ color: '#FFD030', fontSize: rs(18), fontWeight: '900', lineHeight: rs(20) }}>
-                        {scoreSprings[selectedIdx].val.to(n => Math.round(n)) as any}
-                      </animated.Text>
+                      <Text style={{ color: '#FFD030', fontSize: rs(18), fontWeight: '900', lineHeight: rs(20) }}>
+                        {runningScores[selectedIdx] ?? 0}
+                      </Text>
                       <Text style={{ color: 'rgba(255,255,255,0.22)', fontSize: rs(6), fontWeight: '700', letterSpacing: 1.2 }}>
                         PTS
                       </Text>

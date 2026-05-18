@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -49,6 +50,7 @@ type LeaderboardPlayer = {
   badge?: string;
   badgeIcon?: IconName;
   rankColor?: string;
+  avatar_url?: string;
 };
 
 // Map ranks to podium color
@@ -95,9 +97,15 @@ function PlayerRow({
       <Pressable style={({ pressed }) => [s.row, pressed && s.rowPressed]} onPress={onPress}>
         <Text style={[s.rowRank, isTop && s.rowRankTop]}>{player.rank}</Text>
 
-        <LinearGradient colors={['#163D27', '#071510']} style={s.rowAvatar}>
-          <Text style={s.rowAvatarText}>{player.initials}</Text>
-        </LinearGradient>
+        <View style={{ width: 30, height: 30, borderRadius: 15, overflow: 'hidden' }}>
+          {player.avatar_url ? (
+            <Image source={{ uri: player.avatar_url }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <LinearGradient colors={['#163D27', '#071510']} style={s.rowAvatar}>
+              <Text style={s.rowAvatarText}>{player.initials}</Text>
+            </LinearGradient>
+          )}
+        </View>
 
         <View style={s.rowInfo}>
           <Text style={s.rowName}>{player.name}</Text>
@@ -176,17 +184,25 @@ function PodiumSlot({
               borderRadius: avatarSize / 2,
               borderColor,
               borderWidth: isFirst ? 2.5 : 1.5,
+              overflow: 'hidden',
+              backgroundColor: '#071510',
             },
           ]}
         >
-          <LinearGradient
-            colors={isFirst ? ['#1E5A39', '#0A2318'] : ['#163D27', '#071510']}
-            style={StyleSheet.absoluteFill}
-            borderRadius={avatarSize / 2}
-          />
-          <Text style={[s.podiumAvatarText, { fontSize: isFirst ? 18 : 14 }]}>
-            {player.initials}
-          </Text>
+          {player.avatar_url ? (
+            <Image source={{ uri: player.avatar_url }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <>
+              <LinearGradient
+                colors={isFirst ? ['#1E5A39', '#0A2318'] : ['#163D27', '#071510']}
+                style={StyleSheet.absoluteFill}
+                borderRadius={avatarSize / 2}
+              />
+              <Text style={[s.podiumAvatarText, { fontSize: isFirst ? 18 : 14 }]}>
+                {player.initials}
+              </Text>
+            </>
+          )}
           <View style={[s.rankBadge, { backgroundColor: player.rankColor }]}>
             <Text style={s.rankBadgeText}>{player.rank}</Text>
           </View>
@@ -301,7 +317,7 @@ export function LeaderboardPanel() {
         setPlayers([]);
       } else {
         // Leaderboard logic
-        let query = supabase.from('profiles').select('id, username, full_name, xp').order('xp', { ascending: false });
+        let query = supabase.from('profiles').select('id, username, full_name, avatar_url, xp').order('xp', { ascending: false });
         
         if (activeTab === 2 && searchQuery.length > 0) {
           query = query.ilike('username', `%${searchQuery}%`);
@@ -317,10 +333,11 @@ export function LeaderboardPanel() {
               rank: i + 1,
               initials: p.username ? p.username.substring(0, 2).toUpperCase() : 'PL',
               name: p.username || 'Player',
-              mode: 'Ludo Royale',
+              mode: 'Ludo Fusion',
               score: `${(p.xp || 0) + seasonModifier} XP`,
               delta: Math.floor(Math.random() * 5) - 2,
               rankColor: getRankColor(i + 1),
+              avatar_url: p.avatar_url,
             };
           });
           setPlayers(mapped);
@@ -329,14 +346,15 @@ export function LeaderboardPanel() {
             const me = mapped.find(p => p.id === user.id);
             if (me) setMyRankData(me);
             else {
-              const { data: myProf } = await supabase.from('profiles').select('username, xp').eq('id', user.id).single();
+              const { data: myProf } = await supabase.from('profiles').select('username, avatar_url, xp').eq('id', user.id).single();
               if (myProf) {
                 setMyRankData({
                   rank: '100+',
                   initials: myProf.username ? myProf.username.substring(0, 2).toUpperCase() : 'PL',
                   name: myProf.username || 'You',
                   score: `${myProf.xp || 0} XP`,
-                  delta: 0
+                  delta: 0,
+                  avatar_url: myProf.avatar_url,
                 });
               }
             }
@@ -470,9 +488,15 @@ export function LeaderboardPanel() {
               <Text style={s.myRankStripNum}>#{myRankData.rank}</Text>
             </View>
 
-            <LinearGradient colors={['#1E5A39', '#0A2318']} style={s.myStripAvatar}>
-              <Text style={s.myStripAvatarText}>{myRankData.initials}</Text>
-            </LinearGradient>
+            {myRankData.avatar_url ? (
+              <View style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', borderWidth: 1.5, borderColor: C.gold, backgroundColor: '#071510' }}>
+                <Image source={{ uri: myRankData.avatar_url }} style={{ width: '100%', height: '100%' }} />
+              </View>
+            ) : (
+              <LinearGradient colors={['#1E5A39', '#0A2318']} style={s.myStripAvatar}>
+                <Text style={s.myStripAvatarText}>{myRankData.initials}</Text>
+              </LinearGradient>
+            )}
 
             <View style={s.myRankStripInfo}>
               <View style={s.myRankStripNameRow}>

@@ -47,6 +47,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "gamblingMode": {
+        "enabled": true
+      }
     }
   }
 }

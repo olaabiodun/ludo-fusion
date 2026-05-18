@@ -1,20 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Image,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+
+const { width: SW, height: SH } = Dimensions.get('window');
 
 const C = {
   gold: '#D4AF37',
@@ -61,19 +61,19 @@ export function PlayerProfileModal({
   const [localUserId, setLocalUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
-  const opacityAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
 
   useEffect(() => {
     if (visible && playerId) {
       loadProfile();
       Animated.parallel([
-        Animated.spring(scaleAnim, { toValue: 1, damping: 15, stiffness: 200, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, damping: 16, stiffness: 200, useNativeDriver: true }),
       ]).start();
     } else {
-      scaleAnim.setValue(0.9);
-      opacityAnim.setValue(0);
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.92);
       setProfile(null);
     }
   }, [visible, playerId]);
@@ -85,17 +85,11 @@ export function PlayerProfileModal({
       const lUid = user?.id || null;
       setLocalUserId(lUid);
 
-      // Fetch basic profile
       const { data: pData } = await supabase.from('profiles').select('*').eq('id', playerId).single();
-      if (!pData) {
-        setLoading(false);
-        return;
-      }
+      if (!pData) { setLoading(false); return; }
 
-      // Fetch stats
       const { data: sData } = await supabase.from('profile_stats').select('*').eq('player_id', playerId).single();
 
-      // Fetch friendship status if it's not our own profile
       let friendship: PlayerProfile['friendship'] = 'none';
       if (lUid && lUid !== playerId) {
         const { data: fData } = await supabase
@@ -127,16 +121,13 @@ export function PlayerProfileModal({
     setActionLoading(true);
     try {
       if (profile.friendship === 'none') {
-        // Send request
         await supabase.from('friendships').insert({ requester_id: localUserId, addressee_id: playerId });
         setProfile({ ...profile, friendship: 'pending_sent' });
       } else if (profile.friendship === 'pending_received') {
-        // Accept request
         await supabase.from('friendships').update({ status: 'accepted' })
           .match({ requester_id: playerId, addressee_id: localUserId });
         setProfile({ ...profile, friendship: 'friends' });
       } else if (profile.friendship === 'friends' || profile.friendship === 'pending_sent') {
-        // Cancel / Unfriend
         await supabase.from('friendships').delete()
           .or(`and(requester_id.eq.${localUserId},addressee_id.eq.${playerId}),and(requester_id.eq.${playerId},addressee_id.eq.${localUserId})`);
         setProfile({ ...profile, friendship: 'none' });
@@ -154,177 +145,148 @@ export function PlayerProfileModal({
 
   const initials = profile?.username ? profile.username.substring(0, 2).toUpperCase() : 'PL';
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <BlurView intensity={25} tint="dark" style={s.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+    <View style={s.wrapper}>
+      <Pressable style={s.backdrop} onPress={onClose} />
 
-        <Animated.View style={[s.Content, { opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
-          <LinearGradient
-            colors={['rgba(3,10,6,0.95)', 'rgba(5,16,11,1)']}
-            style={StyleSheet.absoluteFill}
-            borderRadius={24}
-          />
-          <View style={s.borderRing} pointerEvents="none" />
+      <Animated.View style={[s.card, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <LinearGradient
+          colors={['rgba(3,10,6,0.95)', 'rgba(5,16,11,1)']}
+          style={StyleSheet.absoluteFill}
+          borderRadius={24}
+        />
+        <View style={s.borderRing} pointerEvents="none" />
 
-          <TouchableOpacity style={s.closeBtn} onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={20} color={C.textMuted} />
-          </TouchableOpacity>
+        <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+          <MaterialCommunityIcons name="close" size={20} color={C.textMuted} />
+        </TouchableOpacity>
 
-          {loading || !profile ? (
-            <View style={{ height: 200, width: 400, justifyContent: 'center', alignItems: 'center' }}>
-              <ActivityIndicator color={C.gold} size="large" />
-            </View>
-          ) : (
-            <View style={s.landscapeContainer}>
-              {/* Left Column: Avatar & Names */}
-              <View style={s.leftCol}>
-                <View style={s.avatarWrap}>
-                  <LinearGradient colors={['#1E5A39', '#0A2318']} style={StyleSheet.absoluteFill} />
-                  {profile.avatar_url ? (
-                    <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
-                  ) : (
-                    <Text style={s.avatarText}>{initials}</Text>
-                  )}
-                  <View style={s.levelBadge}>
-                    <Text style={s.levelBadgeText}>{profile.level}</Text>
-                  </View>
-                </View>
-                <Text style={s.name}>{profile.full_name || profile.username}</Text>
-                <Text style={s.username}>@{profile.username}</Text>
-
-                <View style={s.tierPill}>
-                  <MaterialCommunityIcons name="shield-star" size={12} color={C.gold} />
-                  <Text style={s.tierText}>{formatTier(profile.tier)}</Text>
-                </View>
-              </View>
-
-              <View style={s.verticalDivider} />
-
-              {/* Right Column: Stats & Actions */}
-              <View style={s.rightCol}>
-                {/* Stats Grid */}
-                <View style={s.statsGrid}>
-                  <View style={s.statBox}>
-                    <Text style={s.statValue}>{profile.stats?.total_matches || 0}</Text>
-                    <Text style={s.statLabel}>Matches</Text>
-                  </View>
-                  <View style={s.statDiv} />
-                  <View style={s.statBox}>
-                    <Text style={[s.statValue, { color: C.success }]}>{profile.stats?.win_rate || 0}%</Text>
-                    <Text style={s.statLabel}>Win Rate</Text>
-                  </View>
-                  <View style={s.statDiv} />
-                  <View style={s.statBox}>
-                    <Text style={[s.statValue, { color: C.gold }]}>{profile.streak || 0}</Text>
-                    <Text style={s.statLabel}>Streak</Text>
-                  </View>
-                </View>
-
-                {/* Extended Details */}
-                <View style={s.detailsBlock}>
-                  <View style={s.detailsRow}>
-                    <MaterialCommunityIcons name="star-shooting-outline" size={16} color={C.textMuted} />
-                    <Text style={s.detailsText}>Total XP:</Text>
-                    <View style={{ flex: 1 }} />
-                    <Text style={s.detailsValue}>{profile.xp?.toLocaleString() || 0} XP</Text>
-                  </View>
-
-                  <View style={s.detailsRow}>
-                    <MaterialCommunityIcons name="calendar-month-outline" size={16} color={C.textMuted} />
-                    <Text style={s.detailsText}>Joined:</Text>
-                    <View style={{ flex: 1 }} />
-                    <Text style={s.detailsValue}>{new Date(profile.created_at).toLocaleDateString()}</Text>
-                  </View>
-                </View>
-
-                {/* Action Button */}
-                {localUserId && localUserId !== profile.id && (
-                  <TouchableOpacity
-                    style={[
-                      s.actionBtn,
-                      profile.friendship === 'friends' && s.actionBtnFriends,
-                      (profile.friendship === 'pending_sent' || profile.friendship === 'pending_received') && s.actionBtnPending
-                    ]}
-                    onPress={handleAction}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? (
-                      <ActivityIndicator size="small" color="#000" />
-                    ) : (
-                      <>
-                        <MaterialCommunityIcons
-                          name={
-                            profile.friendship === 'friends' ? 'account-check' :
-                              profile.friendship === 'pending_sent' ? 'account-clock' :
-                                profile.friendship === 'pending_received' ? 'account-arrow-left' :
-                                  'account-plus'
-                          }
-                          size={18}
-                          color={profile.friendship === 'friends' || profile.friendship === 'pending_sent' ? C.textPrimary : '#000'}
-                        />
-                        <Text style={[
-                          s.actionBtnText,
-                          (profile.friendship === 'friends' || profile.friendship === 'pending_sent') && { color: C.textPrimary }
-                        ]}>
-                          {profile.friendship === 'friends' ? 'Unfriend' :
-                            profile.friendship === 'pending_sent' ? 'Request Sent' :
-                              profile.friendship === 'pending_received' ? 'Accept Request' :
-                                'Add Friend'}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+        {loading || !profile ? (
+          <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator color={C.gold} size="large" />
+          </View>
+        ) : (
+          <View style={s.content}>
+            <View style={s.leftCol}>
+              <View style={s.avatarWrap}>
+                <LinearGradient colors={['#1E5A39', '#0A2318']} style={StyleSheet.absoluteFill} />
+                {profile.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
+                ) : (
+                  <Text style={s.avatarText}>{initials}</Text>
                 )}
+                <View style={s.levelBadge}>
+                  <Text style={s.levelBadgeText}>{profile.level}</Text>
+                </View>
+              </View>
+              <Text style={s.name}>{profile.full_name || profile.username}</Text>
+              <Text style={s.username}>@{profile.username}</Text>
+
+              <View style={s.tierPill}>
+                <MaterialCommunityIcons name="shield-star" size={12} color={C.gold} />
+                <Text style={s.tierText}>{formatTier(profile.tier)}</Text>
               </View>
             </View>
-          )}
-        </Animated.View>
-      </BlurView>
-    </Modal>
+
+            <View style={s.divider} />
+
+            <View style={s.rightCol}>
+              <View style={s.statsGrid}>
+                <View style={s.statBox}>
+                  <Text style={s.statValue}>{profile.stats?.total_matches || 0}</Text>
+                  <Text style={s.statLabel}>Matches</Text>
+                </View>
+                <View style={s.statDiv} />
+                <View style={s.statBox}>
+                  <Text style={[s.statValue, { color: C.success }]}>{profile.stats?.win_rate || 0}%</Text>
+                  <Text style={s.statLabel}>Win Rate</Text>
+                </View>
+                <View style={s.statDiv} />
+                <View style={s.statBox}>
+                  <Text style={[s.statValue, { color: C.gold }]}>{profile.streak || 0}</Text>
+                  <Text style={s.statLabel}>Streak</Text>
+                </View>
+              </View>
+
+              <View style={s.detailsBlock}>
+                <View style={s.detailsRow}>
+                  <MaterialCommunityIcons name="star-shooting-outline" size={16} color={C.textMuted} />
+                  <Text style={s.detailsText}>Total XP:</Text>
+                  <View style={{ flex: 1 }} />
+                  <Text style={s.detailsValue}>{profile.xp?.toLocaleString() || 0} XP</Text>
+                </View>
+
+                <View style={s.detailsRow}>
+                  <MaterialCommunityIcons name="calendar-month-outline" size={16} color={C.textMuted} />
+                  <Text style={s.detailsText}>Joined:</Text>
+                  <View style={{ flex: 1 }} />
+                  <Text style={s.detailsValue}>{new Date(profile.created_at).toLocaleDateString()}</Text>
+                </View>
+              </View>
+
+              {localUserId && localUserId !== profile.id && (
+                <TouchableOpacity
+                  style={[
+                    s.actionBtn,
+                    profile.friendship === 'friends' && s.actionBtnFriends,
+                    (profile.friendship === 'pending_sent' || profile.friendship === 'pending_received') && s.actionBtnPending
+                  ]}
+                  onPress={handleAction}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons
+                        name={
+                          profile.friendship === 'friends' ? 'account-check' :
+                            profile.friendship === 'pending_sent' ? 'account-clock' :
+                              profile.friendship === 'pending_received' ? 'account-arrow-left' :
+                                'account-plus'
+                        }
+                        size={18}
+                        color={profile.friendship === 'friends' || profile.friendship === 'pending_sent' ? C.textPrimary : '#000'}
+                      />
+                      <Text style={[
+                        s.actionBtnText,
+                        (profile.friendship === 'friends' || profile.friendship === 'pending_sent') && { color: C.textPrimary }
+                      ]}>
+                        {profile.friendship === 'friends' ? 'Unfriend' :
+                          profile.friendship === 'pending_sent' ? 'Request Sent' :
+                            profile.friendship === 'pending_received' ? 'Accept Request' :
+                              'Add Friend'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+      </Animated.View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: {
+  wrapper: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 99999,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  modalContent: {
-    width: 480, // Landscape width
-    backgroundColor: C.surface,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  card: {
+    width: Math.min(480, SW * 0.92),
     borderRadius: 24,
     padding: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-      },
-      android: { elevation: 24 }
-    })
-  },
-  landscapeContainer: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 20,
-  },
-  leftCol: {
-    width: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verticalDivider: {
-    width: 1,
-    backgroundColor: C.divider,
-    marginVertical: 10,
-  },
-  rightCol: {
-    flex: 1,
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   borderRing: {
     ...StyleSheet.absoluteFillObject,
@@ -343,6 +305,25 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 20,
+  },
+  leftCol: {
+    width: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  divider: {
+    width: 1,
+    backgroundColor: C.divider,
+    marginVertical: 10,
+  },
+  rightCol: {
+    flex: 1,
+    justifyContent: 'center',
   },
   avatarWrap: {
     width: 72,

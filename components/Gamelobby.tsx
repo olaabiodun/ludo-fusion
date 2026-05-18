@@ -23,6 +23,7 @@ import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { GameplayScreen } from './GameplayScreen';
 import { getBotName } from '@/lib/botNames';
 import { startProgressLoop, stopProgressLoop, playPlayerFoundSound } from '@/lib/sounds';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 import { preloadGameAssets, AssetPreloader } from '@/lib/preloader';
 import Dice3D from './Dice3D';
 
@@ -171,12 +172,12 @@ const GAME_CONFIGS: Record<GameMode, GameConfig> = {
 };
 
 const STAKE_OPTIONS: StakeOption[] = [
-  { label: '₦100', amount: 100 },
-  { label: '₦200', amount: 200, tag: 'Popular', tagColor: C.success, tagBg: C.successSoft },
-  { label: '₦500', amount: 500, tag: 'Hot', tagColor: C.warn, tagBg: C.warnSoft },
-  { label: '₦1,000', amount: 1000 },
-  { label: '₦2,500', amount: 2500, tag: 'High Roll', tagColor: C.gold, tagBg: C.goldSoft },
-  { label: '₦5,000', amount: 5000 },
+  { label: '100', amount: 100 },
+  { label: '200', amount: 200, tag: 'Popular', tagColor: C.success, tagBg: C.successSoft },
+  { label: '500', amount: 500, tag: 'Hot', tagColor: C.warn, tagBg: C.warnSoft },
+  { label: '1,000', amount: 1000 },
+  { label: '2,500', amount: 2500, tag: 'High Roll', tagColor: C.gold, tagBg: C.goldSoft },
+  { label: '5,000', amount: 5000 },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -386,6 +387,8 @@ function StakeOptionCard({
   playerCount: number;
 }) {
   const active = selected === opt.amount;
+  const gamblingEnabled = useGamblingEnabled();
+  const prefix = gamblingEnabled ? '₦' : '';
   const anim = useFadeSlide(300 + i * 40);
   return (
     <Animated.View style={anim}>
@@ -401,8 +404,8 @@ function StakeOptionCard({
             <Text style={[sl.stakeTagText, { color: opt.tagColor }]}>{opt.tag}</Text>
           </View>
         )}
-        <Text style={[sl.stakeAmount, active && { color: accentColor }]}>{opt.label}</Text>
-        <Text style={sl.stakeWin}>Win ₦{(opt.amount * playerCount * 0.9).toLocaleString('en-NG', { maximumFractionDigits: 0 })}</Text>
+        <Text style={[sl.stakeAmount, active && { color: accentColor }]}>{prefix}{opt.label}</Text>
+        <Text style={sl.stakeWin}>{gamblingEnabled ? `Win ₦${(opt.amount * playerCount * 0.9).toLocaleString('en-NG', { maximumFractionDigits: 0 })}` : `${Math.floor(opt.amount * playerCount * 0.9).toLocaleString()} coins`}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -425,6 +428,7 @@ function StakeSelector({
 }) {
   const totalPot = selected * playerCount;
   const mainAnim = useFadeSlide(220);
+  const gamblingEnabled = useGamblingEnabled();
 
   return (
     <Animated.View style={[sl.stakeSection, mainAnim]}>
@@ -436,7 +440,7 @@ function StakeSelector({
         <View style={sl.potPill}>
           <MaterialCommunityIcons name="cash-multiple" size={s(11)} color={C.gold} />
           <Text style={sl.potLabel}>Pot:</Text>
-          <Text style={sl.potValue}>₦{totalPot.toLocaleString('en-NG')}</Text>
+          <Text style={sl.potValue}>{gamblingEnabled ? `₦${totalPot.toLocaleString('en-NG')}` : `${totalPot.toLocaleString()} coins`}</Text>
         </View>
       </View>
 
@@ -1082,6 +1086,7 @@ function CtaFooter({
 
   // ── Balance ────────────────────────────────────────────────────────────────
   const [balance, setBalance] = useState<number>(0);
+  const gamblingEnabled = useGamblingEnabled();
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
@@ -1096,22 +1101,22 @@ function CtaFooter({
       <View style={sl.ctaSummary}>
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Stake</Text>
-          <Text style={sl.ctaSummaryValue}>₦{stake.toLocaleString('en-NG')}</Text>
+          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${stake.toLocaleString('en-NG')}` : `${stake.toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Pot</Text>
-          <Text style={sl.ctaSummaryValue}>₦{pot.toLocaleString('en-NG')}</Text>
+          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${pot.toLocaleString('en-NG')}` : `${pot.toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Win</Text>
-          <Text style={[sl.ctaSummaryValue, { color: C.success }]}>₦{win.toLocaleString('en-NG')}</Text>
+          <Text style={[sl.ctaSummaryValue, { color: C.success }]}>{gamblingEnabled ? `₦${win.toLocaleString('en-NG')}` : `${win.toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Balance</Text>
-          <Text style={sl.ctaSummaryValue}>₦{balance.toLocaleString('en-NG')}</Text>
+          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${balance.toLocaleString('en-NG')}` : `${balance.toLocaleString()} coins`}</Text>
         </View>
       </View>
 
@@ -1167,10 +1172,10 @@ function CtaFooter({
 // ─── Recent Activity ──────────────────────────────────────────────────────────
 
 const RECENT_RESULTS = [
-  { name: 'AbujaBoss vs KingObi', amount: '₦900', winner: 'AbujaBoss', time: '3m ago' },
-  { name: 'FujiQueen vs DiceSlayer', amount: '₦450', winner: 'FujiQueen', time: '11m ago' },
-  { name: 'CardEze vs LagosKing', amount: '₦1,800', winner: 'CardEze', time: '18m ago' },
-  { name: '4-player Ludo', amount: '₦3,600', winner: 'ZikoRoyal', time: '25m ago' },
+  { name: 'AbujaBoss vs KingObi', amount: '900', winner: 'AbujaBoss', time: '3m ago' },
+  { name: 'FujiQueen vs DiceSlayer', amount: '450', winner: 'FujiQueen', time: '11m ago' },
+  { name: 'CardEze vs LagosKing', amount: '1,800', winner: 'CardEze', time: '18m ago' },
+  { name: '4-player Ludo', amount: '3,600', winner: 'ZikoRoyal', time: '25m ago' },
 ];
 
 const RecentActivity = React.memo(({ accentColor, accentSoft, accentBorder }: { accentColor: string; accentSoft: string; accentBorder: string }) => {
@@ -1279,6 +1284,7 @@ export function GameLobbyScreen({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [searchingPlayers, setSearchingPlayers] = useState<any[]>([]);
+  const gamblingEnabled = useGamblingEnabled();
 
   // Generate a stable private room code for this session
   const [privateRoomCode] = useState<string>(() => {
@@ -1412,7 +1418,7 @@ export function GameLobbyScreen({
 
     // Client-side balance check (server does it too for security)
     if (currentUser && currentUser.wallet_balance < stake) {
-      Alert.alert('Insufficient Balance', `You need ₦${stake} to join this match. Please top up your wallet.`);
+      Alert.alert('Insufficient Balance', `You need ${gamblingEnabled ? '₦' : ''}${stake} to join this match. Please top up your wallet.`);
       setSearching(false);
       return;
     }

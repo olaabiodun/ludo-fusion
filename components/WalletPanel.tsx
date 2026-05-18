@@ -16,10 +16,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Alert
 } from 'react-native';
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
-import { Paystack } from "react-native-paystack-modal";
+import { PaystackWebView } from '@/lib/paystackWrapper';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -114,8 +116,8 @@ function timeAgo(isoString: string): string {
   return `${days} days ago`;
 }
 
-function formatNGN(amount: number): string {
-  return `₦ ${Math.abs(amount).toLocaleString('en-NG')}`;
+function formatCurrency(amount: number, showNgn: boolean): string {
+  return showNgn ? `₦ ${Math.abs(amount).toLocaleString('en-NG')}` : `${Math.abs(amount).toLocaleString()} coins`;
 }
 
 function getInitials(name: string | null): string {
@@ -140,6 +142,7 @@ function PulseDot({ color = C.gold }: { color?: string }) {
 // ─── Balance Card ─────────────────────────────────────────────────────────────
 function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }) {
   const anim = useFadeSlide(80);
+  const gamblingEnabled = useGamblingEnabled();
   const countVal = useRef(new Animated.Value(0)).current;
   const [displayVal, setDisplayVal] = useState('0');
 
@@ -168,16 +171,16 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
         <View>
           <Text style={s.balanceEyebrow}>TOTAL BALANCE</Text>
           <View style={s.balanceAmountRow}>
-            <Text style={s.balanceCurrency}>₦</Text>
+            <Text style={s.balanceCurrency}>{gamblingEnabled ? '₦' : ''}</Text>
             <Text style={s.balanceAmount}>{displayVal}</Text>
           </View>
-          <Text style={s.balanceSub}>≈ Available to play or withdraw</Text>
+          <Text style={s.balanceSub}>{gamblingEnabled ? '≈ Available to play or withdraw' : 'Available to play'}</Text>
         </View>
 
         <View style={s.balanceChips}>
           <View style={s.balanceChip}>
             <MaterialCommunityIcons name="lock-outline" size={11} color={C.gold} />
-            <Text style={s.balanceChipText}>₦ 0 locked</Text>
+            <Text style={s.balanceChipText}>{gamblingEnabled ? '₦ 0 locked' : '0 locked'}</Text>
           </View>
           <View style={[s.balanceChip, { borderColor: C.successBorder, backgroundColor: C.successSoft }]}>
             <PulseDot color={C.success} />
@@ -190,7 +193,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
         <View style={s.balanceStat}>
           <MaterialCommunityIcons name="arrow-down-circle-outline" size={14} color={C.success} />
           <View>
-            <Text style={s.balanceStatVal}>{formatNGN(stats.totalIn)}</Text>
+            <Text style={s.balanceStatVal}>{formatCurrency(stats.totalIn, gamblingEnabled)}</Text>
             <Text style={s.balanceStatLabel}>Total In</Text>
           </View>
         </View>
@@ -198,7 +201,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
         <View style={s.balanceStat}>
           <MaterialCommunityIcons name="arrow-up-circle-outline" size={14} color={C.danger} />
           <View>
-            <Text style={s.balanceStatVal}>{formatNGN(stats.totalOut)}</Text>
+            <Text style={s.balanceStatVal}>{formatCurrency(stats.totalOut, gamblingEnabled)}</Text>
             <Text style={s.balanceStatLabel}>Total Out</Text>
           </View>
         </View>
@@ -206,7 +209,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
         <View style={s.balanceStat}>
           <MaterialCommunityIcons name="trophy-outline" size={14} color={C.gold} />
           <View>
-            <Text style={s.balanceStatVal}>{formatNGN(stats.totalWinnings)}</Text>
+            <Text style={s.balanceStatVal}>{formatCurrency(stats.totalWinnings, gamblingEnabled)}</Text>
             <Text style={s.balanceStatLabel}>Winnings</Text>
           </View>
         </View>
@@ -238,9 +241,13 @@ function QuickActionBtn({ action, delay, onPress }: { action: typeof QUICK_ACTIO
 
 function QuickActions({ onAction }: { onAction: (label: string) => void }) {
   const rowAnim = useFadeSlide(200);
+  const gamblingEnabled = useGamblingEnabled();
+  const actions = gamblingEnabled
+    ? QUICK_ACTIONS
+    : QUICK_ACTIONS.filter(a => a.label === 'History');
   return (
     <Animated.View style={[s.quickRow, rowAnim]}>
-      {QUICK_ACTIONS.map((action, i) => (
+      {actions.map((action, i) => (
         <QuickActionBtn key={action.label} action={action} delay={280 + i * 60} onPress={() => onAction(action.label)} />
       ))}
     </Animated.View>
@@ -250,11 +257,12 @@ function QuickActions({ onAction }: { onAction: (label: string) => void }) {
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 function TxRow({ tx, delay }: { tx: TxItem; delay: number }) {
   const anim = useFadeSlideX(delay);
+  const gamblingEnabled = useGamblingEnabled();
   const statusColor = tx.status === 'completed' ? C.success : tx.status === 'pending' ? C.gold : C.danger;
   const statusBg = tx.status === 'completed' ? C.successSoft : tx.status === 'pending' ? C.goldSoft : C.dangerSoft;
   const statusBorder = tx.status === 'completed' ? C.successBorder : tx.status === 'pending' ? C.goldBorder : C.dangerBorder;
 
-  const amountStr = (tx.positive ? '+' : '-') + formatNGN(tx.amountRaw);
+  const amountStr = (tx.positive ? '+' : '-') + formatCurrency(tx.amountRaw, gamblingEnabled);
 
   return (
     <Animated.View style={anim}>
@@ -298,6 +306,10 @@ function TransactionsSection({ activeTab, setActiveTab, filteredTx }: {
   filteredTx: TxItem[];
 }) {
   const anim = useFadeSlide(160);
+  const gamblingEnabled = useGamblingEnabled();
+  const tabs = gamblingEnabled
+    ? ['All', 'Deposits', 'Withdrawals', 'Winnings']
+    : ['All', 'Earnings', 'Spending', 'Winnings'];
   return (
     <Animated.View style={[s.section, anim]}>
       <View style={s.sectionHeader}>
@@ -311,7 +323,7 @@ function TransactionsSection({ activeTab, setActiveTab, filteredTx }: {
       </View>
 
       <View style={s.txTabsWrap}>
-        {TX_TABS.map((tab, i) => (
+        {tabs.map((tab, i) => (
           <Pressable
             key={tab}
             style={[s.txTab, activeTab === i && s.txTabActive]}
@@ -389,9 +401,10 @@ function CustomNumpad({ onInput, onClear, onDelete, visible }: {
 
 // ─── Transaction Modal ───────────────────────────────────────────────────────
 function TransactionModal({
-  visible, type, onClose, onRefresh, userEmail,
+  visible, type, onClose, onRefresh, userEmail, onDepositConfirm,
 }: {
   visible: boolean; type: 'deposit' | 'withdrawal' | 'transfer' | null; onClose: () => void; onRefresh: () => void; userEmail: string;
+  onDepositConfirm?: (amount: number, email: string) => void;
 }) {
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -413,43 +426,9 @@ function TransactionModal({
     if (isNaN(amt) || amt <= 0) return;
 
     if (type === 'deposit') {
-      const currentAmount = amount;
       onClose();
-
-      Paystack.newTransaction({
-        key: "pk_live_7eb6394cdd76cc2bfe956d3cc1a94085dacf0495",
-        email: userEmail || 'user@example.com',
-        amount: Math.round(amt * 100), // Paystack expects amount in kobo
-        metadata: {
-          type: 'deposit',
-        },
-        onSuccess: async (res) => {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              await supabase.from('transactions').insert({
-                player_id: user.id,
-                amount: amt,
-                type: 'deposit',
-                status: 'completed',
-                description: `Paystack: ₦${currentAmount} Deposit (${res.transaction || res.reference})`
-              });
-              DeviceEventEmitter.emit('wallet_updated');
-              onRefresh();
-              setAmount('');
-              (onRefresh as any).showSuccess?.({ amount: amt, ref: res.transaction || res.reference });
-            }
-          } catch (e) {
-            console.error('Paystack sync error:', e);
-          }
-        },
-        onCancel: () => {
-          console.log('Payment cancelled');
-        },
-        onError: (err) => {
-          console.error('Paystack error:', err);
-        }
-      });
+      onDepositConfirm?.(amt, userEmail || 'user@example.com');
+      setAmount('');
       return;
     }
 
@@ -696,6 +675,9 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
   const [userEmail, setUserEmail] = useState('');
   const [userInitials, setUserInitials] = useState('PL');
   const [loading, setLoading] = useState(true);
+  const [paystackVisible, setPaystackVisible] = useState(false);
+  const [paystackAmount, setPaystackAmount] = useState(0);
+  const gamblingEnabled = useGamblingEnabled();
 
   const headerAnim = useFadeSlide(0, -12);
 
@@ -747,7 +729,7 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
           id: g.id,
           label: isWin ? `${gameName} Victory` : `${gameName} Match`,
           sub: g.table_name || 'Global Arena',
-          extra: isWin ? `Won ₦${Math.abs(g.win_amount).toLocaleString()} from prize pool` : `Match participation fee`,
+          extra: isWin ? `Won ${gamblingEnabled ? '₦' : ''}${Math.abs(g.win_amount).toLocaleString()}${gamblingEnabled ? ' from prize pool' : ' coins'}` : `Match participation fee`,
           amountRaw: Math.abs(Number(g.win_amount ?? 0)),
           positive: isWin,
           icon: gameIcon,
@@ -759,17 +741,22 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
       });
 
       const manualTx: TxItem[] = (tRes.data || []).map(t => {
-        let label = t.type === 'deposit' ? 'Wallet Deposit' : t.type === 'withdrawal' ? 'Wallet Withdrawal' : 'Fund Transfer';
+        let label = t.type === 'deposit'
+          ? (gamblingEnabled ? 'Wallet Deposit' : 'Coins Earned')
+          : t.type === 'withdrawal'
+            ? (gamblingEnabled ? 'Wallet Withdrawal' : 'Coins Spent')
+            : (gamblingEnabled ? 'Fund Transfer' : 'Transfer');
         let icon: any = t.type === 'deposit' ? 'plus-circle' : t.type === 'withdrawal' ? 'minus-circle' : 'swap-horizontal';
 
         const desc = (t.description || '').toLowerCase();
-        if (desc.includes('ludo')) {
+        const wordMatch = (word: string) => new RegExp('\\b' + word + '\\b', 'i').test(desc);
+        if (wordMatch('ludo')) {
           label = 'Ludo Match';
           icon = 'dice-multiple';
-        } else if (desc.includes('whot')) {
+        } else if (wordMatch('whot')) {
           label = 'Whot Match';
           icon = 'cards-playing';
-        } else if (desc.includes('snake')) {
+        } else if (wordMatch('snake')) {
           label = 'Snake & Ladder';
           icon = 'snake';
         } else if (desc.includes('referral')) {
@@ -918,24 +905,64 @@ export function WalletPanelContent({ initialAction }: { initialAction?: 'deposit
           </ScrollView>
         </DodgeKeyboard>
 
-        <TransactionModal
-          visible={modalVisible}
-          type={modalType}
-          onClose={() => setModalVisible(false)}
-          onRefresh={Object.assign(load, {
-            showSuccess: (data: any) => {
-              setSuccessData(data);
-              setShowSuccessModal(true);
-            }
-          })}
-          userEmail={userEmail}
-        />
+        {gamblingEnabled && (
+          <>
+            <TransactionModal
+              visible={modalVisible}
+              type={modalType}
+              onClose={() => setModalVisible(false)}
+              onRefresh={Object.assign(load, {
+                showSuccess: (data: any) => {
+                  setSuccessData(data);
+                  setShowSuccessModal(true);
+                }
+              })}
+              userEmail={userEmail}
+              onDepositConfirm={(amt, email) => {
+                setPaystackAmount(amt);
+                setPaystackVisible(true);
+              }}
+            />
 
-        <PaymentSuccessModal
-          visible={showSuccessModal}
-          data={successData}
-          onClose={() => setShowSuccessModal(false)}
-        />
+            <PaystackWebView
+              visible={paystackVisible}
+              email={userEmail || 'user@example.com'}
+              amount={paystackAmount}
+              onClose={() => setPaystackVisible(false)}
+              onSuccess={async ({ reference }) => {
+                setPaystackVisible(false);
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) throw new Error('No authenticated user');
+                  const { error: insertError } = await supabase.from('transactions').insert({
+                    player_id: user.id,
+                    amount: paystackAmount,
+                    type: 'deposit',
+                    status: 'completed',
+                    description: `Paystack: ₦${paystackAmount} Deposit (${reference})`,
+                  });
+                  if (insertError) throw insertError;
+                  DeviceEventEmitter.emit('wallet_updated');
+                  await load();
+                  setSuccessData({ amount: paystackAmount, ref: reference });
+                  setShowSuccessModal(true);
+                } catch (e: any) {
+                  console.error('Deposit callback error:', e);
+                  Alert.alert(
+                    'Deposit Issue',
+                    `Payment was successful but we couldn't save the record. Don't worry — your money is safe with Paystack. Contact support with ref: ${reference}. Error: ${e?.message}`
+                  );
+                }
+              }}
+            />
+
+            <PaymentSuccessModal
+              visible={showSuccessModal}
+              data={successData}
+              onClose={() => setShowSuccessModal(false)}
+            />
+          </>
+        )}
       </View>
     </KeyboardAvoidingView>
   );

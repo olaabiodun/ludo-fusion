@@ -11,6 +11,7 @@ let whotPick2Sound: Audio.Sound | null = null;
 let whotPick3Sound: Audio.Sound | null = null;
 let whotGeneralMarketSound: Audio.Sound | null = null;
 let whotLastCardSound: Audio.Sound | null = null;
+let whotCheckupSound: Audio.Sound | null = null;
 let whotContinueSound: Audio.Sound | null = null;
 let whotSuspendedSound: Audio.Sound | null = null;
 let whotDefendedSound: Audio.Sound | null = null;
@@ -97,6 +98,10 @@ export async function loadSounds() {
     const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/lastcard.mp3'));
     whotLastCardSound = sound;
   }
+  if (!whotCheckupSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/checkup.mp3'));
+    whotCheckupSound = sound;
+  }
   if (!whotContinueSound) {
     const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/continue.mp3'));
     whotContinueSound = sound;
@@ -145,7 +150,13 @@ export async function playButtonSound() {
     if (!buttonSound) await loadSounds();
     if (buttonSound) await buttonSound.replayAsync();
   } catch (error) {
-    console.log('Error playing button sound:', error);
+    if (String(error).includes('Player does not exist')) {
+      buttonSound = null;
+      buttonSound = (await Audio.Sound.createAsync(require('../assets/sounds/button.wav'))).sound;
+      await buttonSound.replayAsync();
+    } else {
+      console.log('Error playing button sound:', error);
+    }
   }
 }
 
@@ -156,7 +167,13 @@ export async function playDiceRollSound() {
       await diceRollSound.replayAsync();
     }
   } catch (error) {
-    console.log('Error playing dice roll sound:', error);
+    if (String(error).includes('Player does not exist')) {
+      diceRollSound = null;
+      diceRollSound = (await Audio.Sound.createAsync(require('../assets/sounds/shake-and-roll-dice-soundbible.mp3'))).sound;
+      await diceRollSound.replayAsync();
+    } else {
+      console.log('Error playing dice roll sound:', error);
+    }
   }
 }
 
@@ -167,7 +184,13 @@ export async function playMoveSound() {
       await moveSound.replayAsync();
     }
   } catch (error) {
-    console.log('Error playing move sound:', error);
+    if (String(error).includes('Player does not exist')) {
+      moveSound = null;
+      moveSound = (await Audio.Sound.createAsync(require('../assets/sounds/button.wav'))).sound;
+      await moveSound.replayAsync();
+    } else {
+      console.log('Error playing move sound:', error);
+    }
   }
 }
 
@@ -225,6 +248,13 @@ export async function playWhotLastCardSound() {
   try {
     if (!whotLastCardSound) await loadSounds();
     if (whotLastCardSound) await whotLastCardSound.replayAsync();
+  } catch (e) { console.log(e); }
+}
+
+export async function playWhotCheckupSound() {
+  try {
+    if (!whotCheckupSound) await loadSounds();
+    if (whotCheckupSound) await whotCheckupSound.replayAsync();
   } catch (e) { console.log(e); }
 }
 

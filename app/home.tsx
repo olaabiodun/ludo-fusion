@@ -11,6 +11,7 @@ import { SettingsPanel } from '@/components/SettingsPanel';
 import { Sidebar, type SidebarNav } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { WalletPanel } from '@/components/WalletPanel';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { playButtonSound } from '@/lib/sounds';
 import React, { useEffect, useRef, useState } from 'react';
@@ -174,9 +175,10 @@ function AnimatedGameCard({ title, desc, borderColor, glowColor, image, index, t
       <Animated.View
         style={{
           height: '100%',
+          borderRadius: 14,
+          overflow: 'hidden',
           transform: [{ translateY: slideAnim }, { scale: pressScale }],
           opacity: fadeAnim,
-
         }}
       >
         <TouchableOpacity
@@ -188,7 +190,7 @@ function AnimatedGameCard({ title, desc, borderColor, glowColor, image, index, t
         >
           <Image
             source={image}
-            style={{ height: '100%', width: '100%', aspectRatio: 0.8, }}
+            style={{ height: '100%', width: '100%', aspectRatio: 0.8 }}
           />
         </TouchableOpacity>
       </Animated.View>
@@ -262,7 +264,7 @@ function AnimatedGameCard({ title, desc, borderColor, glowColor, image, index, t
                 >
                   <Text style={[s.cardBtnText, { color: '#FFF' }]}>{btnText}</Text>
                   <View style={[s.btnArrowCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                    <Text style={[s.btnArrowText, { color: '#FFF' }]}>{'>'}</Text>
+                    <Ionicons name="chevron-forward" size={14} color="#FFF" />
                   </View>
                 </LinearGradient>
               </View>
@@ -287,7 +289,7 @@ function PlaceholderScreen({ activeNav }: { activeNav: Exclude<SidebarNav, 'HOME
   );
 }
 
-export default function LudoRoyaleHome() {
+export default function LudoFusionHome() {
   const [activeNav, setActiveNav] = useState<AppNav>('HOME');
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [walletAction, setWalletAction] = useState<'deposit' | 'withdrawal' | undefined>(undefined);
@@ -436,7 +438,7 @@ export default function LudoRoyaleHome() {
           ) : activeNav === 'PROFILE' ? (
             <ProfilePanel />
           ) : activeNav === 'LEADERBOARD' ? (
-            <LeaderboardPanel />
+            <LeaderboardPanel visible={true} onClose={() => setActiveNav('HOME')} />
           ) : activeNav === 'WALLET' ? (
             <WalletPanel initialAction={walletAction} />
           ) : activeNav === 'FRIENDS' ? (
@@ -713,10 +715,6 @@ const s = StyleSheet.create({
   cardBtnWrap: {
     marginTop: 12,
     width: '100%',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
   },
   cardBtn: {
     flexDirection: 'row',

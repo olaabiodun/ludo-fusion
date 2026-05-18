@@ -14,6 +14,8 @@ import {
   playWhotGeneralMarketSound,
   playWhotGMSound,
   playWhotContinueSound,
+  playWhotLastCardSound,
+  playWhotCheckupSound,
 } from '../lib/sounds';
 
 // Re-export so existing imports of `socket` from this module keep working.
@@ -425,6 +427,7 @@ export function useWhotMultiplayer({
 
       onWinner?.(winnerColor, normalizedScores);
       setShowScoring(true);
+      playWhotCheckupSound();
     };
 
     const onWhotTimerStarted = ({ gameEndsAt }: { gameEndsAt: number }) => {

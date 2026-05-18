@@ -13,7 +13,9 @@ import {
   View
 } from 'react-native';
 import Svg from 'react-native-svg';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 import { EMOJI_PACK } from '../lib/emojis';
+import { getPlayerAvatar } from '@/lib/avatars';
 import {
   loadSounds,
   playButtonSound,
@@ -22,6 +24,7 @@ import {
   playWhotGeneralMarketSound,
   playWhotHoldOnSound,
   playWhotLastCardSound,
+  playWhotCheckupSound,
   playWhotPick2Sound,
   playWhotPick3Sound,
   playWhotReshuffleSound,
@@ -455,7 +458,13 @@ export function WhotGameUI({
   const [reshuffling, setReshuffling] = React.useState(false);
   const [turnIndex, setTurnIndex] = React.useState(0);
   const [dealing, setDealing] = React.useState(false);
-  const [topCard, setTopCard] = React.useState<Card | null>(getRandomCard());
+  const [topCard, setTopCard] = React.useState<Card | null>(() => {
+    let card = getRandomCard();
+    while (card && [2, 5, 20].includes(card.value as number)) {
+      card = getRandomCard();
+    }
+    return card;
+  });
   const [rawPendingPicks, setRawPendingPicks] = React.useState(0);
   const pendingPicksRef = React.useRef(0);
   const pendingHandsRef = React.useRef<Record<string, Card[]>>({});
@@ -470,6 +479,7 @@ export function WhotGameUI({
     });
   }, []);
   const pendingPicks = rawPendingPicks;
+  const gameEndedRef = React.useRef(false);
 
   const [currentShape, setCurrentShape] = React.useState<WhotShape | null>(null);
   const [showShapePicker, setShowShapePicker] = React.useState(false);
@@ -486,6 +496,7 @@ export function WhotGameUI({
   const [gameEndsAt, setGameEndsAt] = React.useState<number | null>(null);
   const [playerLives, setPlayerLives] = React.useState<Record<string, number>>({});
   const [prize, setPrize] = React.useState(0);
+  const gamblingEnabled = useGamblingEnabled();
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
@@ -587,7 +598,7 @@ export function WhotGameUI({
       id: p.id,
       color: p.color as Color,
       name: p.username || (p.id === localUserId ? 'You' : (p.name || 'Player')),
-      avatar: p.avatar_url ? { uri: p.avatar_url } : null,
+      avatar: getPlayerAvatar({ avatar_url: p.avatar_url, name: p.username, color: p.color }),
       seat: clockSeats[((i - localSeatIndex) + clockSeats.length) % clockSeats.length] as Seat,
       cardCount: 0,
       cards: [],
@@ -606,6 +617,10 @@ export function WhotGameUI({
   }, [gameId, localUserId, players]);
 
   // ─── Multiplayer Hook ───
+  const mpSetShowScoring = React.useCallback((v: boolean) => {
+    if (v) gameEndedRef.current = true;
+    setShowScoring(v);
+  }, []);
   const { handleRemotePlay, handleRemotePick, pendingTurnRef } = useWhotMultiplayer({
     gameId,
     players,
@@ -625,7 +640,7 @@ export function WhotGameUI({
     setActiveMarketPicks,
     setWasHoldOn,
     setPendingPicks,
-    setShowScoring,
+    setShowScoring: mpSetShowScoring,
     setGameEndsAt,
     setPrize,
     setPlayerLives,
@@ -673,12 +688,17 @@ export function WhotGameUI({
 
   // Handle Game Timeout (Safety trigger for bot and multiplayer)
   React.useEffect(() => {
-    if (!gameEndsAt || !gameStarted || showScoring) return;
+    if (!gameEndsAt || !gameStarted || showScoring || gameEndedRef.current) return;
 
     const checkTimer = setInterval(() => {
+      if (gameEndedRef.current) {
+        clearInterval(checkTimer);
+        return;
+      }
       if (gameEndsAt && Date.now() >= gameEndsAt) {
         console.log('[WhotGameUI] Game timer expired. Ending game...');
         clearInterval(checkTimer);
+        gameEndedRef.current = true;
 
         // Find winner based on score (lowest score wins)
         let winnerIdx = 0;
@@ -695,24 +715,22 @@ export function WhotGameUI({
         const winner = players[winnerIdx];
         if (winner) {
           freezeTimer();
+          const finalScores = getFinalScores();
           setActionMessage({ msg: "TIME'S UP!", seat: 'TOP' });
-          if (onWinner) onWinner(winner.color, getFinalScores());
-          setTimeout(() => setShowScoring(true), 2500);
+          if (playerCount === 2) {
+            setTimeout(() => {
+              if (onWinner) onWinner(winner.color, finalScores);
+            }, 2200);
+          } else {
+            setTimeout(() => setShowScoring(true), 2500);
+            setSavedWinnerInfo({ color: winner.color, scores: finalScores });
+          }
         }
       }
     }, 2000);
 
     return () => clearInterval(checkTimer);
-  }, [gameEndsAt, gameStarted, players, showScoring]);
-
-  React.useEffect(() => {
-    // Ensure topCard isn't a penalty card at start (2, 5, or 20)
-    if ([2, 5, 20].includes(topCard?.value as any)) {
-      setTopCard(getRandomCard());
-    }
-  }, []);
-
-
+  }, [gameEndsAt, gameStarted, players, showScoring, playerCount, setSavedWinnerInfo, getFinalScores, freezeTimer, setActionMessage]);
 
   React.useEffect(() => {
     async function fetchUser() {
@@ -751,6 +769,7 @@ export function WhotGameUI({
     if (gameId) return;
 
     const shouldShowShapePicker =
+      gameStarted &&
       !dealing &&
       !activePlay &&
       turnIndex === localPlayerIndex &&
@@ -906,10 +925,19 @@ export function WhotGameUI({
         setActivePlayWithRef(null);
 
         if (remainingAfterPlay <= 0) {
+          gameEndedRef.current = true;
           freezeTimer();
+          const finalScores = getFinalScores();
           setActionMessage({ msg: 'winner', seat: p.seat as Seat });
-          if (onWinner) onWinner(p.color, getFinalScores());
-          setTimeout(() => setShowScoring(true), 2500);
+          playWhotCheckupSound();
+          if (playerCount === 2) {
+            setTimeout(() => {
+              if (onWinner) onWinner(p.color, finalScores);
+            }, 2200);
+          } else {
+            setTimeout(() => setShowScoring(true), 2500);
+            setSavedWinnerInfo({ color: p.color, scores: finalScores });
+          }
         } else if (remainingAfterPlay === 1 && card.value !== 20) {
           // Only show 'last card' for normal cards.
           // When playing Whot (20), the shape picker already appears — don't overlay it.
@@ -929,7 +957,7 @@ export function WhotGameUI({
         }
       } : () => handlePlayLand(cardCountBefore - 1)
     });
-  }, [players, turnIndex, activePlay, canPlayCard, gameId, localPlayerIndex, wasHoldOn, onWinner, setActivePlayWithRef, pendingTurnRef]);
+  }, [players, turnIndex, activePlay, canPlayCard, gameId, localPlayerIndex, wasHoldOn, onWinner, setActivePlayWithRef, pendingTurnRef, playerCount, setSavedWinnerInfo, getFinalScores]);
 
   const handlePlayLocal = React.useCallback((cardIdx: number) => {
     if (localPlayerIndex === turnIndex && localPlayerIndex !== -1) {
@@ -1029,7 +1057,7 @@ export function WhotGameUI({
 
   // AI Turn Logic - ONLY for bots in practice mode
   React.useEffect(() => {
-    if (gameId) return; // Disable local AI in multiplayer
+    if (gameId || gameEndedRef.current) return; // Disable local AI in multiplayer
     const hasWinner = players.some(p => p.cardCount === 0);
     if (dealing || reshuffling || activePlay || showShapePicker || activeMarketPicks.length > 0 || showScoring || hasWinner) return;
 
@@ -1050,21 +1078,56 @@ export function WhotGameUI({
 
 
   React.useEffect(() => {
-    if (gameId) return; // Disable local timeout in multiplayer
+    if (gameId || gameEndedRef.current) return; // Disable local timeout in multiplayer
     if (dealing || reshuffling || activePlay || activeMarketPicks.length > 0 || showScoring) return;
 
     const timer = setTimeout(() => {
+      if (gameEndedRef.current) return;
       console.log(`[WhotGameUI] Turn timeout for player ${turnIndex}`);
-      // Deduct a life
+      const currentP = playersRef.current[turnIndex];
+      const pName = currentP?.name || 'Player';
+      const pSeat = currentP?.seat as Seat || 'DOWN';
+      const wasAlive = currentP && currentP.lives > 0;
+      if (!wasAlive) return;
+
+      const newLives = Math.max(0, currentP.lives - 1);
+      const eliminated = newLives === 0;
+
       setPlayers(prev => {
         const next = [...prev];
         if (next[turnIndex]) {
-          next[turnIndex] = { ...next[turnIndex], lives: Math.max(0, next[turnIndex].lives - 1) };
+          next[turnIndex] = { ...next[turnIndex], lives: newLives };
         }
         return next;
       });
-      const currentP = playersRef.current[turnIndex];
-      setActionMessage({ msg: 'TIMEOUT!', seat: currentP?.seat as Seat || 'DOWN' });
+
+      if (eliminated) {
+        const alive = playersRef.current.filter(p => p.lives > 0 && p.cardCount > 0).length;
+        const aliveAfter = alive - 1;
+
+        if (aliveAfter <= 1) {
+          const winner = playersRef.current.find(p => p.lives > 0 && p.cardCount > 0);
+          if (winner) {
+            gameEndedRef.current = true;
+            setActionMessage({ msg: 'winner', seat: winner.seat as Seat });
+            const finalScores = getFinalScores();
+            freezeTimer();
+            setTimeout(() => {
+              if (playerCount === 2) {
+                if (onWinner) onWinner(winner.color, finalScores);
+              } else {
+                setShowScoring(true);
+                setSavedWinnerInfo({ color: winner.color, scores: finalScores });
+              }
+            }, 2500);
+            return;
+          }
+        }
+        setActionMessage({ msg: `${pName} ELIMINATED!`, seat: pSeat });
+      } else {
+        setActionMessage({ msg: 'TIMEOUT!', seat: pSeat });
+      }
+
       // Clean skip: clear any pending picks and advance turn WITHOUT drawing a card
       setPendingPicks(0);
       setWasHoldOn(false);
@@ -1073,7 +1136,7 @@ export function WhotGameUI({
     }, 15000);
 
     return () => clearTimeout(timer);
-  }, [gameId, turnIndex, dealing, reshuffling, activePlay, findNextActivePlayer, activeMarketPicks.length]);
+  }, [gameId, turnIndex, dealing, reshuffling, activePlay, findNextActivePlayer, activeMarketPicks.length, playerCount, setSavedWinnerInfo, getFinalScores, freezeTimer, onWinner]);
 
   const handlePickLocal = React.useCallback(() => {
     if (turnIndex !== localPlayerIndex || activeMarketPicks.length > 0) {
@@ -1207,10 +1270,12 @@ export function WhotGameUI({
       playWhotLastCardSound();
     }
     if (remaining === 0) {
+      gameEndedRef.current = true;
       freezeTimer();
       const winnerColor = players[turnIndex].color;
       const finalScores = getFinalScores();
       setActionMessage({ msg: "winner", seat: players[turnIndex].seat as Seat });
+      playWhotCheckupSound();
 
       if (playerCount === 2) {
         // For 2 players, skip scoring and go straight to result screen after the "winner" bubble
@@ -1258,7 +1323,7 @@ export function WhotGameUI({
   return (
     <View
       ref={rootRef}
-      style={StyleSheet.absoluteFill}
+      style={[StyleSheet.absoluteFill, { overflow: 'visible' }]}
       pointerEvents="box-none"
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
@@ -1454,7 +1519,7 @@ export function WhotGameUI({
         />
       )}
 
-      <View style={{ position: 'absolute', top: rs(12), left: rs(14), right: rs(14), flexDirection: 'row', alignItems: 'center', zIndex: 100 }}>
+      <View style={{ position: 'absolute', top: rs(12), left: rs(14), right: rs(14), flexDirection: 'row', alignItems: 'center', zIndex: 10000 }}>
         <TouchableOpacity onPress={() => { playButtonSound(); setShowQuitModal(true); }} style={pill}>
           <MaterialCommunityIcons name="chevron-left" size={rs(18)} color="#FFD030" />
         </TouchableOpacity>
@@ -1477,7 +1542,7 @@ export function WhotGameUI({
         <View style={[pill, { backgroundColor: 'rgba(212,175,55,0.1)', borderColor: 'rgba(212,175,55,0.2)' }]}>
           <MaterialCommunityIcons name="trophy-outline" size={rs(11)} color="#FFD030" />
           <Text style={{ color: '#FFD030', fontSize: rs(10), fontWeight: '900', marginLeft: rs(4) }}>
-            ₦{prize.toLocaleString()}
+            {gamblingEnabled ? `₦${prize.toLocaleString()}` : `${prize.toLocaleString()} coins`}
           </Text>
         </View>
 
@@ -1510,7 +1575,7 @@ export function WhotGameUI({
         </TouchableOpacity>
       </View>
 
-      <View style={{ position: 'absolute', bottom: rs(12), left: rs(14), right: rs(14), flexDirection: 'row', alignItems: 'center', zIndex: 100 }}>
+      <View style={{ position: 'absolute', bottom: rs(12), left: rs(14), right: rs(14), flexDirection: 'row', alignItems: 'center', zIndex: 10000 }}>
         <TouchableOpacity
           style={iconBtn}
           activeOpacity={0.8}
@@ -1569,11 +1634,13 @@ export function WhotGameUI({
           visible={showScoring}
           players={players}
           onRestart={() => {
+            gameEndedRef.current = true;
             setShowScoring(false);
             setSavedWinnerInfo(null);
             onExit();
           }}
           onNext={() => {
+            gameEndedRef.current = true;
             setShowScoring(false);
             if (savedWinnerInfo && onWinner) {
               onWinner(savedWinnerInfo.color, savedWinnerInfo.scores);

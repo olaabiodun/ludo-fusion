@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   ImageBackground,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 const CACHE_KEYS = {
   PROFILE: 'ludo_fusion_profile_cache',
@@ -102,15 +104,18 @@ const ACHIEVEMENTS: { label: string; icon: IconName }[] = [
 ];
 
 const FAVORITE_MODES: { title: string; subtitle: string; icon: IconName }[] = [
-  { title: 'Ludo Royale', subtitle: 'Most played this week', icon: 'dice-multiple' },
+  { title: 'Ludo Fusion', subtitle: 'Most played this week', icon: 'dice-multiple' },
   { title: 'Whot Classic', subtitle: 'Best strategic win rate', icon: 'cards-playing-outline' },
   { title: 'Squad Lobby', subtitle: 'Friends play every Friday', icon: 'account-group' },
 ];
 
-function formatCurrency(amount: number): string {
-  if (Math.abs(amount) >= 1_000_000) return `NGN ${(amount / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(amount) >= 1_000) return `NGN ${(amount / 1_000).toFixed(1)}k`;
-  return `NGN ${amount.toLocaleString()}`;
+function formatCurrency(amount: number, showNgn: boolean): string {
+  if (showNgn) {
+    if (Math.abs(amount) >= 1_000_000) return `NGN ${(amount / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1_000) return `NGN ${(amount / 1_000).toFixed(1)}k`;
+    return `NGN ${amount.toLocaleString()}`;
+  }
+  return `${Math.abs(amount).toLocaleString()} coins`;
 }
 
 function formatDate(isoString: string): string {
@@ -137,6 +142,7 @@ function getInitials(fullName: string | null, username: string | null): string {
 
 export function ProfilePanel() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const gamblingEnabled = useGamblingEnabled();
   const [games, setGames] = useState<GameRecord[]>([]);
   const [stats, setStats] = useState<ProfileStats>({ total_matches: 0, total_wins: 0, win_rate: 0 });
   const [loading, setLoading] = useState(true);
@@ -223,7 +229,7 @@ export function ProfilePanel() {
     { label: 'Total Matches', value: stats.total_matches.toString(), icon: 'dice-5' as IconName },
     { label: 'Win Rate', value: `${stats.win_rate}%`, icon: 'trophy' as IconName },
     { label: 'Current Streak', value: streak.toString().padStart(2, '0'), icon: 'lightning-bolt' as IconName },
-    { label: 'Wallet Balance', value: formatCurrency(walletBalance), icon: 'wallet' as IconName },
+    { label: gamblingEnabled ? 'Wallet Balance' : 'Balance', value: formatCurrency(walletBalance, gamblingEnabled), icon: 'wallet' as IconName },
   ];
 
   return (
@@ -249,9 +255,15 @@ export function ProfilePanel() {
             <View style={s.heroMain}>
               <View style={s.identityBlock}>
                 <View style={s.avatarShell}>
-                  <LinearGradient colors={tier.gradient as [string,string]} style={s.avatarCore}>
-                    <Text style={s.avatarText}>{initials}</Text>
-                  </LinearGradient>
+                  {profile?.avatar_url ? (
+                    <View style={s.avatarCore}>
+                      <Image source={{ uri: profile.avatar_url }} style={{ width: 76, height: 76, borderRadius: 38 }} />
+                    </View>
+                  ) : (
+                    <LinearGradient colors={tier.gradient as [string,string]} style={s.avatarCore}>
+                      <Text style={s.avatarText}>{initials}</Text>
+                    </LinearGradient>
+                  )}
                   <View style={[s.crownChip, { borderColor: tier.color + '55', backgroundColor: 'rgba(6,17,11,0.94)' }]}>
                     <MaterialCommunityIcons name={tier.icon} size={16} color={tier.color} />
                   </View>
@@ -342,7 +354,7 @@ export function ProfilePanel() {
               games.map((game, index) => {
                 const isWin = game.result === 'win';
                 const amount = game.win_amount;
-                const amountStr = amount >= 0 ? `+${formatCurrency(amount)}` : formatCurrency(amount);
+                const amountStr = amount >= 0 ? `+${formatCurrency(amount, gamblingEnabled)}` : formatCurrency(amount, gamblingEnabled);
 
                 return (
                   <Animated.View
@@ -351,7 +363,7 @@ export function ProfilePanel() {
                     style={[s.matchRow, index !== games.length - 1 && s.matchDivider]}
                   >
                     <View style={s.matchInfo}>
-                      <Text style={s.matchTitle}>{game.game_type === 'ludo' ? 'Ludo Royale' : 'Whot Clash'}</Text>
+                      <Text style={s.matchTitle}>{game.game_type === 'ludo' ? 'Ludo Fusion' : 'Whot Clash'}</Text>
                       <Text style={s.matchMeta}>{game.table_name}  |  {timeAgo(game.created_at)}</Text>
                     </View>
                     <View style={s.matchResult}>

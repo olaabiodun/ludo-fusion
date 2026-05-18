@@ -30,7 +30,7 @@ const C = {
   divider: 'rgba(255,255,255,0.05)',
 };
 
-type MsgType = 'system' | 'game' | 'social' | 'promo' | 'announcement';
+type MsgType = 'system' | 'game' | 'social' | 'promo' | 'announcement' | 'support';
 
 interface Message {
   id: string;
@@ -40,6 +40,7 @@ interface Message {
   time: string;
   read: boolean;
   sender?: string;
+  userId?: string | null;
 }
 
 const CATEGORIES: { label: string; type: MsgType | 'all' }[] = [
@@ -48,14 +49,6 @@ const CATEGORIES: { label: string; type: MsgType | 'all' }[] = [
   { label: 'Games', type: 'game' },
   { label: 'Social', type: 'social' },
   { label: 'System', type: 'system' },
-];
-
-const DUMMY_MESSAGES: Message[] = [
-  { id: '1', type: 'system', title: 'Welcome Bonus!', content: 'You received 5,000 coins as a welcome bonus. Enjoy playing Ludo Royale! We are excited to have you join our amazing community of players. Use these coins to enter tournaments and climb the leaderboard.', time: '2 mins ago', read: false },
-  { id: '2', type: 'game', title: 'Tournament Starting', content: 'The weekend tournament is starting soon. Register now to win up to 100k coins. Entry fee is only 500 coins. Make sure you have a stable connection!', time: '1h ago', read: false, sender: 'Ludo Admin' },
-  { id: '3', type: 'social', title: 'Friend Request', content: 'ZikoRoyal sent you a friend request. View their profile to accept or decline. Playing with friends gives you 10% bonus XP!', time: '4h ago', read: false, sender: 'ZikoRoyal' },
-  { id: '4', type: 'system', title: 'Update Available', content: 'Version 2.4.0 is now live. New features include squad lobbies and improved physics for dice rolls. Update now to continue playing.', time: '1d ago', read: true },
-  { id: '5', type: 'game', title: 'Match Result', content: 'You finished 1st in the 4-player Ludo Royale match! 2,500 coins have been credited to your wallet.', time: '2d ago', read: true },
 ];
 
 function MessageRow({ msg, active, onPress, delay }: { msg: Message; active: boolean; onPress: () => void; delay: number }) {
@@ -75,6 +68,7 @@ function MessageRow({ msg, active, onPress, delay }: { msg: Message; active: boo
     social: { name: 'account-group-outline', color: '#5AAFF0' },
     promo: { name: 'ticket-outline', color: C.success },
     announcement: { name: 'megaphone-outline', color: '#5B8FF9' },
+    support: { name: 'headset', color: '#57D08B' },
   };
 
   const icon = icons[msg.type];
@@ -128,7 +122,7 @@ export function InboxPanel({ visible, onClose, initialTab }: { visible: boolean;
         await supabase.from('inbox').insert({
           user_id: user.id,
           type: 'system',
-          title: 'Welcome to Ludo Royale!',
+          title: 'Welcome to Ludo Fusion!',
           content: 'We are excited to have you join our amazing community! As a first-time player, you have received a starter pack of coins. Use them to enter matches and climb the leaderboard. Good luck!',
           sender: 'Ludo Admin',
           is_read: false
@@ -159,7 +153,8 @@ export function InboxPanel({ visible, onClose, initialTab }: { visible: boolean;
         content: m.content,
         time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         read: m.user_id === null ? readSet.has(m.id) : m.is_read,
-        sender: m.sender
+        sender: m.sender,
+        userId: m.user_id
       }));
 
       setMessages(formatted);
@@ -211,15 +206,60 @@ export function InboxPanel({ visible, onClose, initialTab }: { visible: boolean;
     if (!user) return;
 
     if (msg.type === 'announcement') {
-      // Global announcement: record in announcement_reads
       await supabase.from('announcement_reads').upsert({ announcement_id: id, user_id: user.id });
     } else {
-      // Private message: update is_read
       await supabase.from('inbox').update({ is_read: true }).eq('id', id);
     }
 
     setMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
-    DeviceEventEmitter.emit('wallet_updated'); // Trigger TopBar/BottomBar refresh
+    DeviceEventEmitter.emit('wallet_updated');
+  };
+
+  const handleDelete = async (id: string) => {
+    const msg = messages.find(m => m.id === id);
+    if (!msg) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (msg.userId) {
+      // Private message — delete the row
+      await supabase.from('inbox').delete().eq('id', id);
+    } else {
+      // Global announcement — mark as dismissed via announcement_reads
+      await supabase.from('announcement_reads').upsert({ announcement_id: id, user_id: user.id });
+    }
+
+    // Remove from list
+    setMessages(prev => prev.filter(m => m.id !== id));
+    if (selectedId === id) {
+      const remaining = messages.filter(m => m.id !== id);
+      setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+    }
+    DeviceEventEmitter.emit('wallet_updated');
+  };
+
+  const handleToggleRead = async (id: string) => {
+    const msg = messages.find(m => m.id === id);
+    if (!msg) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const newRead = !msg.read;
+
+    if (msg.type === 'announcement') {
+      if (newRead) {
+        await supabase.from('announcement_reads').upsert({ announcement_id: id, user_id: user.id });
+      } else {
+        await supabase.from('announcement_reads').delete().eq('announcement_id', id).eq('user_id', user.id);
+      }
+    } else {
+      await supabase.from('inbox').update({ is_read: newRead }).eq('id', id);
+    }
+
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, read: newRead } : m));
+    DeviceEventEmitter.emit('wallet_updated');
   };
 
   return (
@@ -302,21 +342,18 @@ export function InboxPanel({ visible, onClose, initialTab }: { visible: boolean;
               
               <ScrollView showsVerticalScrollIndicator={false} style={s.detailScroll}>
                 <Text style={s.detailText}>{selectedMsg.content}</Text>
-                
-                {selectedMsg.type === 'game' && (
-                  <TouchableOpacity style={s.actionBtn}>
-                    <Text style={s.actionBtnText}>CLAIM REWARDS</Text>
-                    <MaterialCommunityIcons name="chevron-right" size={18} color="#000" />
-                  </TouchableOpacity>
-                )}
               </ScrollView>
 
               <View style={s.detailFooter}>
-                <TouchableOpacity style={s.footerBtn}>
-                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.textMuted} />
+                <TouchableOpacity style={s.footerBtn} onPress={() => handleDelete(selectedMsg.id)}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FF6B6B" />
                 </TouchableOpacity>
-                <TouchableOpacity style={s.footerBtn}>
-                  <MaterialCommunityIcons name="email-open-outline" size={18} color={C.textMuted} />
+                <TouchableOpacity style={s.footerBtn} onPress={() => handleToggleRead(selectedMsg.id)}>
+                  <MaterialCommunityIcons 
+                    name={selectedMsg.read ? "email-outline" : "email-open-outline"} 
+                    size={18} 
+                    color={selectedMsg.read ? C.textMuted : C.gold} 
+                  />
                 </TouchableOpacity>
               </View>
             </>
@@ -369,8 +406,6 @@ const s = StyleSheet.create({
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 15 },
   detailScroll: { flex: 1 },
   detailText: { color: 'rgba(245,239,216,0.8)', fontSize: 15, lineHeight: 24, letterSpacing: 0.2 },
-  actionBtn: { marginTop: 25, backgroundColor: C.gold, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 10 },
-  actionBtnText: { color: '#000', fontSize: 13, fontWeight: '900' },
   detailFooter: { flexDirection: 'row', gap: 10, marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.04)' },
   footerBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
 });

@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -42,6 +43,7 @@ type Profile = {
   full_name: string | null;
   level: number;
   tier: string;
+  avatar_url?: string;
 };
 
 type FriendRow = {
@@ -93,9 +95,15 @@ function FriendItem({
     <Animated.View style={{ transform: [{ translateX: slideX }], opacity }}>
       <View style={s.friendRow}>
         <View style={s.avatarContainer}>
-          <LinearGradient colors={['#1E5A39', '#0A2318']} style={s.avatar}>
-            <Text style={s.avatarText}>{initials}</Text>
-          </LinearGradient>
+          {item.friend.avatar_url ? (
+            <View style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <Image source={{ uri: item.friend.avatar_url }} style={{ width: '100%', height: '100%' }} />
+            </View>
+          ) : (
+            <LinearGradient colors={['#1E5A39', '#0A2318']} style={s.avatar}>
+              <Text style={s.avatarText}>{initials}</Text>
+            </LinearGradient>
+          )}
           {item.status === 'accepted' && (
             <View style={[s.statusDot, { backgroundColor: C.success }]} />
           )}
@@ -194,8 +202,8 @@ export function FriendsPanel() {
           status,
           requester_id,
           addressee_id,
-          requester:profiles!friendships_requester_id_fkey(id, username, full_name, level, tier),
-          addressee:profiles!friendships_addressee_id_fkey(id, username, full_name, level, tier)
+          requester:profiles!friendships_requester_id_fkey(id, username, full_name, level, tier, avatar_url),
+          addressee:profiles!friendships_addressee_id_fkey(id, username, full_name, level, tier, avatar_url)
         `)
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
@@ -229,7 +237,7 @@ export function FriendsPanel() {
       setSearching(true);
       const { data } = await supabase
         .from('profiles')
-        .select('id, username, full_name, level, tier')
+        .select('id, username, full_name, level, tier, avatar_url')
         .ilike('username', `%${searchQuery}%`)
         .neq('id', myId ?? '')
         .limit(6);

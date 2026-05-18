@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -32,8 +33,9 @@ export function GameQuitModal({
   message,
   stake = 0,
 }: GameQuitModalProps) {
+  const gamblingEnabled = useGamblingEnabled();
   const displayMessage = message || (stake > 0 
-    ? 'Forfeiting now results in total loss of your stake.'
+    ? `Forfeiting now results in total loss of your ${gamblingEnabled ? 'stake' : 'coins'}.`
     : 'Leaving will end the current match.');
 
   const anim = useRef(new Animated.Value(0)).current;
@@ -152,7 +154,7 @@ export function GameQuitModal({
                 start={{x:0,y:0.5}} end={{x:1,y:0.5}}
                />
                <Text style={st.stakeLabel}>STAKE AT RISK</Text>
-               <Text style={st.stakeVal}>₦{stake.toLocaleString()}</Text>
+               <Text style={st.stakeVal}>{gamblingEnabled ? `₦${stake.toLocaleString()}` : `${stake.toLocaleString()} coins`}</Text>
             </View>
           )}
 

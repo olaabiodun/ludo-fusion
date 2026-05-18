@@ -90,7 +90,7 @@ function HistoryRow({ item, delay }: { item: GameRecord; delay: number }) {
   const getGameMeta = () => {
     switch (item.game_type) {
       case 'ludo':
-        return { icon: 'dice-multiple' as IconName, label: 'Ludo Royale' };
+        return { icon: 'dice-multiple' as IconName, label: 'Ludo Fusion' };
       case 'whot':
         return { icon: 'cards-playing-outline' as IconName, label: 'Whot Classic' };
       case 'snake_ladder':

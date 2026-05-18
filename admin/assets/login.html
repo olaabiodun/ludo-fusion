@@ -1,126 +1,403 @@
 <!DOCTYPE html>
 <html lang="en">
-
-
-<!-- Mirrored from coderthemes.com/osen/layouts/auth-login.html by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 15 May 2026 23:04:34 GMT -->
 <head>
     <meta charset="utf-8" />
-    <title>Log In | Osen - Responsive Bootstrap 5 Admin Dashboard</title>
+    <title>Admin Login | Ludo Fusion</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="A fully featured admin theme which can be used to build CRM, CMS, etc." name="description" />
-    <meta content="Coderthemes" name="author" />
-
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="assets/images/favicon.ico">
-
-    <!-- Theme Config Js -->
-    <script src="assets/js/config.js"></script>
-
-    <!-- Vendor css -->
-    <link href="assets/css/vendor.min.css" rel="stylesheet" type="text/css" />
-
-    <!-- App css -->
-    <link href="assets/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
-
-    <!-- Icons css -->
-    <link href="assets/css/icons.min.css" rel="stylesheet" type="text/css" />
-
-    <!-- Supabase JS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-primary: #07150f;
+            --bg-secondary: #0a1f15;
+            --bg-card: #0f2a1d;
+            --gold: #D4AF37;
+            --gold-light: #F0CC5A;
+            --gold-dark: #8C6A10;
+            --text-primary: #f5efd8;
+            --text-secondary: #a89f88;
+            --text-muted: #6b6558;
+            --border: rgba(212, 175, 55, 0.15);
+            --red: #e43c39;
+            --green: #39c65b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 420px;
+            margin: 20px;
+        }
+        .brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .brand-icon {
+            width: 48px; height: 48px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 22px;
+            color: #000;
+            margin-bottom: 12px;
+        }
+        .brand-text {
+            font-weight: 800;
+            font-size: 22px;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--gold-light), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .brand-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .login-title {
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            text-align: center;
+        }
+        .login-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.3px;
+            margin-bottom: 6px;
+        }
+        .form-control {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 14px;
+        }
+        .form-control:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        .form-control::placeholder { color: var(--text-muted); }
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border: none;
+            color: #000;
+            font-weight: 800;
+            font-size: 14px;
+            padding: 12px;
+            border-radius: 10px;
+            width: 100%;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .btn-gold:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(212, 175, 55, 0.25);
+            color: #000;
+        }
+        .btn-gold:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 10px;
+            border-radius: 10px;
+            width: 100%;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-ghost:hover {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+        .error-msg {
+            color: var(--red);
+            font-size: 13px;
+            text-align: center;
+            margin-top: 12px;
+            display: none;
+        }
+        .success-msg {
+            color: var(--green);
+            font-size: 13px;
+            text-align: center;
+            margin-top: 12px;
+            display: none;
+        }
+        .footer-text {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 24px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-top-color: #000;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .input-icon-wrap { position: relative; }
+        .input-icon-wrap i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+        .input-icon-wrap .form-control { padding-left: 42px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .otp-inputs {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        .otp-inputs input {
+            width: 44px;
+            height: 52px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+        }
+        .otp-inputs input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+            outline: none;
+        }
+        .sent-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(57,198,91,0.1);
+            color: var(--green);
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+        }
+        .timer-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 12px;
+        }
+        .timer-text a {
+            color: var(--gold);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .timer-text a:hover { text-decoration: underline; }
+    </style>
 </head>
-
 <body>
+    <div class="login-card">
+        <div class="brand">
+            <div class="brand-icon">L</div>
+            <div class="brand-text">LUDO FUSION</div>
+            <div class="brand-sub">Admin Panel</div>
+        </div>
 
-    <div class="auth-bg d-flex min-vh-100 justify-content-center align-items-center">
-        <div class="row g-0 justify-content-center w-100 m-xxl-5 px-xxl-4 m-3">
-            <div class="col-xl-4 col-lg-5 col-md-6">
-                <div class="card overflow-hidden text-center h-100 p-xxl-4 p-3 mb-0">
-                    <a href="index.html" class="auth-brand mb-3">
-                        <img src="assets/images/logo-dark.png" alt="dark logo" height="24" class="logo-dark">
-                        <img src="assets/images/logo.png" alt="logo light" height="24" class="logo-light">
-                    </a>
-
-                    <h3 class="fw-semibold mb-2">Login your account</h3>
-
-                    <p class="text-muted mb-4">Enter your email address and password to access admin panel.</p>
-
-                    <div class="d-flex justify-content-center gap-2 mb-3">
-                        <a href="#!" class="btn btn-soft-danger avatar-lg"><i class="ti ti-brand-google-filled fs-24"></i></a>
-                        <a href="#!" class="btn btn-soft-success avatar-lg"><i class="ti ti-brand-apple fs-24"></i></a>
-                        <a href="#!" class="btn btn-soft-primary avatar-lg"><i class="ti ti-brand-facebook fs-24"></i></a>
-                        <a href="#!" class="btn btn-soft-info avatar-lg"><i class="ti ti-brand-linkedin fs-24"></i></a>
+        <!-- STEP 1: Email -->
+        <div class="step active" id="stepEmail">
+            <div class="login-title">Welcome back</div>
+            <div class="login-desc">Enter your email to receive a login code</div>
+            <form id="emailForm" onsubmit="return false;">
+                <div class="mb-3">
+                    <label class="form-label" for="email">Email</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-envelope"></i>
+                        <input type="email" id="email" class="form-control" placeholder="admin@ludo.com" value="beeboyabiodun111@gmail.com">
                     </div>
-
-                    <p class="fs-13 fw-semibold">Or Login With Email</p>
-
-                    <form id="loginForm" class="text-start mb-3">
-                        <div class="mb-3">
-                            <label class="form-label" for="email">Email or Username</label>
-                            <input type="text" id="email" name="email" class="form-control" placeholder="Enter admin" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="password">Password</label>
-                            <input type="password" id="password" class="form-control" placeholder="Enter admin" required>
-                        </div>
-
-                        <div class="d-flex justify-content-between mb-3">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="checkbox-signin">
-                                <label class="form-check-label" for="checkbox-signin">Remember me</label>
-                            </div>
-
-                            <a href="#!" class="text-muted border-bottom border-dashed">Forget Password</a>
-                        </div>
-
-                        <div class="d-grid">
-                            <button class="btn btn-primary" type="submit">Login</button>
-                        </div>
-                    </form>
-
-                    <p class="text-danger fs-14 mb-4">Don't have an account? <a href="#!" class="fw-semibold text-dark ms-1">Sign Up !</a></p>
-
-                    <p class="mt-auto mb-0">
-                        <script>document.write(new Date().getFullYear())</script> © Winnerson - Admin Panel
-                    </p>
                 </div>
+                <button type="submit" class="btn-gold" id="sendBtn">Send OTP</button>
+                <div class="error-msg" id="emailError"></div>
+                <div class="success-msg" id="emailSuccess"></div>
+            </form>
+        </div>
+
+        <!-- STEP 2: OTP -->
+        <div class="step" id="stepOtp">
+            <div class="login-title">Check your email</div>
+            <div class="login-desc" id="otpSentTo">We sent a code to your email</div>
+            <div class="sent-badge" style="margin:0 auto 20px;width:fit-content;">
+                <i class="bi bi-check-circle-fill"></i> Code sent
             </div>
+            <form id="otpForm" onsubmit="return false;">
+                <div class="otp-inputs" id="otpInputs">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autofocus>
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                </div>
+                <button type="submit" class="btn-gold mt-3" id="verifyBtn">Verify & Sign In</button>
+                <div class="error-msg" id="otpError"></div>
+                <div class="timer-text" id="timerText">
+                    Didn't get it? <a id="resendLink">Resend code</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="footer-text">
+            &copy; 2026 Ludo Fusion. All rights reserved.
         </div>
     </div>
-
-    <!-- Vendor js -->
-    <script src="assets/js/vendor.min.js"></script>
-
-    <!-- App js -->
-    <script src="assets/js/app.js"></script>
 
     <script>
         const SUPABASE_URL = 'https://zuspbhabwlpxzmlxydgx.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_KzgmXSkpNiajIPe9KGQKMA_Ff1pX8uJ';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        let currentEmail = '';
+
+        // OTP input auto-advance
+        document.querySelectorAll('#otpInputs input').forEach((input, i, inputs) => {
+            input.addEventListener('input', () => {
+                if (input.value && i < inputs.length - 1) inputs[i + 1].focus();
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !input.value && i > 0) inputs[i - 1].focus();
+                if (e.key === 'Enter') document.getElementById('otpForm').dispatchEvent(new Event('submit'));
+            });
+            input.addEventListener('focus', () => input.select());
+        });
+
+        // Step 1: Send OTP
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const emailField = document.getElementById('email').value;
-            const passwordField = document.getElementById('password').value;
+            const btn = document.getElementById('sendBtn');
+            const email = document.getElementById('email').value.trim();
+            const errEl = document.getElementById('emailError');
+            const sucEl = document.getElementById('emailSuccess');
 
-            // Handle 'admin' shorthand
-            const finalEmail = emailField === 'admin' ? 'admin@ludo.com' : (emailField.includes('@') ? emailField : `${emailField}@ludo.com`);
+            errEl.style.display = 'none';
+            sucEl.style.display = 'none';
 
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: finalEmail,
-                password: passwordField,
+            if (!email) {
+                errEl.textContent = 'Enter your email';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Sending...';
+
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email,
+                options: { shouldCreateUser: false }
             });
 
             if (error) {
-                alert('Login failed: ' + error.message);
+                errEl.textContent = error.message;
+                errEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = 'Send OTP';
+            } else {
+                currentEmail = email;
+                document.getElementById('otpSentTo').textContent = `We sent a 6-digit code to ${email}`;
+                document.getElementById('stepEmail').classList.remove('active');
+                document.getElementById('stepOtp').classList.add('active');
+                document.querySelector('#otpInputs input').focus();
+            }
+        });
+
+        // Resend
+        document.getElementById('resendLink').addEventListener('click', async () => {
+            const link = document.getElementById('resendLink');
+            link.textContent = 'Sending...';
+            await supabaseClient.auth.signInWithOtp({
+                email: currentEmail,
+                options: { shouldCreateUser: false }
+            });
+            link.textContent = 'Resend code';
+        });
+
+        // Step 2: Verify OTP
+        document.getElementById('otpForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('verifyBtn');
+            const errEl = document.getElementById('otpError');
+            errEl.style.display = 'none';
+
+            const inputs = document.querySelectorAll('#otpInputs input');
+            const token = Array.from(inputs).map(i => i.value).join('');
+
+            if (token.length !== 6) {
+                errEl.textContent = 'Enter the full 6-digit code';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Verifying...';
+
+            const { data, error } = await supabaseClient.auth.verifyOtp({
+                email: currentEmail,
+                token,
+                type: 'email',
+            });
+
+            if (error) {
+                errEl.textContent = error.message === 'Token has expired or is invalid'
+                    ? 'Code expired or invalid. Request a new one.'
+                    : error.message;
+                errEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = 'Verify & Sign In';
+                // Clear inputs
+                inputs.forEach(i => i.value = '');
+                inputs[0].focus();
             } else {
                 localStorage.setItem('admin_session', JSON.stringify(data.session));
-                // Redirect up to admin root index.html
                 window.location.href = '../index.html';
             }
         });
     </script>
-
 </body>
 </html>

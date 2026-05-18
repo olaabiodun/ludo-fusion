@@ -11,7 +11,6 @@ export interface LevelUpdate {
   progress: number; // 0 to 1
   leveledUp: boolean;
   streak: number;
-  streakBonus: boolean;
 }
 
 /**
@@ -61,13 +60,8 @@ export async function updatePlayerLevel(userId: string, xpGained: number, isWin:
     const oldXp = xp;
 
     // 2. Handle Winning Streak
-    let streakBonus = false;
     if (isWin) {
       streak = (streak || 0) + 1;
-      if (streak === 3) {
-        xpGained += 500; // Big bonus for 3 wins in a row!
-        streakBonus = true;
-      }
     } else {
       streak = 0; // Reset streak on loss
     }
@@ -111,7 +105,6 @@ export async function updatePlayerLevel(userId: string, xpGained: number, isWin:
       progress: xp / xp_next_level,
       leveledUp,
       streak,
-      streakBonus
     };
   } catch (err) {
     console.error('Unexpected error in updatePlayerLevel:', err);

@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { GiftPanel, LeaderboardPanel, MissionsPanel } from './QuickPanels';
+import { GiftPanel, MissionsPanel } from './QuickPanels';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 const { useEffect, useRef, useState } = React;
 
 const PulseBadge = ({ count }: { count: string }) => {
@@ -55,8 +56,10 @@ export function TopBar({
   const [level, setLevel] = useState(1);
   const [xpProgress, setXpProgress] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activePanel, setActivePanel] = useState<'gift' | 'leaderboard' | 'missions' | null>(null);
-  const togglePanel = (p: 'gift' | 'leaderboard' | 'missions') =>
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<'gift' | 'missions' | null>(null);
+  const gamblingEnabled = useGamblingEnabled();
+  const togglePanel = (p: 'gift' | 'missions') =>
     setActivePanel(prev => (prev === p ? null : p));
 
   const formatBalance = (num: number) => {
@@ -75,11 +78,12 @@ export function TopBar({
       if (!user) return;
 
       // 1. Initial fetch
-      const { data: profile } = await supabase.from('profiles').select('full_name, username, wallet_balance, level, xp, xp_next_level').eq('id', user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('full_name, username, wallet_balance, level, xp, xp_next_level, avatar_url').eq('id', user.id).single();
       if (profile) {
         setUserName(profile.full_name || profile.username || 'Player');
         setBalance(formatBalance(Number(profile.wallet_balance ?? 0)));
         setLevel(profile.level ?? 1);
+        setAvatarUrl(profile.avatar_url);
         const xp = profile.xp ?? 0;
         const next = profile.xp_next_level ?? 1000;
         setXpProgress(Math.min(100, Math.floor((xp / next) * 100)));
@@ -106,6 +110,9 @@ export function TopBar({
               }
               if (payload.new.level !== undefined) {
                 setLevel(payload.new.level);
+              }
+              if (payload.new.avatar_url !== undefined) {
+                setAvatarUrl(payload.new.avatar_url);
               }
               if (payload.new.xp !== undefined && payload.new.xp_next_level !== undefined) {
                 setXpProgress(Math.min(100, Math.floor((payload.new.xp / payload.new.xp_next_level) * 100)));
@@ -159,7 +166,11 @@ export function TopBar({
         >
           <View style={styles.avatarContainer}>
             <View style={styles.avatarInner}>
-              <MaterialCommunityIcons name="account" size={20} color="#D4AF37" />
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <MaterialCommunityIcons name="account" size={20} color="#D4AF37" />
+              )}
             </View>
             <View style={styles.vipCrown}>
               <MaterialCommunityIcons name="crown" size={10} color="#D4AF37" />
@@ -196,12 +207,6 @@ export function TopBar({
             <MaterialCommunityIcons name="gift-outline" size={18} color="#D4AF37" />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.actionBtn, activePanel === 'leaderboard' && styles.actionBtnActive]} 
-            onPress={() => { playButtonSound(); togglePanel('leaderboard'); }}
-          >
-            <MaterialCommunityIcons name="trophy-outline" size={18} color="#D4AF37" />
-          </TouchableOpacity>
-          <TouchableOpacity 
             style={[styles.actionBtn, activePanel === 'missions' && styles.actionBtnActive]} 
             onPress={() => { playButtonSound(); togglePanel('missions'); }}
           >
@@ -222,16 +227,19 @@ export function TopBar({
           {/* Coins */}
           <View style={styles.statSlot}>
             <MaterialCommunityIcons name="database" size={12} color="#D4AF37" />
-            <Text style={styles.statValue}>₦{balance}</Text>
+            <Text style={styles.statValue}>{gamblingEnabled ? `₦${balance}` : `${balance} coins`}</Text>
+            {gamblingEnabled && (
             <TouchableOpacity 
               style={styles.plusButton} 
               onPress={() => { playButtonSound(); onAddFundsPress?.(); }}
             >
               <MaterialCommunityIcons name="plus" size={10} color="#fff" />
             </TouchableOpacity>
+            )}
           </View>
 
           {/* Withdraw */}
+          {gamblingEnabled && (
           <TouchableOpacity 
             style={styles.withdrawBtn} 
             onPress={() => { playButtonSound(); onWithdrawPress?.(); }}
@@ -239,6 +247,7 @@ export function TopBar({
             <MaterialCommunityIcons name="bank-transfer-out" size={14} color="#D4AF37" />
             <Text style={styles.withdrawText}>WITHDRAW</Text>
           </TouchableOpacity>
+          )}
         </View>
 
         {/* Settings Button */}
@@ -251,7 +260,6 @@ export function TopBar({
       </View>
 
       <GiftPanel visible={activePanel === 'gift'} onClose={() => setActivePanel(null)} />
-      <LeaderboardPanel visible={activePanel === 'leaderboard'} onClose={() => setActivePanel(null)} />
       <MissionsPanel visible={activePanel === 'missions'} onClose={() => setActivePanel(null)} />
     </View>
   );

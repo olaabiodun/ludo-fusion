@@ -148,19 +148,12 @@ export const FlyingCard = React.memo(({
     // Elevation shadow effect
     const shadowProgress = Math.sin(p * Math.PI); // peaks mid-flight
 
-    // 3D flip for reveal cards
-    const rotateY = reveal ? `${p * 180}deg` : '0deg';
-    const rotateX = `${Math.sin(p * Math.PI) * 20}deg`;
-
     return {
       transform: [
         { translateX },
         { translateY },
         { scale },
         { rotate },
-        { perspective: 900 },
-        { rotateX },
-        { rotateY },
       ],
       opacity: interpolate(p, [0, 0.05, 0.95, 1], [0, 1, 1, 1], Extrapolate.CLAMP),
       shadowColor: '#000',
@@ -182,16 +175,11 @@ export const FlyingCard = React.memo(({
     <Animated.View 
       style={[styles.cardBase, { overflow: 'visible' }, animatedStyle]}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backfaceHidden, backOpacity]}>
+      <Animated.View style={[StyleSheet.absoluteFill, backOpacity]}>
         <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
       </Animated.View>
       {reveal && (
-        <Animated.View style={[
-          StyleSheet.absoluteFill,
-          styles.backfaceHidden,
-          frontOpacity,
-          { transform: [{ rotateY: '180deg' }] }
-        ]}>
+        <Animated.View style={[StyleSheet.absoluteFill, frontOpacity]}>
           <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
         </Animated.View>
       )}
@@ -343,9 +331,7 @@ export const PlayCardAnim = React.memo(({
     const scaleBase = interpolate(p, [0, 0.3, 0.85, 1], [1.0, 1.18, 1.05, 1.0], Extrapolate.CLAMP);
     const scale = scaleBase * (p >= 1 ? landPop.value : 1);
 
-    // Tilt during flight
-    const rotateX = `${Math.sin(p * Math.PI) * 15}deg`;
-    const rotateZ = `${Math.sin(p * Math.PI * 1.5) * 4}deg`;
+    // Tilt during flight (removed rotateX/rotateZ — they clip card edges on iOS)
     const elev = Math.sin(p * Math.PI);
 
     return {
@@ -354,9 +340,6 @@ export const PlayCardAnim = React.memo(({
         { translateY },
         { scale },
         { rotate },
-        { perspective: 900 },
-        { rotateX },
-        { rotateZ },
       ],
       shadowColor: '#000',
       shadowOpacity: elev * 0.45,
@@ -484,8 +467,6 @@ export const MarketPickAnim = React.memo(({
         { translateX: tx - CARD_W / 2 },
         { translateY: ty - CARD_H / 2 },
         { scale },
-        { perspective: 900 },
-        { rotateY: `${rotY}deg` },
         { rotateZ: `${rotZ}deg` },
       ],
       zIndex: 3500,
@@ -511,15 +492,10 @@ export const MarketPickAnim = React.memo(({
       style={[styles.cardBase, animatedStyle]}
       
     >
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backfaceHidden, backStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
         <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
       </Animated.View>
-      <Animated.View style={[
-        StyleSheet.absoluteFill,
-        styles.backfaceHidden,
-        frontStyle,
-        { transform: [{ rotateY: '180deg' }] }
-      ]}>
+      <Animated.View style={[StyleSheet.absoluteFill, frontStyle]}>
         <WhotFrontCard shape={card.shape} value={card.value} width={CARD_W} height={CARD_H} />
       </Animated.View>
     </Animated.View>
@@ -887,8 +863,5 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: rs(5),
-  },
-  backfaceHidden: {
-    backfaceVisibility: 'hidden',
   },
 });

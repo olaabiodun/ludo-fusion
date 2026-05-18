@@ -13,14 +13,14 @@ export type PawnState = {
 export type GameState = {
   activeColors: BC[];
   turnIndex: number;
-  turnId: number; // Increments to reset UI timer
+  turnId: number;
   diceValue: number | null;
   hasRolled: boolean;
   pawns: PawnState[];
   lives: Record<BC, number>;
   captures: Record<BC, number>;
   messages: string[];
-  action: { msg: string; color: BC; key: number } | null;
+  action: { msg: string; color: BC; key: number; capturedPawnId?: string } | null;
   winner: BC | null;
 };
 
@@ -309,6 +309,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
       // Handle Capturing & Blockades
       let msgs = s.messages;
       let capturedSomeone = false;
+      let capturedPawnId: string | undefined;
       const myNewPerimeterIdx = getPerimeterIndex(pawn.color, nextState, nextPathIndex);
 
       if (myNewPerimeterIdx !== null && !SAFE_ZONES.has(myNewPerimeterIdx)) {
@@ -351,8 +352,8 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
 
               // Vulnerable token. Capture it!
               const captureIdx = newPawns.findIndex(x => x.id === p.id);
-              // Standard Ludo rule: Captured tokens go back home
-              newPawns[captureIdx] = { ...p, state: 'home', pathIndex: 0 };
+              // Delayed home-return — keep pawn visible at its position until animation completes
+              capturedPawnId = p.id;
               capturedSomeone = true;
               if (isStartingCellOfVictim) capturedColorsAtStart.add(p.color);
               msgs = [`${turnColor} captured ${p.color}!`, ...msgs];
@@ -404,7 +405,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
         captures: nextCaptures,
         messages: msgs.slice(0, 5),
         winner: finalWinner,
-        action: capturedSomeone ? { msg: 'capture', color: turnColor, key: Date.now() }
+        action: capturedSomeone ? { msg: 'capture', color: turnColor, key: Date.now(), capturedPawnId }
           : nextState === 'finished' ? { msg: myPawnsFinished === 4 ? 'winner' : 'home', color: turnColor, key: Date.now() }
             : null
       };
@@ -539,6 +540,18 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
     });
   }, [activeColors]);
 
+  const resolveCaptures = useCallback((capturedPawnIds: string[]) => {
+    setState(prev => {
+      const newPawns = prev.pawns.map(p => {
+        if (capturedPawnIds.includes(p.id) && p.state !== 'home') {
+          return { ...p, state: 'home' as const, pathIndex: 0 };
+        }
+        return p;
+      });
+      return { ...prev, pawns: newPawns };
+    });
+  }, []);
+
   return {
     state,
     rollDice,
@@ -551,5 +564,6 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
     isDiceRolling,
     setIsDiceRolling,
     resetGame,
+    resolveCaptures,
   };
 }

@@ -3,77 +3,2845 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Winnerson Admin</title>
+    <title>Dashboard | Ludo Fusion Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { background: #07150f; color: #f5efd8; font-family: 'Inter', sans-serif; }
-        .card { background: rgba(255,255,255,0.05); border: 1px solid rgba(212,175,55,0.2); color: #f5efd8; }
-        .btn-primary { background: #d4af37; border: none; color: #000; font-weight: bold; }
-        .btn-outline-danger { border-color: #ff4d4d; color: #ff4d4d; }
+        :root {
+            --bg-primary: #07150f;
+            --bg-secondary: #0a1f15;
+            --bg-card: #0f2a1d;
+            --bg-card-hover: #143826;
+            --gold: #D4AF37;
+            --gold-light: #F0CC5A;
+            --gold-dark: #8C6A10;
+            --text-primary: #f5efd8;
+            --text-secondary: #a89f88;
+            --text-muted: #6b6558;
+            --border: rgba(212, 175, 55, 0.15);
+            --border-light: rgba(212, 175, 55, 0.25);
+            --green: #39c65b;
+            --red: #e43c39;
+            --blue: #238de5;
+            --sidebar-width: 240px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--gold-dark); border-radius: 3px; }
+
+        /* SIDEBAR */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-brand {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-brand-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 16px; color: #000;
+        }
+        .sidebar-brand-text {
+            font-weight: 800;
+            font-size: 16px;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--gold-light), var(--gold));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .sidebar-brand-sub {
+            font-size: 9px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            -webkit-text-fill-color: var(--text-muted);
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 10px;
+            overflow-y: auto;
+        }
+        .sidebar-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            padding: 16px 12px 6px;
+            font-weight: 600;
+        }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+        .sidebar-item:hover {
+            background: rgba(212, 175, 55, 0.08);
+            color: var(--text-primary);
+        }
+        .sidebar-item.active {
+            background: rgba(212, 175, 55, 0.12);
+            color: var(--gold);
+        }
+        .sidebar-item i { font-size: 18px; width: 22px; text-align: center; }
+        .sidebar-item .badge {
+            margin-left: auto;
+            background: var(--gold-dark);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* MAIN */
+        .main {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .navbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .navbar-page-title {
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .navbar-user-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px; color: #000;
+        }
+        .navbar-user-info {
+            line-height: 1.3;
+        }
+        .navbar-user-name {
+            font-size: 13px; font-weight: 600;
+        }
+        .navbar-user-role {
+            font-size: 11px; color: var(--gold);
+        }
+        .content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        /* CARDS */
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 14px 0 0 14px;
+        }
+        .stat-card.gold::before { background: linear-gradient(to bottom, var(--gold-light), var(--gold-dark)); }
+        .stat-card.green::before { background: linear-gradient(to bottom, #39c65b, #1a6b30); }
+        .stat-card.red::before { background: linear-gradient(to bottom, #e43c39, #8a1f1a); }
+        .stat-card.blue::before { background: linear-gradient(to bottom, #238de5, #1a4f8a); }
+        .stat-card:hover {
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+        }
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .stat-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .stat-icon {
+            position: absolute;
+            top: 16px; right: 16px;
+            font-size: 28px;
+            opacity: 0.15;
+        }
+
+        /* TABLE */
+        .table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .table-header h5 {
+            font-weight: 700;
+            margin: 0;
+        }
+        .table-search {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 14px;
+            color: var(--text-primary);
+            font-size: 13px;
+            min-width: 220px;
+        }
+        .table-search:focus {
+            outline: none;
+            border-color: var(--gold);
+        }
+        .table-search::placeholder { color: var(--text-muted); }
+        .table {
+            margin: 0;
+            color: #fff;
+            --bs-table-color: #fff;
+            background: transparent;
+        }
+        .table > :not(caption) > * > * {
+            background: transparent;
+            color: #fff;
+        }
+        .table tbody {
+            background: transparent;
+        }
+        .table thead th {
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid var(--border);
+            border-top: none;
+            color: #fff;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            padding: 12px 16px;
+        }
+        .table tbody td {
+            border-bottom: 1px solid rgba(212,175,55,0.06);
+            padding: 12px 16px;
+            font-size: 13px;
+            vertical-align: middle;
+            background: transparent;
+        }
+        .table tbody tr:nth-child(even) td {
+            background: rgba(255,255,255,0.02);
+        }
+        .table tbody tr:hover td {
+            background: rgba(212,175,55,0.04);
+        }
+        .table tbody tr:last-child td { border-bottom: none; }
+
+        /* BADGES */
+        .badge-status {
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .badge-status.completed, .badge-status.finished { background: rgba(57,198,91,0.15); color: #39c65b; }
+        .badge-status.win { background: rgba(57,198,91,0.15); color: #39c65b; }
+        .badge-status.loss { background: rgba(228,60,57,0.15); color: #e43c39; }
+        .badge-status.pending { background: rgba(212,175,55,0.15); color: var(--gold); }
+        .badge-status.failed { background: rgba(228,60,57,0.15); color: #e43c39; }
+        .badge-status.waiting { background: rgba(57,198,91,0.12); color: #39c65b; }
+        .badge-status.playing, .badge-status.starting { background: rgba(35,141,229,0.15); color: #238de5; }
+        .badge-status.banned { background: rgba(228,60,57,0.2); color: #e43c39; }
+        .badge-status.active { background: rgba(57,198,91,0.15); color: #39c65b; }
+
+        /* BUTTONS */
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border: none;
+            color: #000;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 8px 18px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-gold:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(212,175,55,0.3);
+            color: #000;
+        }
+        .btn-outline-gold {
+            background: transparent;
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            font-weight: 600;
+            font-size: 12px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-outline-gold:hover {
+            background: rgba(212,175,55,0.1);
+            color: var(--gold-light);
+        }
+        .btn-danger-sm {
+            background: rgba(228,60,57,0.15);
+            border: 1px solid rgba(228,60,57,0.3);
+            color: #e43c39;
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .btn-danger-sm:hover {
+            background: rgba(228,60,57,0.25);
+            color: #ff6b6b;
+        }
+        .btn-success-sm {
+            background: rgba(57,198,91,0.15);
+            border: 1px solid rgba(57,198,91,0.3);
+            color: #39c65b;
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .btn-success-sm:hover {
+            background: rgba(57,198,91,0.25);
+        }
+        .btn-info-sm {
+            background: rgba(35,141,229,0.15);
+            border: 1px solid rgba(35,141,229,0.3);
+            color: #5ba8f0;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 600;
+        }
+        .btn-info-sm:hover {
+            background: rgba(35,141,229,0.25);
+        }
+
+        /* PAGINATION */
+        .pagination-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .pagination-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .pagination-btns button {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination-btns button:hover:not(:disabled) {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+        .pagination-btns button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .pagination-btns button.active {
+            background: var(--gold);
+            border-color: var(--gold);
+            color: #000;
+            font-weight: 700;
+        }
+
+        /* MODAL */
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: var(--text-primary);
+        }
+        .modal-header {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 20px;
+        }
+        .modal-header .btn-close {
+            filter: invert(0.8) brightness(1.5);
+        }
+        .modal-body { padding: 20px; }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .detail-section {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+        }
+        .detail-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .detail-value {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .detail-sub {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .modal-footer {
+            border-top: 1px solid var(--border);
+            padding: 14px 20px;
+        }
+        .modal-backdrop.show { opacity: 0.6; }
+        .form-control, .form-select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 2px rgba(212,175,55,0.15);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .form-control::placeholder { color: var(--text-muted); }
+        .form-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.3px; }
+        .form-select option { background: var(--bg-card); color: var(--text-primary); }
+
+        /* CHART */
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+        .chart-container h5 {
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state i { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+        .empty-state p { font-size: 13px; }
+
+        /* PAGE */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* SUPPORT */
+        .support-conv-list {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0 -16px;
+            padding: 4px 8px;
+        }
+        .support-conv-list .conv-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: background 0.15s, border-color 0.15s;
+            margin-bottom: 4px;
+        }
+        .support-conv-list .conv-item:hover {
+            background: rgba(255,255,255,0.04);
+        }
+        .support-conv-list .conv-item.selected {
+            background: rgba(212,175,55,0.12);
+            border-color: rgba(212,175,55,0.25);
+        }
+        .support-conv-list .conv-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(212,175,55,0.2);
+            flex-shrink: 0;
+        }
+        .support-conv-list .conv-avatar-fallback {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .support-conv-list .conv-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .support-conv-list .conv-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .support-conv-list .conv-name.unread {
+            font-weight: 800;
+        }
+        .support-conv-list .conv-preview {
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .support-conv-list .conv-preview.user-msg {
+            color: var(--gold);
+        }
+        .support-conv-list .conv-preview.support-msg {
+            color: var(--text-muted);
+        }
+        .support-conv-list .conv-meta {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+        .support-conv-list .conv-count {
+            font-size: 10px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .support-conv-list .conv-unread-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #57D08B;
+            flex-shrink: 0;
+        }
+        .support-thread-header {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .support-thread-header .thread-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(212,175,55,0.2);
+        }
+        .support-thread-header .thread-avatar-fallback {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .support-thread-header .thread-name {
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text);
+        }
+        .support-thread-header .thread-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .support-thread {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0 -16px;
+            padding: 0 16px;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .support-thread .msg-row {
+            display: flex;
+            margin-bottom: 4px;
+        }
+        .support-thread .msg-row.user {
+            justify-content: flex-start;
+        }
+        .support-thread .msg-row.support {
+            justify-content: flex-end;
+        }
+        .support-thread .msg-bubble {
+            max-width: 80%;
+            padding: 8px 14px;
+            border-radius: 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text);
+        }
+        .support-thread .msg-bubble.user {
+            background: rgba(212,175,55,0.1);
+            border: 1px solid rgba(212,175,55,0.2);
+            border-bottom-left-radius: 4px;
+        }
+        .support-thread .msg-bubble.support {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-bottom-right-radius: 4px;
+        }
+        .support-thread .msg-time {
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .support-thread .msg-time.left { text-align: left; }
+        .support-thread .msg-time.right { text-align: right; }
+        .support-thread-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .support-reply-area {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            gap: 8px;
+        }
+        .support-reply-area textarea {
+            flex: 1;
+            resize: none;
+        }
+
+        /* LOADING */
+        .loading-spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .content { padding: 16px; }
+            .stat-value { font-size: 22px; }
+            .table-wrap { overflow-x: auto; }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            .sidebar-overlay.show { display: block; }
+        }
+
+        .avatar-xs {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .text-gold { color: var(--gold); }
+        .text-gold-light { color: var(--gold-light); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* Toggle switch */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .toggle-wrap .toggle-info { flex: 1; }
+        .toggle-wrap .toggle-label {
+            font-weight: 700; font-size: 14px; color: #fff;
+        }
+        .toggle-wrap .toggle-desc {
+            font-size: 12px; color: var(--text-secondary); margin-top: 2px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 52px; height: 28px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .toggle-switch input {
+            opacity: 0; width: 0; height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            transition: all 0.3s;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 20px; height: 20px;
+            left: 3px; top: 3px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border-color: var(--gold);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(24px);
+            background: #000;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .mode-badge.gambling { background: rgba(228,60,57,0.15); color: #e43c39; }
+        .mode-badge.coins { background: rgba(57,198,91,0.15); color: #39c65b; }
+
+        /* filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-bar select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .filter-bar select:focus { outline: none; border-color: var(--gold); }
+
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+        .toast-container {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 9999;
+        }
+        .toast-custom {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            font-size: 13px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            min-width: 250px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        }
+        .toast-custom.success { border-left: 3px solid #39c65b; }
+        .toast-custom.error { border-left: 3px solid #e43c39; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-cell .avatar-placeholder {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700;
+            color: #000;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark px-4">
-        <span class="navbar-brand mb-0 h1 text-gold">WINNERSON ADMIN</span>
-        <button id="logoutBtn" class="btn btn-outline-danger btn-sm">Logout</button>
-    </nav>
+    <!-- SIDEBAR OVERLAY (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <div class="container mt-5">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card p-3 mb-4">
-                    <h5>Total Players</h5>
-                    <h2 id="playerCount">--</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card p-3 mb-4">
-                    <h5>Active Matches</h5>
-                    <h2 id="matchCount">--</h2>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card p-3 mb-4">
-                    <h5>Total Revenue</h5>
-                    <h2 id="revenueCount">₦ 0.00</h2>
-                </div>
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-icon">W</div>
+            <div>
+                <div class="sidebar-brand-text">LUDO FUSION</div>
+                <div class="sidebar-brand-sub">Admin Panel</div>
             </div>
         </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-label">Main</div>
+            <button class="sidebar-item active" data-page="dashboard"><i class="bi bi-grid-1x2-fill"></i> Dashboard</button>
+            <button class="sidebar-item" data-page="players"><i class="bi bi-people-fill"></i> Players</button>
+            <button class="sidebar-item" data-page="rooms"><i class="bi bi-controller"></i> Game Rooms</button>
+            <button class="sidebar-item" data-page="transactions"><i class="bi bi-credit-card-2-front"></i> Transactions</button>
+            <button class="sidebar-item" data-page="reports"><i class="bi bi-graph-up-arrow"></i> Revenue</button>
+            <button class="sidebar-item" data-page="missions"><i class="bi bi-trophy-fill"></i> Missions</button>
+            <button class="sidebar-item" data-page="games"><i class="bi bi-clock-history"></i> Game History</button>
+            <button class="sidebar-item" data-page="withdrawals"><i class="bi bi-arrow-up-circle"></i> Withdrawals</button>
+            <button class="sidebar-item" data-page="online"><i class="bi bi-wifi"></i> Online Users</button>
 
-        <div class="card p-4 mt-4">
-            <h4>Recent Activity</h4>
-            <p class="text-muted">Supabase live data will appear here...</p>
+            <div class="sidebar-label">System</div>
+            <button class="sidebar-item" data-page="support"><i class="bi bi-chat-dots-fill"></i> Support</button>
+            <button class="sidebar-item" data-page="broadcast"><i class="bi bi-megaphone-fill"></i> Broadcast</button>
+            <button class="sidebar-item" data-page="settings"><i class="bi bi-gear-fill"></i> Settings</button>
+            <button class="sidebar-item" id="logoutBtn2"><i class="bi bi-box-arrow-left"></i> Logout</button>
+        </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="main">
+        <!-- NAVBAR -->
+        <nav class="navbar">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <button class="btn btn-sm d-md-none" style="color:var(--text-secondary);font-size:20px;" onclick="toggleSidebar()">☰</button>
+                <span class="navbar-page-title" id="pageTitle">Dashboard</span>
+            </div>
+            <div class="navbar-user">
+                <div>
+                    <button class="refresh-btn" onclick="refreshCurrentPage()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div class="navbar-user-info d-none d-md-block">
+                    <div class="navbar-user-name" id="adminName">Admin</div>
+                    <div class="navbar-user-role" id="adminRole">superadmin</div>
+                </div>
+                <div class="navbar-user-avatar" id="adminAvatar">A</div>
+            </div>
+        </nav>
+
+        <!-- CONTENT -->
+        <div class="content">
+            <!-- ===== DASHBOARD ===== -->
+            <div class="page active" id="page-dashboard">
+                <div class="row g-3 mb-4" id="statsRow">
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card gold">
+                            <div class="stat-label">Total Players</div>
+                            <div class="stat-value" id="statPlayers">--</div>
+                            <div class="stat-sub" id="statPlayersSub">-- today</div>
+                            <i class="bi bi-people-fill stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card green">
+                            <div class="stat-label">Active Rooms</div>
+                            <div class="stat-value" id="statRooms">--</div>
+                            <div class="stat-sub">currently playing</div>
+                            <i class="bi bi-controller stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card blue">
+                            <div class="stat-label">Total Deposits</div>
+                            <div class="stat-value" id="statDeposits">₦0</div>
+                            <div class="stat-sub">all time</div>
+                            <i class="bi bi-arrow-down-circle stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card red">
+                            <div class="stat-label">Pending Withdraw</div>
+                            <div class="stat-value" id="statPendingW">₦0</div>
+                            <div class="stat-sub">awaiting approval</div>
+                            <i class="bi bi-arrow-up-circle stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card gold">
+                            <div class="stat-label">Today's Revenue</div>
+                            <div class="stat-value" id="statTodayRev">₦0</div>
+                            <div class="stat-sub">deposits today</div>
+                            <i class="bi bi-cash-stack stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card green">
+                            <div class="stat-label">Games Played</div>
+                            <div class="stat-value" id="statGames">--</div>
+                            <div class="stat-sub">all time</div>
+                            <i class="bi bi-dice-6 stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card blue">
+                            <div class="stat-label">Platform Fees</div>
+                            <div class="stat-value" id="statFees">₦0</div>
+                            <div class="stat-sub">20% from stakes</div>
+                            <i class="bi bi-percent stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card green">
+                        <div class="stat-label">Online Now</div>
+                        <div class="stat-value" id="statOnlineNow" style="color:#39c65b;">--</div>
+                        <div class="stat-sub">active in last 2 min</div>
+                        <i class="bi bi-wifi stat-icon"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="chart-container">
+                            <h5>Revenue (30 Days)</h5>
+                            <div id="revenueChart" style="height:300px;"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="chart-container">
+                            <h5>Game Distribution</h5>
+                            <div id="gameChart" style="height:300px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== PLAYERS ===== -->
+            <div class="page" id="page-players">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-people-fill text-gold me-2"></i>All Players</h5>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <input class="table-search" id="playerSearch" placeholder="Search by username or name..." oninput="debounceSearchPlayers()">
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Player</th>
+                                    <th>Balance</th>
+                                    <th>Level / Tier</th>
+                                    <th>Matches</th>
+                                    <th>Win Rate</th>
+                                    <th>Status</th>
+                                    <th>Joined</th>
+                                    <th style="width:100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="playersBody">
+                                <tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-wrap">
+                        <span id="playersInfo">Showing 0-0 of 0</span>
+                        <div class="pagination-btns" id="playersPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== GAME ROOMS ===== -->
+            <div class="page" id="page-rooms">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-controller text-gold me-2"></i>Game Rooms</h5>
+                        <div class="filter-bar">
+                            <select id="roomStatusFilter" onchange="loadRooms(1)">
+                                <option value="">All Status</option>
+                                <option value="waiting">Waiting</option>
+                                <option value="starting">Starting</option>
+                                <option value="playing">Playing</option>
+                                <option value="finished">Finished</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Game</th>
+                                    <th>Host</th>
+                                    <th>Stake</th>
+                                    <th>Players</th>
+                                    <th>Status</th>
+                                    <th>Room Code</th>
+                                    <th>Created</th>
+                                    <th style="width:80px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="roomsBody">
+                                <tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-wrap">
+                        <span id="roomsInfo">Showing 0-0 of 0</span>
+                        <div class="pagination-btns" id="roomsPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TRANSACTIONS ===== -->
+            <div class="page" id="page-transactions">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-credit-card-2-front text-gold me-2"></i>Transactions</h5>
+                        <div class="filter-bar">
+                            <select id="txTypeFilter" onchange="loadTransactions(1)">
+                                <option value="">All Types</option>
+                                <option value="deposit">Deposit</option>
+                                <option value="withdrawal">Withdrawal</option>
+                                <option value="transfer">Transfer</option>
+                                <option value="matchmaking_stake">Stake</option>
+                                <option value="matchmaking_refund">Refund</option>
+                                <option value="bonus">Bonus</option>
+                                <option value="winning">Winning</option>
+                                <option value="membership">Membership</option>
+                            </select>
+                            <select id="txStatusFilter" onchange="loadTransactions(1)">
+                                <option value="">All Status</option>
+                                <option value="completed">Completed</option>
+                                <option value="pending">Pending</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Player</th>
+                                    <th>Amount</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Description</th>
+                                    <th>Ref ID</th>
+                                    <th>Date</th>
+                                    <th style="width:100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="txBody">
+                                <tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-wrap">
+                        <span id="txInfo">Showing 0-0 of 0</span>
+                        <div class="pagination-btns" id="txPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== REVENUE ===== -->
+            <div class="page" id="page-reports">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card gold">
+                            <div class="stat-label">Total Revenue (30d)</div>
+                            <div class="stat-value" id="revTotal">₦0</div>
+                            <i class="bi bi-cash-stack stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card green">
+                            <div class="stat-label">Deposits (30d)</div>
+                            <div class="stat-value" id="revDeposits">₦0</div>
+                            <i class="bi bi-arrow-down-circle stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card red">
+                            <div class="stat-label">Withdrawals (30d)</div>
+                            <div class="stat-value" id="revWithdrawals">₦0</div>
+                            <i class="bi bi-arrow-up-circle stat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="stat-card blue">
+                            <div class="stat-label">Net Flow</div>
+                            <div class="stat-value" id="revNet">₦0</div>
+                            <i class="bi bi-arrow-left-right stat-icon"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h5>Daily Revenue Breakdown</h5>
+                    <div id="dailyRevenueChart" style="height:350px;"></div>
+                </div>
+            </div>
+
+            <!-- ===== MISSIONS ===== -->
+            <div class="page" id="page-missions">
+                <div class="row g-3" id="missionsGrid">
+                    <div class="col-12 text-center py-5" style="color:var(--text-muted);">Loading missions...</div>
+                </div>
+            </div>
+
+            <!-- ===== GAME HISTORY ===== -->
+            <div class="page" id="page-games">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-clock-history text-gold me-2"></i>Game History</h5>
+                        <div class="filter-bar">
+                            <select id="gameTypeFilter" onchange="loadGames(1)">
+                                <option value="">All Games</option>
+                                <option value="ludo">Ludo</option>
+                                <option value="whot">Whot</option>
+                                <option value="snake_ladder">Snake & Ladder</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead><tr>
+                                <th>Player</th><th>Game</th><th>Stake</th><th>Win Amount</th><th>Result</th><th>Game ID</th><th>Date</th>
+                            </tr></thead>
+                            <tbody id="gamesBody">
+                                <tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-wrap">
+                        <span id="gamesInfo">Showing 0-0 of 0</span>
+                        <div class="pagination-btns" id="gamesPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== WITHDRAWALS ===== -->
+            <div class="page" id="page-withdrawals">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-arrow-up-circle text-gold me-2"></i>Pending Withdrawals</h5>
+                        <span style="font-size:12px;color:var(--text-muted);">Review and approve or reject withdrawal requests</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead><tr>
+                                <th>Player</th><th>Amount</th><th>Description</th><th>Requested</th><th style="width:140px;">Actions</th>
+                            </tr></thead>
+                            <tbody id="withdrawalsBody">
+                                <tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination-wrap">
+                        <span id="withdrawalsInfo">Showing 0-0 of 0</span>
+                        <div class="pagination-btns" id="withdrawalsPagination"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== ONLINE USERS ===== -->
+            <div class="page" id="page-online">
+                <div class="table-wrap">
+                    <div class="table-header">
+                        <h5><i class="bi bi-wifi text-gold me-2"></i>Online Users</h5>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <span style="font-size:12px;color:var(--text-muted);">Auto-refreshes every 10s</span>
+                            <span id="onlineCountBadge" class="badge-status active" style="font-size:13px;padding:4px 16px;">0 online</span>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Player</th>
+                                    <th>Level / Tier</th>
+                                    <th>Balance</th>
+                                    <th>Last Seen</th>
+                                    <th style="width:80px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="onlineBody">
+                                <tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== BROADCAST ===== -->
+            <div class="page" id="page-broadcast">
+                <div class="row g-3">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="chart-container">
+                            <h5><i class="bi bi-megaphone-fill text-gold me-2"></i>Send Announcement</h5>
+                            <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Send an in-app announcement to all players. This appears in their inbox.</p>
+                            <form id="broadcastForm" onsubmit="return false;">
+                                <div class="mb-3">
+                                    <label class="form-label">Title</label>
+                                    <input type="text" class="form-control" id="broadcastTitle" placeholder="e.g. Double Coins Weekend!" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Message</label>
+                                    <textarea class="form-control" id="broadcastContent" rows="4" placeholder="Write your announcement..." required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Type</label>
+                                    <select class="form-control" id="broadcastType">
+                                        <option value="announcement">Announcement</option>
+                                        <option value="promo">Promotion</option>
+                                        <option value="system">System Notice</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-gold" id="broadcastBtn"><i class="bi bi-send-fill me-1"></i> Send to All Players</button>
+                            </form>
+                            <div id="broadcastStatus" style="margin-top:16px;"></div>
+                        </div>
+                        <div class="chart-container mt-3">
+                            <h5>Recent Announcements</h5>
+                            <div id="recentAnnouncements">
+                                <div class="text-center py-3" style="color:var(--text-muted);font-size:13px;">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== SETTINGS ===== -->
+            <div class="page" id="page-settings">
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="chart-container">
+                            <h5>Manage Admins</h5>
+                            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Add or remove admin users. Only superadmins can manage this section.</p>
+                            <div id="adminList">
+                                <div class="text-center py-3" style="color:var(--text-muted);font-size:13px;">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="chart-container">
+                            <h5>Platform Settings</h5>
+                            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Global game configuration values.</p>
+                            <div id="platformSettings">
+                                <div class="text-center py-3" style="color:var(--text-muted);font-size:13px;">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- ===== SUPPORT ===== -->
+    <div class="page" id="page-support">
+        <div class="row g-3">
+            <div class="col-lg-4">
+                <div class="chart-container" style="height:calc(100vh - 180px);display:flex;flex-direction:column;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 style="margin:0;"><i class="bi bi-chat-dots-fill text-gold me-2"></i>Conversations</h5>
+                        <span style="font-size:12px;color:var(--text-muted);">
+                            <span id="supportCountBadge">0</span>
+                            <span class="badge-status active ms-1" id="unreadSupportBadge" style="font-size:10px;display:none;">0 new</span>
+                        </span>
+                    </div>
+                    <div class="support-conv-list" id="conversationList">
+                        <div class="text-center py-4" style="color:var(--text-muted);font-size:13px;">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="chart-container" style="height:calc(100vh - 180px);display:flex;flex-direction:column;">
+                    <div class="support-thread-header" id="supportThreadHeader" style="display:none;">
+                        <div class="d-flex align-items-center gap-2" id="supportThreadUserInfo"></div>
+                        <span id="supportThreadMeta" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="support-thread-placeholder" id="supportThreadPlaceholder">
+                        <i class="bi bi-chat-dots" style="font-size:48px;color:var(--text-muted);opacity:0.3;"></i>
+                        <div style="color:var(--text-muted);font-size:14px;margin-top:8px;">Select a conversation to view messages</div>
+                    </div>
+                    <div class="support-thread" id="supportThreadContainer"></div>
+                    <div class="support-reply-area" id="supportReplyArea" style="display:none;">
+                        <textarea id="supportReplyInput" class="form-control" rows="2" placeholder="Type your reply..." style="flex:1;resize:none;"></textarea>
+                        <button class="btn btn-gold" id="supportReplyBtn"><i class="bi bi-send-fill me-1"></i> Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <!-- Player Detail Modal -->
+    <div class="modal fade" id="playerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-fill text-gold me-2"></i>Player Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="playerModalBody">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Adjust Balance Modal -->
+    <div class="modal fade" id="adjustModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-wallet2 text-gold me-2"></i>Adjust Balance</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="adjustForm" onsubmit="return false;">
+                    <div class="modal-body">
+                        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                            Adjusting balance for <strong id="adjustUser">--</strong>
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label">Amount (positive = credit, negative = debit)</label>
+                            <input type="number" step="0.01" class="form-control" id="adjustAmount" placeholder="e.g. 1000" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Reason</label>
+                            <input class="form-control" id="adjustReason" placeholder="e.g. Bonus, correction, refund">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-gold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-gold" id="adjustSubmit">Apply</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game History Detail Modal -->
+    <div class="modal fade" id="gameDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clock-history text-gold me-2"></i>Game Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="gameDetailBody">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Detail Modal -->
+    <div class="modal fade" id="roomDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-controller text-gold me-2"></i>Room Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="roomDetailBody">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Detail Modal -->
+    <div class="modal fade" id="txDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-credit-card-2-front text-gold me-2"></i>Transaction Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="txDetailBody">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div id="setupBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#8a1f1a;color:#fff;padding:10px 20px;font-size:13px;text-align:center;font-weight:600;">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Admin SQL not run yet. Run <code style="background:rgba(0,0,0,0.3);padding:2px 8px;border-radius:4px;">supabase_admin_setup.sql</code> in Supabase SQL Editor.
+    </div>
     <script>
+        // ============================================================
+        // CONFIG
+        // ============================================================
         const SUPABASE_URL = 'https://zuspbhabwlpxzmlxydgx.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_KzgmXSkpNiajIPe9KGQKMA_Ff1pX8uJ';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Auth Check
-        const session = localStorage.getItem('admin_session');
-        if (!session) {
+        // ============================================================
+        // AUTH CHECK
+        // ============================================================
+        const sessionData = localStorage.getItem('admin_session');
+        if (!sessionData) {
             window.location.href = 'assets/login.html';
         }
 
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
+        let currentUser = null;
+        let currentPage = 'dashboard';
+        let currentAdminRole = null;
+        let revenueChart = null;
+        let dailyChart = null;
+        let gameChart = null;
+
+        // Sidebar navigation — set up synchronously so it always works
+        document.querySelectorAll('.sidebar-item[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                navigateTo(btn.dataset.page);
+                if (window.innerWidth < 768) toggleSidebar();
+            });
+        });
+        document.getElementById('logoutBtn2').addEventListener('click', async () => {
             await supabaseClient.auth.signOut();
             localStorage.removeItem('admin_session');
             window.location.href = 'assets/login.html';
         });
+        document.getElementById('sidebarOverlay').addEventListener('click', toggleSidebar);
+        document.getElementById('adjustForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('adjustSubmit');
+            const amount = parseFloat(document.getElementById('adjustAmount').value);
+            const reason = document.getElementById('adjustReason').value || 'admin adjustment';
+            if (!amount || isNaN(amount)) { showToast('Enter a valid amount', 'error'); return; }
+            btn.disabled = true; btn.innerHTML = '<div class="loading-spinner"></div>';
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_adjust_balance', {
+                    p_user_id: adjustUserId, p_amount: amount, p_reason: reason
+                });
+                if (error || data?.error) { showToast(error?.message || data?.error, 'error'); }
+                else {
+                    showToast(`Balance adjusted by ${formatNaira(amount)}`);
+                    bootstrap.Modal.getInstance(document.getElementById('adjustModal')).hide();
+                    loadPlayers(playersPage);
+                }
+            } catch (e) { showToast(e.message, 'error'); }
+            btn.disabled = false; btn.innerHTML = 'Apply';
+        });
 
-        // Simple Stats Fetch
-        async function fetchStats() {
-            const { count: players } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
-            document.getElementById('playerCount').innerText = players || 0;
-            
-            const { count: matches } = await supabaseClient.from('matches').select('*', { count: 'exact', head: true });
-            document.getElementById('matchCount').innerText = matches || 0;
+        // Setup Supabase session + fetch user info
+        (async () => {
+            try {
+                const parsed = JSON.parse(sessionData);
+                const { error: sessionErr } = await supabaseClient.auth.setSession(parsed);
+                if (sessionErr) throw sessionErr;
+
+                const { data: { user }, error: userErr } = await supabaseClient.auth.getUser();
+                if (userErr) throw userErr;
+                currentUser = user;
+
+                if (user) {
+                    try {
+                        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+                        const { data: admin } = await supabaseClient.from('admin_users').select('*').eq('user_id', user.id).single();
+                        if (profile) {
+                            document.getElementById('adminName').textContent = profile.full_name || profile.username || 'Admin';
+                            document.getElementById('adminAvatar').textContent = (profile.full_name || 'A')[0].toUpperCase();
+                        }
+                        if (admin) {
+                            currentAdminRole = admin.role;
+                            document.getElementById('adminRole').textContent = admin.role;
+                        } else {
+                            document.getElementById('adminRole').textContent = 'not admin';
+                            document.getElementById('adminRole').style.color = '#e43c39';
+                        }
+                    } catch (e) { /* profile fetch failed, no big deal */ }
+                }
+                initPage();
+            } catch (e) {
+                console.error('Auth init error:', e);
+                window.location.href = 'assets/login.html';
+            }
+        })();
+
+        // ============================================================
+        // SIDEBAR
+        // ============================================================
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
-        fetchStats();
+        function navigateTo(page) {
+            document.querySelectorAll('.sidebar-item[data-page]').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.sidebar-item[data-page="${page}"]`)?.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const el = document.getElementById(`page-${page}`);
+            if (el) {
+                el.classList.add('active');
+                document.getElementById('pageTitle').textContent = page.charAt(0).toUpperCase() + page.slice(1);
+                currentPage = page;
+                refreshCurrentPage();
+            }
+
+            // Auto-refresh for online users page
+            if (onlineRefreshTimer) { clearInterval(onlineRefreshTimer); onlineRefreshTimer = null; }
+            if (page === 'online') {
+                onlineRefreshTimer = setInterval(loadOnlineUsers, 10000);
+            }
+
+            // Auto-refresh for support page
+            if (supportRefreshTimer) { clearInterval(supportRefreshTimer); supportRefreshTimer = null; }
+            if (page === 'support') {
+                supportRefreshTimer = setInterval(loadSupportConversations, 10000);
+            }
+        }
+
+        function refreshCurrentPage() {
+            switch (currentPage) {
+                case 'dashboard': loadDashboard(); break;
+                case 'players': loadPlayers(1); break;
+                case 'rooms': loadRooms(1); break;
+                case 'transactions': loadTransactions(1); break;
+                case 'reports': loadReports(); break;
+                case 'missions': loadMissions(); break;
+                case 'games': loadGames(1); break;
+                case 'withdrawals': loadWithdrawals(); break;
+                case 'online': loadOnlineUsers(); break;
+                case 'support': loadSupportConversations(); break;
+                case 'broadcast': loadBroadcast(); break;
+                case 'settings': loadAdminList(); loadPlatformSettings(); break;
+            }
+        }
+
+        // ============================================================
+        // HELPERS
+        // ============================================================
+        function formatNaira(amount) {
+            const num = Number(amount) || 0;
+            return '₦' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatDate(d) {
+            if (!d) return '--';
+            const date = new Date(d);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function shortDate(d) {
+            if (!d) return '--';
+            return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function timeAgo(d) {
+            if (!d) return '--';
+            const diff = Date.now() - new Date(d).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            const days = Math.floor(hrs / 24);
+            return days + 'd ago';
+        }
+
+        function avatarColor(name) {
+            const colors = ['#D4AF37', '#39c65b', '#238de5', '#e43c39', '#a855f7', '#ec4899', '#f59e0b', '#14b8a6'];
+            let hash = 0;
+            for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            return colors[Math.abs(hash) % colors.length];
+        }
+
+        let toastId = 0;
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const id = ++toastId;
+            const el = document.createElement('div');
+            el.className = `toast-custom ${type}`;
+            el.id = `toast-${id}`;
+            el.innerHTML = `<i class="bi ${type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-exclamation-circle-fill text-danger'}"></i> ${message}`;
+            container.appendChild(el);
+            setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(100%)'; el.style.transition = 'all 0.3s'; setTimeout(() => el.remove(), 300); }, 3000);
+        }
+
+        let searchTimer = null;
+        function debounceSearchPlayers() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => loadPlayers(1), 400);
+        }
+
+        function renderPagination(total, page, pages, prefix, callback) {
+            const info = document.getElementById(`${prefix}Info`);
+            const btns = document.getElementById(`${prefix}Pagination`);
+            if (info) info.textContent = `Showing page ${page} of ${pages} (${total} total)`;
+            if (!btns) return;
+            btns.innerHTML = '';
+            if (pages <= 1) return;
+
+            const addBtn = (label, p, cls = '') => {
+                const btn = document.createElement('button');
+                btn.textContent = label;
+                btn.className = cls;
+                if (p === page) btn.classList.add('active');
+                btn.onclick = () => callback(p);
+                if (p < 1 || p > pages) btn.disabled = true;
+                btns.appendChild(btn);
+            };
+
+            addBtn('Prev', page - 1);
+            const start = Math.max(1, page - 2);
+            const end = Math.min(pages, page + 2);
+            if (start > 1) addBtn('1', 1);
+            if (start > 2) { const dots = document.createElement('button'); dots.textContent = '...'; dots.disabled = true; btns.appendChild(dots); }
+            for (let i = start; i <= end; i++) addBtn(i, i);
+            if (end < pages - 1) { const dots = document.createElement('button'); dots.textContent = '...'; dots.disabled = true; btns.appendChild(dots); }
+            if (end < pages) addBtn(pages, pages);
+            addBtn('Next', page + 1);
+        }
+
+        // ============================================================
+        // INIT
+        // ============================================================
+        function initPage() {
+            loadDashboard();
+        }
+
+        // ============================================================
+        // DASHBOARD
+        // ============================================================
+        async function loadDashboard() {
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_dashboard_stats');
+                if (error || data?.error) {
+                    document.getElementById('setupBanner').style.display = 'block';
+                    console.error('Dashboard stats error:', error || data?.error);
+                    return;
+                }
+                document.getElementById('setupBanner').style.display = 'none';
+                document.getElementById('statPlayers').textContent = data.total_players || 0;
+                document.getElementById('statPlayersSub').textContent = (data.today_signups || 0) + ' today';
+                document.getElementById('statRooms').textContent = data.active_rooms || 0;
+                document.getElementById('statDeposits').textContent = formatNaira(data.total_deposits);
+                document.getElementById('statPendingW').textContent = formatNaira(data.pending_withdraw);
+                document.getElementById('statTodayRev').textContent = formatNaira(data.today_revenue);
+                document.getElementById('statGames').textContent = data.total_games || 0;
+                document.getElementById('statFees').textContent = formatNaira(data.platform_fees);
+                document.getElementById('statOnlineNow').textContent = data.online_now ?? '0';
+                document.getElementById('statOnlineNow').style.color = (data.online_now || 0) > 0 ? '#39c65b' : 'var(--text-muted)';
+            } catch (e) {
+                document.getElementById('setupBanner').style.display = 'block';
+                console.error('Dashboard error:', e);
+            }
+
+            // Revenue chart
+            try {
+                const { data: revData } = await supabaseClient.rpc('admin_revenue_report', { p_days: 30 });
+                if (revData && !revData.error) {
+                    const daily = revData.daily || [];
+                    const dates = daily.map(d => shortDate(d.dt));
+                    const deposits = daily.map(d => Number(d.deposits) || 0);
+                    const withdrawals = daily.map(d => Number(d.withdrawals) || 0);
+
+                    if (revenueChart) revenueChart.destroy();
+                    revenueChart = new ApexCharts(document.getElementById('revenueChart'), {
+                        chart: { type: 'bar', height: 300, foreColor: '#a89f88', toolbar: { show: false },
+                            background: 'transparent' },
+                        series: [
+                            { name: 'Deposits', data: deposits, color: '#39c65b' },
+                            { name: 'Withdrawals', data: withdrawals, color: '#e43c39' }
+                        ],
+                        xaxis: { categories: dates, labels: { rotate: -45, style: { fontSize: '10px' } } },
+                        yaxis: { labels: { formatter: v => '₦' + (v / 1000).toFixed(1) + 'k' } },
+                        grid: { borderColor: 'rgba(212,175,55,0.06)' },
+                        legend: { labels: { colors: '#a89f88' }, position: 'top' },
+                        dataLabels: { enabled: false },
+                        tooltip: { theme: 'dark', y: { formatter: v => formatNaira(v) } },
+                        plotOptions: { bar: { borderRadius: 4, columnWidth: '70%' } }
+                    });
+                    revenueChart.render();
+
+                    // Game distribution (dummy from room stats)
+                    if (gameChart) gameChart.destroy();
+                    gameChart = new ApexCharts(document.getElementById('gameChart'), {
+                        chart: { type: 'donut', height: 300, foreColor: '#a89f88', background: 'transparent' },
+                        series: [45, 30, 25],
+                        labels: ['Ludo', 'Whot', 'Snake & Ladder'],
+                        colors: ['#D4AF37', '#39c65b', '#238de5'],
+                        legend: { position: 'bottom', labels: { colors: '#a89f88' } },
+                        dataLabels: { enabled: false },
+                        tooltip: { theme: 'dark' },
+                        plotOptions: { pie: { donut: { size: '60%', labels: { show: true, total: { show: true, label: 'Total', color: '#f5efd8' } } } } },
+                        responsive: [{ breakpoint: 480, options: { chart: { height: 250 } } }]
+                    });
+                    gameChart.render();
+                }
+            } catch (e) {
+                console.error('Revenue chart error:', e);
+            }
+        }
+
+        // ============================================================
+        // PLAYERS
+        // ============================================================
+        let playersPage = 1;
+        async function loadPlayers(page) {
+            playersPage = page;
+            const search = document.getElementById('playerSearch')?.value || '';
+            const tbody = document.getElementById('playersBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);"><div class="loading-spinner" style="margin:0 auto;"></div></td></tr>';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_list_profiles', {
+                    p_search: search,
+                    p_page: page,
+                    p_limit: 20
+                });
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+
+                const players = data.data || [];
+                if (!players.length) {
+                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="bi bi-people"></i><p>No players found</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = players.map(p => `
+                        <tr>
+                            <td>
+                                <div class="user-cell">
+                                    ${p.avatar_url ? `<img src="${p.avatar_url}" class="avatar-xs" alt="">` :
+                                        `<div class="avatar-placeholder" style="background:${avatarColor(p.username)}">${(p.username || '?')[0].toUpperCase()}</div>`}
+                                    <div>
+                                        <div style="font-weight:700;font-size:14px;color:#fff;">${p.username || '--'}</div>
+                                        <div style="font-size:11px;color:var(--text-muted);">${p.full_name || ''}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="font-weight:700;">${formatNaira(p.wallet_balance)}</td>
+                            <td>${p.level || 0} <span style="font-size:10px;color:var(--gold);text-transform:uppercase;">${p.tier || 'newcomer'}</span></td>
+                            <td>${p.total_matches || 0}</td>
+                            <td>${p.win_rate || 0}%</td>
+                            <td>${p.is_banned ? '<span class="badge-status banned">BANNED</span>' : '<span class="badge-status active">Active</span>'}</td>
+                            <td style="font-size:11px;color:var(--text-muted);">${formatDate(p.created_at)}</td>
+                            <td>
+                                <div style="display:flex;gap:4px;">
+                                    <button class="btn-outline-gold" style="padding:3px 8px;font-size:10px;" onclick="viewPlayer('${p.id}')" title="View"><i class="bi bi-eye"></i></button>
+                                    ${p.is_banned
+                                        ? `<button class="btn-success-sm" onclick="banPlayer('${p.id}', false)">Unban</button>`
+                                        : `<button class="btn-danger-sm" onclick="banPlayer('${p.id}', true)">Ban</button>`}
+                                    <button class="btn-outline-gold" style="padding:3px 8px;font-size:10px;" onclick="openAdjust('${p.id}','${p.username || 'Player'}')" title="Adjust Balance"><i class="bi bi-wallet2"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                renderPagination(data.total || 0, data.page || 1, data.pages || 1, 'players', loadPlayers);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        async function banPlayer(userId, banned) {
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_ban_user', { p_user_id: userId, p_banned: banned });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                } else {
+                    showToast(banned ? 'Player banned' : 'Player unbanned');
+                    loadPlayers(playersPage);
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function viewPlayer(userId) {
+            const modalBody = document.getElementById('playerModalBody');
+            modalBody.innerHTML = '<div class="text-center py-4"><div class="loading-spinner"></div></div>';
+            const modal = new bootstrap.Modal(document.getElementById('playerModal'));
+            modal.show();
+
+            try {
+                const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', userId).single();
+                const { data: stats } = await supabaseClient.from('profile_stats').select('*').eq('player_id', userId).single();
+                const { data: recentTx } = await supabaseClient.from('transactions')
+                    .select('*').eq('player_id', userId)
+                    .order('created_at', { ascending: false }).limit(5);
+
+                if (!profile) {
+                    modalBody.innerHTML = '<div class="text-center py-4" style="color:var(--red);">Player not found</div>';
+                    return;
+                }
+
+                modalBody.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+                        ${profile.avatar_url ? `<img src="${profile.avatar_url}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">` :
+                            `<div style="width:56px;height:56px;border-radius:50%;background:${avatarColor(profile.username)};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#000;">${(profile.username || '?')[0].toUpperCase()}</div>`}
+                        <div>
+                            <div style="font-weight:700;font-size:18px;">${profile.username || '--'}</div>
+                            <div style="font-size:13px;color:var(--text-secondary);">${profile.full_name || ''}</div>
+                            <div style="margin-top:4px;">
+                                <span class="badge-status ${profile.is_banned ? 'banned' : 'active'}">${profile.is_banned ? 'BANNED' : 'Active'}</span>
+                                <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Level ${profile.level || 0} · ${(profile.tier || 'newcomer').replace('_', ' ')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4"><div class="stat-card" style="padding:12px;"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;">Balance</div><div style="font-size:20px;font-weight:800;">${formatNaira(profile.wallet_balance)}</div></div></div>
+                        <div class="col-4"><div class="stat-card" style="padding:12px;"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;">Matches</div><div style="font-size:20px;font-weight:800;">${stats?.total_matches || 0}</div></div></div>
+                        <div class="col-4"><div class="stat-card" style="padding:12px;"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;">Win Rate</div><div style="font-size:20px;font-weight:800;">${stats?.win_rate || 0}%</div></div></div>
+                    </div>
+                    <h6 style="font-weight:600;margin-bottom:12px;">Recent Transactions</h6>
+                    ${(recentTx && recentTx.length) ? `
+                        <table class="table" style="font-size:12px;">
+                            <thead><tr><th>Amount</th><th>Type</th><th>Status</th><th>Date</th></tr></thead>
+                            <tbody>${recentTx.map(t => `
+                                <tr>
+                                    <td style="font-weight:600;">${formatNaira(t.amount)}</td>
+                                    <td><span style="text-transform:capitalize;">${t.type}</span></td>
+                                    <td><span class="badge-status ${t.status}">${t.status}</span></td>
+                                    <td style="font-size:11px;color:var(--text-muted);">${timeAgo(t.created_at)}</td>
+                                </tr>
+                            `).join('')}</tbody>
+                        </table>
+                    ` : '<p style="font-size:13px;color:var(--text-muted);">No transactions</p>'}
+                `;
+            } catch (e) {
+                modalBody.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${e.message}</div>`;
+            }
+        }
+
+        let adjustUserId = null;
+        function openAdjust(userId, username) {
+            adjustUserId = userId;
+            document.getElementById('adjustUser').textContent = username || 'Player';
+            document.getElementById('adjustAmount').value = '';
+            document.getElementById('adjustReason').value = '';
+            new bootstrap.Modal(document.getElementById('adjustModal')).show();
+        }
+
+        document.getElementById('adjustForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('adjustSubmit');
+            const amount = parseFloat(document.getElementById('adjustAmount').value);
+            const reason = document.getElementById('adjustReason').value || 'admin adjustment';
+            if (!amount || isNaN(amount)) { showToast('Enter a valid amount', 'error'); return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loading-spinner"></div>';
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_adjust_balance', {
+                    p_user_id: adjustUserId,
+                    p_amount: amount,
+                    p_reason: reason
+                });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                } else {
+                    showToast(`Balance adjusted by ${formatNaira(amount)}`);
+                    bootstrap.Modal.getInstance(document.getElementById('adjustModal')).hide();
+                    loadPlayers(playersPage);
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+            btn.disabled = false;
+            btn.innerHTML = 'Apply';
+        });
+
+        // ============================================================
+        // GAME ROOMS
+        // ============================================================
+        async function loadRooms(page) {
+            const status = document.getElementById('roomStatusFilter')?.value || '';
+            const tbody = document.getElementById('roomsBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);"><div class="loading-spinner" style="margin:0 auto;"></div></td></tr>';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_list_rooms', {
+                    p_status: status,
+                    p_page: page,
+                    p_limit: 20
+                });
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+
+                const rooms = data.data || [];
+                if (!rooms.length) {
+                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="bi bi-controller"></i><p>No game rooms found</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = rooms.map(r => {
+                        const playerArr = r.players || [];
+                        const playerCount = Array.isArray(playerArr) ? playerArr.length : 0;
+                        return `
+                        <tr onclick="viewRoomDetail('${r.id}')" style="cursor:pointer;">
+                            <td><span style="text-transform:capitalize;font-weight:600;color:#fff;">${r.game_type || '--'}</span></td>
+                            <td style="font-weight:600;color:#fff;">${r.host?.username || '--'}</td>
+                            <td style="font-weight:600;">${formatNaira(r.stake)}</td>
+                            <td>${playerCount}/${r.max_players || '--'}</td>
+                            <td><span class="badge-status ${r.status}">${r.status || '--'}</span></td>
+                            <td style="font-size:10px;color:var(--gold);font-family:monospace;font-weight:600;">${r.room_code || '--'}</td>
+                            <td style="font-size:11px;color:var(--text-muted);">${timeAgo(r.created_at)}</td>
+                            <td>
+                                <button class="btn-info-sm" onclick="event.stopPropagation();viewRoomDetail('${r.id}')" title="View details"><i class="bi bi-eye"></i></button>
+                                ${r.status !== 'finished' ? `<button class="btn-danger-sm" onclick="event.stopPropagation();deleteRoom('${r.id}')" title="Close room"><i class="bi bi-x-lg"></i></button>` : ''}
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                renderPagination(data.total || 0, data.page || 1, data.pages || 1, 'rooms', loadRooms);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        async function deleteRoom(roomId) {
+            if (!confirm('Force-close this game room?')) return;
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_delete_room', { p_room_id: roomId });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                } else {
+                    showToast('Room closed');
+                    loadRooms(1);
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // TRANSACTIONS
+        // ============================================================
+        async function loadTransactions(page) {
+            const type = document.getElementById('txTypeFilter')?.value || '';
+            const status = document.getElementById('txStatusFilter')?.value || '';
+            const tbody = document.getElementById('txBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);"><div class="loading-spinner" style="margin:0 auto;"></div></td></tr>';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_list_transactions', {
+                    p_type: type,
+                    p_status: status,
+                    p_page: page,
+                    p_limit: 20
+                });
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+
+                const txs = data.data || [];
+                if (!txs.length) {
+                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="bi bi-credit-card"></i><p>No transactions found</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = txs.map(t => `
+                        <tr onclick="viewTxDetail('${t.id}')" style="cursor:pointer;">
+                            <td style="font-weight:600;color:#fff;">${t.player?.username || '--'}</td>
+                            <td style="font-weight:700;color:${t.type === 'deposit' || t.type === 'winning' || t.type === 'matchmaking_refund' ? '#39c65b' : '#e43c39'};">${formatNaira(t.amount)}</td>
+                            <td><span style="text-transform:capitalize;font-size:12px;">${t.type?.replace(/_/g, ' ')}</span></td>
+                            <td><span class="badge-status ${t.status}">${t.status}</span></td>
+                            <td style="font-size:12px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.description || '--'}</td>
+                            <td style="font-size:10px;color:var(--text-muted);font-family:monospace;">${t.id ? t.id.slice(0, 8) + '...' : '--'}</td>
+                            <td style="font-size:11px;color:var(--text-muted);">${timeAgo(t.created_at)}</td>
+                            <td>
+                                <button class="btn-info-sm" onclick="event.stopPropagation();viewTxDetail('${t.id}')" title="View details"><i class="bi bi-eye"></i></button>
+                                ${t.type === 'withdrawal' && t.status === 'pending'
+                                    ? `<button class="btn-success-sm" onclick="event.stopPropagation();processWithdrawal('${t.id}', true)" title="Approve"><i class="bi bi-check-lg"></i></button>
+                                       <button class="btn-danger-sm" onclick="event.stopPropagation();processWithdrawal('${t.id}', false)" title="Reject"><i class="bi bi-x-lg"></i></button>`
+                                    : ''}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                renderPagination(data.total || 0, data.page || 1, data.pages || 1, 'tx', loadTransactions);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        async function processWithdrawal(txId, approve) {
+            const action = approve ? 'approve' : 'reject';
+            if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this withdrawal?`)) return;
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_process_withdrawal', {
+                    p_tx_id: txId,
+                    p_approve: approve
+                });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                } else {
+                    showToast(`Withdrawal ${approve ? 'approved' : 'rejected'}`);
+                    loadTransactions(1);
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // REPORTS
+        // ============================================================
+        async function loadReports() {
+            document.getElementById('revTotal').textContent = 'Loading...';
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_revenue_report', { p_days: 30 });
+                if (error || data?.error) {
+                    document.getElementById('revTotal').textContent = 'Error';
+                    return;
+                }
+
+                const daily = data.daily || [];
+                const totals = data.totals || {};
+
+                document.getElementById('revTotal').textContent = formatNaira(totals.total_deposits);
+                document.getElementById('revDeposits').textContent = formatNaira(totals.total_deposits);
+                document.getElementById('revWithdrawals').textContent = formatNaira(totals.total_withdrawals);
+                document.getElementById('revNet').textContent = formatNaira((totals.total_deposits || 0) - (totals.total_withdrawals || 0));
+                document.getElementById('revNet').style.color = (totals.total_deposits || 0) >= (totals.total_withdrawals || 0) ? '#39c65b' : '#e43c39';
+
+                const dates = daily.map(d => shortDate(d.dt));
+                const deposits = daily.map(d => Number(d.deposits) || 0);
+                const withdrawals = daily.map(d => Number(d.withdrawals) || 0);
+                const stakes = daily.map(d => Number(d.stakes) || 0);
+
+                if (dailyChart) dailyChart.destroy();
+                dailyChart = new ApexCharts(document.getElementById('dailyRevenueChart'), {
+                    chart: { type: 'bar', height: 350, foreColor: '#a89f88', toolbar: { show: false },
+                        background: 'transparent', stacked: true },
+                    series: [
+                        { name: 'Deposits', data: deposits, color: '#39c65b' },
+                        { name: 'Withdrawals', data: withdrawals.map(v => -v), color: '#e43c39' },
+                        { name: 'Stakes', data: stakes, color: '#D4AF37' },
+                    ],
+                    xaxis: { categories: dates, labels: { rotate: -45, style: { fontSize: '10px' } } },
+                    yaxis: { labels: { formatter: v => '₦' + Math.abs(v) / 1000 + 'k' } },
+                    grid: { borderColor: 'rgba(212,175,55,0.06)' },
+                    legend: { labels: { colors: '#a89f88' }, position: 'top' },
+                    dataLabels: { enabled: false },
+                    tooltip: { theme: 'dark', y: { formatter: v => formatNaira(Math.abs(v)) } },
+                    plotOptions: { bar: { borderRadius: 3, columnWidth: '70%' } }
+                });
+                dailyChart.render();
+            } catch (e) {
+                console.error('Reports error:', e);
+                document.getElementById('revTotal').textContent = 'Error';
+            }
+        }
+
+        // ============================================================
+        // MISSIONS
+        // ============================================================
+        async function loadMissions() {
+            const grid = document.getElementById('missionsGrid');
+            grid.innerHTML = '<div class="col-12 text-center py-5" style="color:var(--text-muted);"><div class="loading-spinner"></div></div>';
+            try {
+                const { data: missions, error } = await supabaseClient.from('missions').select('*').order('category').order('target');
+                if (error) throw error;
+
+                if (!missions?.length) {
+                    grid.innerHTML = '<div class="col-12"><div class="empty-state"><i class="bi bi-trophy"></i><p>No missions configured</p></div></div>';
+                    return;
+                }
+
+                grid.innerHTML = missions.map(m => `
+                    <div class="col-md-4 col-6">
+                        <div class="stat-card" style="border-left: 3px solid ${m.color || '#D4AF37'};">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                                <i class="bi bi-${m.icon || 'trophy'}" style="font-size:20px;color:${m.color || '#D4AF37'};"></i>
+                                <div>
+                                    <div style="font-weight:600;font-size:14px;">${m.title}</div>
+                                    <span class="badge-status" style="background:rgba(212,175,55,0.1);color:var(--gold);font-size:10px;text-transform:capitalize;">${m.category}</span>
+                                </div>
+                            </div>
+                            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Target: ${m.target}</div>
+                            <div style="font-size:13px;font-weight:700;">Reward: ${formatNaira(m.reward)} + ${m.xp_reward || 0} XP</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                grid.innerHTML = `<div class="col-12 text-center py-4" style="color:var(--red);">${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        // GAME HISTORY
+        // ============================================================
+        async function loadGames(page) {
+            const gameType = document.getElementById('gameTypeFilter')?.value || '';
+            const tbody = document.getElementById('gamesBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);"><div class="loading-spinner"></div></td></tr>';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_game_history', {
+                    p_game_type: gameType,
+                    p_page: page,
+                    p_limit: 20
+                });
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+                const entries = data.data || [];
+                if (!entries.length) {
+                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="bi bi-clock-history"></i><p>No game history</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = entries.map(g => `
+                        <tr onclick="viewGameDetail('${g.id}')" style="cursor:pointer;">
+                            <td style="color:#fff;font-weight:600;">${g.player?.username || '--'}</td>
+                            <td><span style="text-transform:capitalize;">${g.game_type || '--'}</span></td>
+                            <td style="font-weight:600;">${formatNaira(g.stake)}</td>
+                            <td style="font-weight:700;color:${g.win_amount > 0 ? '#39c65b' : 'var(--text-muted)'};">${formatNaira(g.win_amount)}</td>
+                            <td><span class="badge-status ${g.result}">${g.result || '--'}</span></td>
+                            <td style="font-size:10px;color:var(--text-muted);font-family:monospace;">${g.id ? g.id.slice(0, 8) + '...' : '--'}</td>
+                            <td style="font-size:11px;color:var(--text-muted);">${formatDate(g.created_at)}</td>
+                        </tr>
+                    `).join('');
+                }
+                renderPagination(data.total || 0, data.page || 1, data.pages || 1, 'games', loadGames);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        // ============================================================
+        // WITHDRAWALS
+        // ============================================================
+        async function loadWithdrawals() {
+            const tbody = document.getElementById('withdrawalsBody');
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4" style="color:var(--text-muted);"><div class="loading-spinner"></div></td></tr>';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_list_transactions', {
+                    p_type: 'withdrawal', p_status: 'pending', p_page: 1, p_limit: 50
+                });
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+                const txs = data.data || [];
+                if (!txs.length) {
+                    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><i class="bi bi-check-circle"></i><p>No pending withdrawals</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = txs.map(t => `
+                        <tr>
+                            <td style="color:#fff;font-weight:600;">${t.player?.username || '--'}</td>
+                            <td style="font-weight:700;color:#e43c39;">${formatNaira(t.amount)}</td>
+                            <td style="font-size:12px;color:var(--text-secondary);">${t.description || '--'}</td>
+                            <td style="font-size:11px;color:var(--text-muted);">${timeAgo(t.created_at)}</td>
+                            <td>
+                                <div style="display:flex;gap:4px;">
+                                    <button class="btn-success-sm" onclick="processWithdrawal('${t.id}', true)">Approve</button>
+                                    <button class="btn-danger-sm" onclick="processWithdrawal('${t.id}', false)">Reject</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+                document.getElementById('withdrawalsInfo').textContent = `${txs.length} pending`;
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        // ============================================================
+        // ONLINE USERS
+        // ============================================================
+        let onlineRefreshTimer = null;
+        let supportRefreshTimer = null;
+        let selectedSupportUserId = null;
+
+        async function loadOnlineUsers() {
+            const tbody = document.getElementById('onlineBody');
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_online_users');
+                if (error || data?.error) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</td></tr>`;
+                    return;
+                }
+                const users = data?.users || [];
+                const count = users.length;
+                document.getElementById('onlineCountBadge').textContent = `${count} online`;
+
+                if (!users.length) {
+                    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><i class="bi bi-wifi-off"></i><p>No users online</p></div></td></tr>';
+                } else {
+                    tbody.innerHTML = users.map(u => `
+                        <tr>
+                            <td>
+                                <div class="user-cell">
+                                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="avatar-xs" alt="">` :
+                                        `<div class="avatar-placeholder" style="background:${avatarColor(u.username)}">${(u.username || '?')[0].toUpperCase()}</div>`}
+                                    <div>
+                                        <div style="font-weight:700;font-size:14px;color:#fff;">${u.username || '--'}</div>
+                                        <div style="font-size:11px;color:var(--text-muted);">${u.full_name || ''}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${u.level || 0} <span style="font-size:10px;color:var(--gold);text-transform:uppercase;">${u.tier || 'newcomer'}</span></td>
+                            <td style="font-weight:700;">${formatNaira(u.wallet_balance)}</td>
+                            <td style="font-size:12px;color:var(--text-muted);">${timeAgo(u.last_seen)}</td>
+                            <td><span class="badge-status active" style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#39c65b;animation:pulse 1.5s ease-in-out infinite;"></span> Online</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4" style="color:var(--red);">${e.message}</td></tr>`;
+            }
+        }
+
+        // ============================================================
+        // SUPPORT CHAT
+        // ============================================================
+        let supportConversationsCache = [];
+
+        function renderConvItem(c) {
+            const isSelected = selectedSupportUserId === c.user_id;
+            const initial = (c.username || c.full_name || '?')[0].toUpperCase();
+            const avatarHtml = c.avatar_url
+                ? `<img src="${c.avatar_url}" class="conv-avatar">`
+                : `<div class="conv-avatar-fallback" style="background:${avatarColor(c.username || c.full_name)}">${initial}</div>`;
+            const nameCls = c.has_unread ? 'conv-name unread' : 'conv-name';
+            const previewCls = c.last_sender === 'User' ? 'conv-preview user-msg' : 'conv-preview support-msg';
+            const senderIcon = c.last_sender === 'User'
+                ? '<i class="bi bi-person-fill" style="font-size:9px;"></i>'
+                : '<i class="bi bi-shield-fill-check" style="font-size:9px;"></i>';
+            return `<div class="conv-item${isSelected ? ' selected' : ''}" data-user-id="${c.user_id}">
+                ${avatarHtml}
+                <div class="conv-body">
+                    <div class="d-flex justify-content-between">
+                        <span class="${nameCls}">${escapeHtml(c.username || c.full_name || 'Unknown')}</span>
+                        <span class="conv-count">${c.message_count}</span>
+                    </div>
+                    <div class="${previewCls}">${senderIcon} ${escapeHtml(c.last_message || '')}</div>
+                    <div class="conv-meta">${timeAgo(c.last_message_at)}</div>
+                </div>
+                ${c.has_unread ? '<div class="conv-unread-dot"></div>' : ''}
+            </div>`;
+        }
+
+        async function loadSupportConversations() {
+            const list = document.getElementById('conversationList');
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_list_support_conversations');
+                if (error || data?.error) {
+                    list.innerHTML = `<div class="text-center py-4" style="color:var(--red);font-size:13px;">${error?.message || data?.error}</div>`;
+                    return;
+                }
+                const convos = data?.conversations || [];
+
+                document.getElementById('supportCountBadge').textContent = `${convos.length} conversation${convos.length !== 1 ? 's' : ''}`;
+                const unread = convos.filter(c => c.has_unread).length;
+                const unreadBadge = document.getElementById('unreadSupportBadge');
+                if (unread > 0) {
+                    unreadBadge.textContent = `${unread} new`;
+                    unreadBadge.style.display = 'inline';
+                } else {
+                    unreadBadge.style.display = 'none';
+                }
+
+                if (convos.length === 0) {
+                    list.innerHTML = `<div class="text-center py-4" style="color:var(--text-muted);font-size:13px;">No support conversations yet.</div>`;
+                    supportConversationsCache = [];
+                    return;
+                }
+
+                // In-place DOM update — only rebuild if count changed, else update each item's preview
+                const existingItems = list.querySelectorAll('.conv-item');
+                if (existingItems.length !== convos.length) {
+                    // Full rebuild
+                    list.innerHTML = convos.map(c => renderConvItem(c)).join('');
+                } else {
+                    // Update each existing item in-place
+                    const itemMap = {};
+                    existingItems.forEach(el => {
+                        const uid = el.dataset.userId;
+                        if (uid) itemMap[uid] = el;
+                    });
+                    convos.forEach(c => {
+                        const el = itemMap[c.user_id];
+                        if (el) {
+                            el.outerHTML = renderConvItem(c);
+                        } else {
+                            // New conversation — append
+                            list.insertAdjacentHTML('beforeend', renderConvItem(c));
+                        }
+                    });
+                    // Remove stale items
+                    const currentIds = new Set(convos.map(c => c.user_id));
+                    list.querySelectorAll('.conv-item').forEach(el => {
+                        if (!currentIds.has(el.dataset.userId)) {
+                            el.remove();
+                        }
+                    });
+                }
+
+                supportConversationsCache = convos;
+
+                if (selectedSupportUserId) {
+                    // Re-highlight selected item
+                    list.querySelectorAll('.conv-item').forEach(el => {
+                        el.classList.toggle('selected', el.dataset.userId === selectedSupportUserId);
+                    });
+                    loadSupportThread(selectedSupportUserId, true);
+                }
+            } catch (e) {
+                list.innerHTML = `<div class="text-center py-4" style="color:var(--red);font-size:13px;">${e.message}</div>`;
+            }
+        }
+
+        // Event delegation for conversation list clicks
+        document.getElementById('conversationList').addEventListener('click', (e) => {
+            const item = e.target.closest('.conv-item');
+            if (item) {
+                const userId = item.dataset.userId;
+                if (userId) selectSupportConversation(userId);
+            }
+        });
+
+        async function selectSupportConversation(userId) {
+            selectedSupportUserId = userId;
+            document.querySelectorAll('#conversationList .conv-item').forEach(el => {
+                el.classList.toggle('selected', el.dataset.userId === userId);
+            });
+            loadSupportThread(userId);
+        }
+
+        async function loadSupportThread(userId, keepScroll = false) {
+            const container = document.getElementById('supportThreadContainer');
+            const header = document.getElementById('supportThreadHeader');
+            const placeholder = document.getElementById('supportThreadPlaceholder');
+            const replyArea = document.getElementById('supportReplyArea');
+            const userInfo = document.getElementById('supportThreadUserInfo');
+            const meta = document.getElementById('supportThreadMeta');
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_get_conversation', { p_user_id: userId });
+                if (error || data?.error) {
+                    header.style.display = 'none';
+                    placeholder.style.display = 'flex';
+                    placeholder.innerHTML = `<div style="color:var(--red);font-size:13px;">${error?.message || data?.error}</div>`;
+                    container.style.display = 'none';
+                    replyArea.style.display = 'none';
+                    return;
+                }
+
+                const user = data?.user || {};
+                const messages = data?.messages || [];
+
+                // Build header
+                const initial = (user.username || user.full_name || '?')[0].toUpperCase();
+                const avatarHtml = user.avatar_url
+                    ? `<img src="${user.avatar_url}" class="thread-avatar">`
+                    : `<div class="thread-avatar-fallback" style="background:${avatarColor(user.username || user.full_name)}">${initial}</div>`;
+                userInfo.innerHTML = `${avatarHtml}<div><div class="thread-name">${escapeHtml(user.username || user.full_name || 'Unknown')}</div><div class="thread-sub">Level ${user.level || 0}</div></div>`;
+                meta.textContent = `${formatNaira(user.wallet_balance || 0)}`;
+                header.style.display = 'flex';
+                placeholder.style.display = 'none';
+
+                if (messages.length === 0) {
+                    container.style.display = 'flex';
+                    container.innerHTML = `<div class="text-center py-5" style="color:var(--text-muted);font-size:14px;margin-top:auto;margin-bottom:auto;">No messages yet in this conversation.</div>`;
+                    replyArea.style.display = 'block';
+                    return;
+                }
+
+                const scrollPos = container.scrollTop;
+                container.style.display = 'flex';
+                container.innerHTML = messages.map(m => `
+                    <div class="msg-row ${m.sender === 'User' ? 'user' : 'support'}">
+                        <div class="msg-bubble ${m.sender === 'User' ? 'user' : 'support'}">
+                            <div>${escapeHtml(m.content)}</div>
+                            <div class="msg-time ${m.sender === 'User' ? 'left' : 'right'}">${formatDate(m.created_at)}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                if (!keepScroll) {
+                    container.scrollTop = container.scrollHeight;
+                } else if (keepScroll && scrollPos > 0) {
+                    container.scrollTop = scrollPos;
+                }
+
+                replyArea.style.display = 'flex';
+            } catch (e) {
+                header.style.display = 'none';
+                placeholder.style.display = 'flex';
+                placeholder.innerHTML = `<div style="color:var(--red);font-size:13px;">${e.message}</div>`;
+                container.style.display = 'none';
+                replyArea.style.display = 'none';
+            }
+        }
+
+        async function sendSupportReply() {
+            const input = document.getElementById('supportReplyInput');
+            const btn = document.getElementById('supportReplyBtn');
+            const text = input.value.trim();
+            if (!text || !selectedSupportUserId) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_reply_support', {
+                    p_user_id: selectedSupportUserId,
+                    p_content: text,
+                });
+                if (error || data?.error) throw new Error(error?.message || data?.error);
+
+                input.value = '';
+                loadSupportThread(selectedSupportUserId);
+                loadSupportConversations();
+            } catch (e) {
+                showToast('Failed to send reply: ' + e.message, 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send';
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ============================================================
+        // BROADCAST
+        // ============================================================
+        async function loadBroadcast() {
+            const container = document.getElementById('recentAnnouncements');
+            try {
+                const { data, error } = await supabaseClient.from('inbox')
+                    .select('*').is('user_id', null)
+                    .order('created_at', { ascending: false }).limit(10);
+                if (error) throw error;
+
+                if (!data?.length) {
+                    container.innerHTML = '<div class="text-center py-3" style="color:var(--text-muted);font-size:13px;">No announcements sent yet</div>';
+                    return;
+                }
+
+                container.innerHTML = data.map(a => `
+                    <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+                        <div style="display:flex;justify-content:space-between;align-items:start;">
+                            <div style="font-weight:600;font-size:13px;color:#fff;">${a.title}</div>
+                            <span class="badge-status" style="background:rgba(212,175,55,0.1);color:var(--gold);font-size:10px;text-transform:capitalize;">${a.type}</span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${a.content}</div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${formatDate(a.created_at)}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = `<div class="text-center py-3" style="color:var(--red);font-size:13px;">${e.message}</div>`;
+            }
+        }
+
+        document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('broadcastBtn');
+            const title = document.getElementById('broadcastTitle').value.trim();
+            const content = document.getElementById('broadcastContent').value.trim();
+            const type = document.getElementById('broadcastType').value;
+
+            if (!title || !content) { showToast('Enter title and message', 'error'); return; }
+
+            btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending...';
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_send_announcement', {
+                    p_title: title, p_content: content, p_type: type
+                });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                } else {
+                    showToast('Announcement sent to all players');
+                    document.getElementById('broadcastTitle').value = '';
+                    document.getElementById('broadcastContent').value = '';
+                    loadBroadcast();
+                }
+            } catch (err) { showToast(err.message, 'error'); }
+            btn.disabled = false; btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send to All Players';
+        });
+
+        // ============================================================
+        // SETTINGS - ADMIN LIST
+        // ============================================================
+        async function loadAdminList() {
+            const container = document.getElementById('adminList');
+            try {
+                const { data: admins, error } = await supabaseClient.from('admin_users')
+                    .select('*, profiles:user_id (username, full_name, avatar_url)')
+                    .order('created_at');
+                if (error) throw error;
+
+                if (!admins?.length) {
+                    container.innerHTML = '<div class="text-center py-3" style="color:var(--text-muted);font-size:13px;">No admin users found</div>';
+                    return;
+                }
+
+                container.innerHTML = admins.map(a => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+                        <div class="user-cell">
+                            ${a.profiles?.avatar_url ? `<img src="${a.profiles.avatar_url}" class="avatar-xs">` :
+                                `<div class="avatar-placeholder" style="background:var(--gold);">${(a.profiles?.username || '?')[0].toUpperCase()}</div>`}
+                            <div>
+                                <div style="font-weight:600;font-size:13px;">${a.profiles?.username || 'Unknown'}</div>
+                                <div style="font-size:11px;text-transform:capitalize;color:var(--gold);">${a.role}</div>
+                            </div>
+                        </div>
+                        <span style="font-size:11px;color:var(--text-muted);">${formatDate(a.created_at)}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = `<div class="text-center py-3" style="color:var(--red);font-size:13px;">${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        // PLATFORM SETTINGS
+        // ============================================================
+        async function loadPlatformSettings() {
+            const container = document.getElementById('platformSettings');
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_get_config');
+                if (error || data?.error) {
+                    container.innerHTML = `<div class="text-center py-3" style="color:var(--red);font-size:13px;">${error?.message || data?.error}</div>`;
+                    return;
+                }
+
+                const gambling = data.gambling_mode === true;
+                container.innerHTML = `
+                    <div class="toggle-wrap">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Gambling Mode</div>
+                            <div class="toggle-desc">
+                                <span class="mode-badge ${gambling ? 'gambling' : 'coins'}">${gambling ? 'REAL MONEY' : 'VIRTUAL COINS'}</span>
+                                &nbsp; ${gambling ? 'Players play with real money via Paystack' : 'Players play with virtual in-app coins'}
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="gamblingToggle" ${gambling ? 'checked' : ''} onchange="toggleGamblingMode(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div style="margin-top:16px;padding:12px;background:rgba(212,175,55,0.06);border-radius:10px;font-size:12px;color:var(--text-secondary);">
+                        <i class="bi bi-info-circle text-gold me-1"></i>
+                        When disabled, all real-money features are hidden and players use virtual coins. The app picks up this setting at startup.
+                    </div>
+                `;
+            } catch (e) {
+                container.innerHTML = `<div class="text-center py-3" style="color:var(--red);font-size:13px;">${e.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        // DETAIL VIEW FUNCTIONS
+        // ============================================================
+        async function viewGameDetail(gameId) {
+            const body = document.getElementById('gameDetailBody');
+            body.innerHTML = '<div class="text-center py-4"><div class="loading-spinner"></div></div>';
+            const modal = new bootstrap.Modal(document.getElementById('gameDetailModal'));
+            modal.show();
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_get_game_detail', { p_game_id: gameId });
+                if (error || data?.error) {
+                    body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</div>`;
+                    return;
+                }
+                const g = data;
+                body.innerHTML = `
+                    <div class="detail-grid">
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-person-fill me-1"></i> Player</div>
+                            <div class="detail-value">${g.player?.username || '--'}</div>
+                            <div class="detail-sub">${g.player?.full_name || ''}</div>
+                            <div style="margin-top:8px;font-size:11px;color:var(--text-muted);font-family:monospace;">ID: ${g.player_id || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-controller me-1"></i> Game</div>
+                            <div class="detail-value" style="text-transform:capitalize;">${g.game_type || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-trophy me-1"></i> Result</div>
+                            <div class="detail-value"><span class="badge-status ${g.result}">${g.result || '--'}</span></div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-currency-dollar me-1"></i> Stake / Win</div>
+                            <div class="detail-value">${formatNaira(g.stake)} / <span style="color:${g.win_amount > 0 ? '#39c65b' : 'var(--text-muted)'};">${formatNaira(g.win_amount)}</span></div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-calendar me-1"></i> Date</div>
+                            <div class="detail-value">${formatDate(g.created_at)}</div>
+                        </div>
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-hash me-1"></i> Game ID</div>
+                            <div class="detail-value" style="font-family:monospace;font-size:12px;">${g.id || '--'}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${e.message}</div>`;
+            }
+        }
+
+        async function viewRoomDetail(roomId) {
+            const body = document.getElementById('roomDetailBody');
+            body.innerHTML = '<div class="text-center py-4"><div class="loading-spinner"></div></div>';
+            const modal = new bootstrap.Modal(document.getElementById('roomDetailModal'));
+            modal.show();
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_get_room_detail', { p_room_id: roomId });
+                if (error || data?.error) {
+                    body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</div>`;
+                    return;
+                }
+                const r = data;
+                const players = r.players || [];
+                body.innerHTML = `
+                    <div class="detail-grid">
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-controller me-1"></i> Game Type</div>
+                            <div class="detail-value" style="text-transform:capitalize;">${r.game_type || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-person-badge me-1"></i> Status</div>
+                            <div class="detail-value"><span class="badge-status ${r.status}">${r.status || '--'}</span></div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-currency-dollar me-1"></i> Stake</div>
+                            <div class="detail-value">${formatNaira(r.stake)}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-people me-1"></i> Players</div>
+                            <div class="detail-value">${players.length}/${r.max_players || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-house-door me-1"></i> Host</div>
+                            <div class="detail-value">${r.host?.username || '--'}</div>
+                            <div class="detail-sub">${r.host?.full_name || ''}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-key me-1"></i> Room Code</div>
+                            <div class="detail-value" style="font-family:monospace;color:var(--gold);font-weight:700;">${r.room_code || '--'}</div>
+                            <div class="detail-sub">${r.is_private ? 'Private' : 'Public'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-calendar-plus me-1"></i> Created</div>
+                            <div class="detail-value">${formatDate(r.created_at)}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-calendar-check me-1"></i> Updated</div>
+                            <div class="detail-value">${formatDate(r.updated_at)}</div>
+                        </div>
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-hash me-1"></i> Room ID</div>
+                            <div class="detail-value" style="font-family:monospace;font-size:12px;">${r.id || '--'}</div>
+                            ${r.winner_id ? `<div style="margin-top:4px;"><span style="color:var(--text-muted);font-size:11px;">Winner:</span> <span style="font-family:monospace;font-size:11px;">${r.winner_id}</span></div>` : ''}
+                        </div>
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-people-fill me-1"></i> Player List (${players.length})</div>
+                            ${players.length > 0 ? `
+                            <div style="margin-top:8px;">
+                                ${players.map(p => `
+                                    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--bg-secondary);border-radius:8px;margin-bottom:4px;">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:${p.color === 'red' ? '#e43c39' : p.color === 'green' ? '#39c65b' : p.color === 'blue' ? '#238de5' : p.color === 'yellow' ? '#ffd030' : '#888'};"></div>
+                                        <div style="flex:1;">
+                                            <div style="font-weight:600;font-size:13px;color:#fff;">${p.username || 'Unknown'}</div>
+                                            <div style="font-size:10px;color:var(--text-muted);">${p.full_name || ''} ${p.is_bot ? '<span style="color:var(--gold);font-weight:600;">[BOT]</span>' : ''}</div>
+                                        </div>
+                                        <div style="font-size:12px;color:var(--text-secondary);font-family:monospace;">₦${(p.wallet_balance || 0).toLocaleString()}</div>
+                                    </div>
+                                `).join('')}
+                            </div>` : '<div style="color:var(--text-muted);font-size:12px;margin-top:4px;">No players in room</div>'}
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${e.message}</div>`;
+            }
+        }
+
+        async function viewTxDetail(txId) {
+            const body = document.getElementById('txDetailBody');
+            body.innerHTML = '<div class="text-center py-4"><div class="loading-spinner"></div></div>';
+            const modal = new bootstrap.Modal(document.getElementById('txDetailModal'));
+            modal.show();
+
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_get_transaction_detail', { p_tx_id: txId });
+                if (error || data?.error) {
+                    body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${error?.message || data?.error}</div>`;
+                    return;
+                }
+                const t = data;
+                const isCredit = t.type === 'deposit' || t.type === 'winning' || t.type === 'matchmaking_refund';
+                body.innerHTML = `
+                    <div class="detail-grid">
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-person-fill me-1"></i> Player</div>
+                            <div class="detail-value">${t.player?.username || '--'}</div>
+                            <div class="detail-sub">${t.player?.full_name || ''} <span style="color:var(--text-muted);font-size:11px;">(₦${(t.player?.wallet_balance || 0).toLocaleString()})</span></div>
+                            <div style="margin-top:4px;font-size:11px;color:var(--text-muted);font-family:monospace;">ID: ${t.player_id || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-currency-exchange me-1"></i> Amount</div>
+                            <div class="detail-value" style="color:${isCredit ? '#39c65b' : '#e43c39'};font-size:20px;">${isCredit ? '+' : '-'}${formatNaira(t.amount)}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-tag me-1"></i> Type</div>
+                            <div class="detail-value" style="text-transform:capitalize;">${t.type?.replace(/_/g, ' ') || '--'}</div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-check-circle me-1"></i> Status</div>
+                            <div class="detail-value"><span class="badge-status ${t.status}">${t.status}</span></div>
+                        </div>
+                        <div class="detail-section">
+                            <div class="detail-label"><i class="bi bi-calendar me-1"></i> Date</div>
+                            <div class="detail-value">${formatDate(t.created_at)}</div>
+                        </div>
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-card-text me-1"></i> Description</div>
+                            <div class="detail-value" style="font-size:13px;">${t.description || '--'}</div>
+                        </div>
+                        <div class="detail-section" style="grid-column:1/-1;">
+                            <div class="detail-label"><i class="bi bi-hash me-1"></i> Transaction ID</div>
+                            <div class="detail-value" style="font-family:monospace;font-size:12px;">${t.id || '--'}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = `<div class="text-center py-4" style="color:var(--red);">${e.message}</div>`;
+            }
+        }
+
+        async function toggleGamblingMode(enabled) {
+            try {
+                const { data, error } = await supabaseClient.rpc('admin_set_gambling_mode', { p_enabled: enabled });
+                if (error || data?.error) {
+                    showToast(error?.message || data?.error, 'error');
+                    document.getElementById('gamblingToggle').checked = !enabled;
+                } else {
+                    showToast(enabled ? 'Gambling mode enabled' : 'Switched to virtual coins');
+                    loadPlatformSettings();
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+                document.getElementById('gamblingToggle').checked = !enabled;
+            }
+        }
+
+        // Support reply event listeners
+        document.getElementById('supportReplyBtn').addEventListener('click', sendSupportReply);
+        document.getElementById('supportReplyInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendSupportReply();
+            }
+        });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

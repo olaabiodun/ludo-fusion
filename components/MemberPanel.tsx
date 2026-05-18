@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient as SvgGrad, Stop } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 
 const SW = Dimensions.get('window').width;
 
@@ -99,7 +100,7 @@ const PERKS = [
   { icon: 'star-circle',      label: 'Double XP weekends',   detail: 'Every Saturday & Sunday',  active: false },
 ];
 
-function PerkRow({ perk, index }: { perk: typeof PERKS[0]; index: number }) {
+function PerkRow({ perk, index, isPreview }: { perk: typeof PERKS[0]; index: number; isPreview?: boolean }) {
   const op = useRef(new Animated.Value(0)).current;
   const x  = useRef(new Animated.Value(20)).current;
   useEffect(() => {
@@ -109,19 +110,25 @@ function PerkRow({ perk, index }: { perk: typeof PERKS[0]; index: number }) {
     ]).start();
   }, []);
   return (
-    <Animated.View style={[ms.perkRow, perk.active && ms.perkActive, { opacity: op, transform: [{ translateX: x }] }]}>
-      <View style={[ms.perkIcon, { backgroundColor: perk.active ? C.goldSoft : 'rgba(255,255,255,0.03)', borderColor: perk.active ? C.goldBorder : C.divider }]}>
-        <MaterialCommunityIcons name={perk.icon as any} size={16} color={perk.active ? C.gold : C.textFaint} />
+    <Animated.View style={[ms.perkRow, (perk.active || isPreview) && ms.perkActive, { opacity: op, transform: [{ translateX: x }] }]}>
+      <View style={[ms.perkIcon, { backgroundColor: perk.active || isPreview ? C.goldSoft : 'rgba(255,255,255,0.03)', borderColor: perk.active || isPreview ? C.goldBorder : C.divider }]}>
+        <MaterialCommunityIcons name={perk.icon as any} size={16} color={perk.active || isPreview ? C.gold : C.textFaint} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[ms.perkLabel, !perk.active && { color: C.textFaint }]}>{perk.label}</Text>
+        <Text style={[ms.perkLabel, (!perk.active && !isPreview) && { color: C.textFaint }]}>{perk.label}</Text>
         <Text style={ms.perkDetail}>{perk.detail}</Text>
       </View>
-      <MaterialCommunityIcons
-        name={perk.active ? 'check-circle' : 'lock-outline'}
-        size={16}
-        color={perk.active ? C.success : C.textFaint}
-      />
+      {isPreview ? (
+        <View style={ms.previewBadge}>
+          <Text style={ms.previewBadgeText}>PREMIUM</Text>
+        </View>
+      ) : (
+        <MaterialCommunityIcons
+          name={perk.active ? 'check-circle' : 'lock-outline'}
+          size={16}
+          color={perk.active ? C.success : C.textFaint}
+        />
+      )}
     </Animated.View>
   );
 }
@@ -134,6 +141,7 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const gamblingEnabled = useGamblingEnabled();
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -180,7 +188,7 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !profile) return;
 
-      const FEE = 5000;
+      const FEE = gamblingEnabled ? 5000 : 500;
       if (profile.wallet_balance < FEE) {
         alert('Insufficient balance. Please add funds to your wallet.');
         setJoining(false);
@@ -300,20 +308,43 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ms.joinHeroBody}>
               <LinearGradient colors={['rgba(212,175,55,0.15)', 'transparent']} style={ms.joinHeroBg} />
               
-              <View style={ms.joinHeroIcon}>
+              <Animated.View style={ms.joinHeroIcon}>
                 <MaterialCommunityIcons name="crown-outline" size={64} color={C.gold} />
-              </View>
+              </Animated.View>
               
               <Text style={ms.joinHeroTitle}>Unlock Royale Benefits</Text>
               <Text style={ms.joinHeroSub}>Join thousands of premium players and dominate the leaderboard with exclusive perks.</Text>
+
+              {/* Feature comparison tiles */}
+              <View style={ms.comparisonGrid}>
+                {[
+                  { icon: 'ticket-percent', label: 'Reduced fees', detail: '5% fee on wins' },
+                  { icon: 'shield-star', label: 'Priority queue', detail: 'Skip the line' },
+                  { icon: 'gift', label: 'Monthly ₦500', detail: 'Free coins every month' },
+                  { icon: 'trophy-award', label: 'Tournaments', detail: 'Members-only brackets' },
+                ].map((feat, i) => (
+                  <View key={feat.label} style={ms.compTile}>
+                    <View style={ms.compTileIcon}>
+                      <MaterialCommunityIcons name={feat.icon as any} size={16} color={C.gold} />
+                    </View>
+                    <Text style={ms.compTileLabel}>{feat.label}</Text>
+                    <Text style={ms.compTileDetail}>{feat.detail}</Text>
+                  </View>
+                ))}
+              </View>
               
               <View style={ms.joinPriceCard}>
-                <Text style={ms.joinPriceLabel}>MEMBERSHIP FEE</Text>
-                <Text style={ms.joinPriceVal}>₦5,000<Text style={{fontSize: 14, color: C.textMuted}}>/month</Text></Text>
+                <View style={ms.priceRow}>
+                  <Text style={ms.joinPriceLabel}>MEMBERSHIP FEE</Text>
+                  <View style={ms.saveBadge}>
+                    {gamblingEnabled && <Text style={ms.saveBadgeText}>SAVE 40%</Text>}
+                  </View>
+                </View>
+                <Text style={ms.joinPriceVal}>{gamblingEnabled ? '₦5,000' : '500'}<Text style={{fontSize: 14, color: C.textMuted}}>{gamblingEnabled ? '/month' : ' coins/mo'}</Text></Text>
                 <View style={ms.joinPriceDivider} />
                 <View style={ms.walletCheck}>
                   <MaterialCommunityIcons name="wallet-outline" size={14} color={C.textMuted} />
-                  <Text style={ms.walletCheckText}>Balance: ₦{profile?.wallet_balance?.toLocaleString() || '0'}</Text>
+                  <Text style={ms.walletCheckText}>{gamblingEnabled ? `Balance: ₦${profile?.wallet_balance?.toLocaleString() || '0'}` : `Coins: ${profile?.wallet_balance?.toLocaleString() || '0'}`}</Text>
                 </View>
               </View>
 
@@ -397,7 +428,7 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
                     {joining ? <ActivityIndicator color="#000" /> : (
                       <>
                         <MaterialCommunityIcons name="crown" size={16} color="#000" />
-                        <Text style={ms.renewText}>EXTEND MEMBERSHIP (₦5k)</Text>
+                        <Text style={ms.renewText}>EXTEND MEMBERSHIP ({gamblingEnabled ? '₦5k' : '500'})</Text>
                         <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
                       </>
                     )}
@@ -422,35 +453,39 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
           </View>
           <View style={ms.divider} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8, padding: 14 }}>
-            {PERKS.map((p, i) => <PerkRow key={p.label} perk={p} index={i} />)}
+            {PERKS.map((p, i) => <PerkRow key={p.label} perk={p} index={i} isPreview={!isMember} />)}
 
-            {/* Upgrade prompt */}
-            <View style={ms.upgradeCard}>
-              <MaterialCommunityIcons name="lock-outline" size={20} color={C.purple} />
-              <Text style={ms.upgradeTitle}>Unlock All Perks</Text>
-              <Text style={ms.upgradeSub}>Upgrade to Royale+ to unlock Double XP weekends and exclusive tournament access.</Text>
-              <Pressable style={ms.upgradeBtn}>
-                <Text style={ms.upgradeBtnText}>UPGRADE →</Text>
-              </Pressable>
-            </View>
+            {isMember && (
+              <>
+              {/* Upgrade prompt */}
+              <View style={ms.upgradeCard}>
+                <MaterialCommunityIcons name="lock-outline" size={20} color={C.purple} />
+                <Text style={ms.upgradeTitle}>Unlock All Perks</Text>
+                <Text style={ms.upgradeSub}>Upgrade to Royale+ to unlock Double XP weekends and exclusive tournament access.</Text>
+                <Pressable style={ms.upgradeBtn}>
+                  <Text style={ms.upgradeBtnText}>UPGRADE →</Text>
+                </Pressable>
+              </View>
 
-            {/* History teaser */}
-            <View style={ms.historyCard}>
-              <Text style={ms.historyTitle}>Recent Benefits Used</Text>
-              {[
-                { label: 'Priority match',   time: '2h ago',  icon: 'shield-star'    },
-                { label: 'Monthly ₦500',     time: '4d ago',  icon: 'gift'           },
-                { label: 'Reduced fee saved ₦45', time: '1d ago', icon: 'ticket-percent' },
-              ].map(h => (
-                <View key={h.label} style={ms.historyRow}>
-                  <View style={ms.historyIcon}>
-                    <MaterialCommunityIcons name={h.icon as any} size={12} color={C.gold} />
+              {/* History teaser */}
+              <View style={ms.historyCard}>
+                <Text style={ms.historyTitle}>Recent Benefits Used</Text>
+                {[
+                  { label: 'Priority match',   time: '2h ago',  icon: 'shield-star'    },
+                  { label: 'Monthly ₦500',     time: '4d ago',  icon: 'gift'           },
+                  { label: 'Reduced fee saved ₦45', time: '1d ago', icon: 'ticket-percent' },
+                ].map(h => (
+                  <View key={h.label} style={ms.historyRow}>
+                    <View style={ms.historyIcon}>
+                      <MaterialCommunityIcons name={h.icon as any} size={12} color={C.gold} />
+                    </View>
+                    <Text style={ms.historyLabel}>{h.label}</Text>
+                    <Text style={ms.historyTime}>{h.time}</Text>
                   </View>
-                  <Text style={ms.historyLabel}>{h.label}</Text>
-                  <Text style={ms.historyTime}>{h.time}</Text>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+              </>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -573,6 +608,10 @@ const ms = StyleSheet.create({
   },
   perkLabel:  { color: C.textPrimary, fontSize: 12, fontWeight: '700' },
   perkDetail: { color: C.textFaint,   fontSize: 10, fontWeight: '600', marginTop: 1 },
+  previewBadge: {
+    backgroundColor: C.gold, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  previewBadgeText: { color: '#000', fontSize: 8, fontWeight: '900' },
 
   // Upgrade card
   upgradeCard: {
@@ -615,12 +654,31 @@ const ms = StyleSheet.create({
   },
   joinHeroTitle: { color: C.textPrimary, fontSize: 28, fontWeight: '900', textAlign: 'center' },
   joinHeroSub: { color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 22, paddingHorizontal: 20 },
+
+  // Feature comparison tiles
+  comparisonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%' },
+  compTile: {
+    width: '47%', backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14, borderWidth: 1, borderColor: C.divider,
+    padding: 12, gap: 4, alignItems: 'center',
+  },
+  compTileIcon: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: C.goldSoft, borderWidth: 1, borderColor: C.goldBorder,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  compTileLabel: { color: C.textPrimary, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  compTileDetail: { color: C.textFaint, fontSize: 9, fontWeight: '600', textAlign: 'center' },
+
   joinPriceCard: {
     width: '100%', backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 20, borderWidth: 1, borderColor: C.goldBorder,
     padding: 20, alignItems: 'center', gap: 10,
   },
   joinPriceLabel: { color: C.gold, fontSize: 10, fontWeight: '800', letterSpacing: 2 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  saveBadge: { backgroundColor: C.successSoft, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: C.successBorder },
+  saveBadgeText: { color: C.success, fontSize: 9, fontWeight: '800' },
   joinPriceVal: { color: C.textPrimary, fontSize: 36, fontWeight: '900' },
   joinPriceDivider: { width: '100%', height: 1, backgroundColor: C.divider },
   walletCheck: { flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 15.0.0"
+  },
+  "build": {
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "autoIncrement": true
+      },
+      "env": {
+        "EXPO_PUBLIC_GAMBLING_MODE": "false",
+        "EXPO_PUBLIC_PAYSTACK_KEY": ""
+      },
+      "channel": "production"
+    },
+    "gambling": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "autoIncrement": true
+      },
+      "env": {
+        "EXPO_PUBLIC_GAMBLING_MODE": "true",
+        "EXPO_PUBLIC_PAYSTACK_KEY": "pk_live_7eb6394cdd76cc2bfe956d3cc1a94085dacf0495"
+      },
+      "channel": "gambling"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

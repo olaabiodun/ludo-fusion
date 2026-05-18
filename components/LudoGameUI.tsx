@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useLudoEngine } from '../engine/useLudoEngine';
-import { EMOJI_PACK } from '../lib/emojis';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
 import { GameQuitModal } from './GameQuitModal';
 import { PlayerProfileModal } from './PlayerProfileModal';
+import { getPlayerAvatar } from '@/lib/avatars';
 import { Seat } from './WhotUtils';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -354,9 +355,11 @@ function PlayerChip({
   );
 }
 
-function MatchTimer({ gameEndsAt, onExpire }: { gameEndsAt: number | null; onExpire?: () => void }) {
+function MatchTimer({ gameEndsAt, onExpire, onTimeWarning }: { gameEndsAt: number | null; onExpire?: () => void; onTimeWarning?: () => void }) {
   const [timeStr, setTimeStr] = React.useState('--:--');
+  const warnedRef = React.useRef(false);
   React.useEffect(() => {
+    warnedRef.current = false;
     if (!gameEndsAt) {
       setTimeStr('10:00');
       return;
@@ -368,6 +371,10 @@ function MatchTimer({ gameEndsAt, onExpire }: { gameEndsAt: number | null; onExp
         clearInterval(iv);
         onExpire?.();
         return;
+      }
+      if (diff <= 30000 && !warnedRef.current) {
+        warnedRef.current = true;
+        onTimeWarning?.();
       }
       const mins = Math.floor(diff / 60000);
       const secs = Math.floor((diff % 60000) / 1000);
@@ -420,6 +427,7 @@ export function LudoGameUI({
   const [showReportMenu, setShowReportMenu] = React.useState(false);
   const [reportSent, setReportSent] = React.useState<string | null>(null);
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
+  const gamblingEnabled = useGamblingEnabled();
   const emojiAnim = React.useRef(new Animated.Value(0)).current;
   const quickSettingsAnim = React.useRef(new Animated.Value(0)).current;
   const reportMenuAnim = React.useRef(new Animated.Value(0)).current;
@@ -495,6 +503,17 @@ export function LudoGameUI({
     // For multiplayer, this should ideally come from room data/socket
   }, [isAiEnabled]);
 
+  const timeWarnedRef = React.useRef(false);
+
+  const handleTimeWarning = () => {
+    if (timeWarnedRef.current) return;
+    timeWarnedRef.current = true;
+    engine.setState(s => ({
+      ...s,
+      action: { msg: 'time-warning', color: s.activeColors[s.turnIndex] as any, key: Date.now() }
+    }));
+  };
+
   const handleGameTimeout = () => {
     console.log('[LudoGameUI] Match timer expired!');
     // Determine winner based on finished tokens, then path progress
@@ -519,7 +538,7 @@ export function LudoGameUI({
         ...s,
         activeColors: [winnerColor as any], // Force only winner to be active to end game
         messages: msgs.slice(0, 5),
-        action: { msg: 'winner', color: winnerColor as any, key: Date.now() }
+        action: { msg: 'timeout', color: winnerColor as any, key: Date.now() }
       };
     });
   };
@@ -554,19 +573,17 @@ export function LudoGameUI({
     let sourceList: any[] = [];
 
     if (isAiEnabled) {
-      // In AI mode, use the mock PLAYERS, but mark them as offline
       sourceList = PLAYERS.map(p => ({ ...p, isOffline: true }));
-      // If we have the real local user profile, inject it and mark as online!
       if (realPlayers && realPlayers.length > 0) {
-        const me = realPlayers[0];
-        const idx = sourceList.findIndex(p => p.color === me.color);
-        if (idx !== -1) {
-          sourceList[idx] = { ...sourceList[idx], ...me, isOffline: false };
+        for (const rp of realPlayers) {
+          const idx = sourceList.findIndex(p => p.color === rp.color);
+          if (idx !== -1) {
+            sourceList[idx] = { ...sourceList[idx], ...rp, isOffline: !!rp.isBot };
+          }
         }
       }
     } else {
       sourceList = (realPlayers && realPlayers.length > 0) ? realPlayers : [];
-      // In multiplayer, you could also check if they disconnected to set isOffline
     }
 
     const allowedColors = playerCount === 2 ? ['green', 'red'] : ['green', 'yellow', 'red', 'blue'];
@@ -578,7 +595,7 @@ export function LudoGameUI({
         return {
           ...p,
           name: p.username || (p.color === lCol ? 'You' : p.name),
-          avatar: p.avatar_url ? { uri: p.avatar_url } : (p.avatar || null),
+          avatar: getPlayerAvatar(p),
           coins: p.coins || 0,
           seat: seat as Seat
         };
@@ -597,7 +614,7 @@ export function LudoGameUI({
           <Text style={st.topLabel}>LUDO</Text>
           <Text style={st.topSub}> · {playerCount}P</Text>
         </View>
-        <MatchTimer gameEndsAt={gameEndsAt} onExpire={handleGameTimeout} />
+        <MatchTimer gameEndsAt={gameEndsAt} onExpire={handleGameTimeout} onTimeWarning={handleTimeWarning} />
         <View style={{ flex: 1 }} />
         {networkPing !== undefined && networkPing !== null && !isAiEnabled && (
           <View style={[st.glassPill, { marginRight: 2 }]}>
@@ -614,7 +631,7 @@ export function LudoGameUI({
         <View style={st.glassPill}>
           <MaterialCommunityIcons name="trophy-outline" size={12} color={C.gold} />
           <Text style={st.topSub}> PRIZE </Text>
-          <Text style={st.topLabel}>₦{(stake || 0) * playerCount}</Text>
+          <Text style={st.topLabel}>{gamblingEnabled ? `₦${((stake || 0) * playerCount).toLocaleString()}` : `${((stake || 0) * playerCount).toLocaleString()} coins`}</Text>
         </View>
         <View style={[st.glassPill, { marginLeft: 2 }]}>
           <MaterialCommunityIcons name="wallet-outline" size={12} color={C.gold} />

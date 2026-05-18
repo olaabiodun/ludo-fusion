@@ -17,7 +17,8 @@ import { PlayerProfileModal } from './PlayerProfileModal';
 import { getBotName, Seat } from './WhotUtils';
 import { GameQuitModal } from './GameQuitModal';
 import { ActionPopup } from './ActionPopup';
-import { EMOJI_PACK } from '../lib/emojis';
+import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { getPlayerAvatar } from '@/lib/avatars';
 import { playButtonSound, loadSounds, playDiceRollSound } from '../lib/sounds';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -340,6 +341,7 @@ export function SnakeLadderGameUI({
   const [reportSent, setReportSent] = React.useState<string | null>(null);
   const [actionPopup, setActionPopup] = React.useState<{ message: string, seat: Seat } | null>(null);
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
+  const gamblingEnabled = useGamblingEnabled();
   
   const emojiAnim = React.useRef(new Animated.Value(0)).current;
   const quickSettingsAnim = React.useRef(new Animated.Value(0)).current;
@@ -427,7 +429,7 @@ export function SnakeLadderGameUI({
           ...p,
           isBot,
           name,
-          avatar: realP?.avatar_url ? { uri: realP.avatar_url } : null,
+          avatar: getPlayerAvatar({ avatar_url: realP?.avatar_url, name: realP?.username, color: p.color }),
           coins: realP?.coins || 0,
           seat: seat as Seat
         };
@@ -494,7 +496,7 @@ export function SnakeLadderGameUI({
         <View style={[st.glassPill, { marginLeft: 4 }]}>
           <MaterialCommunityIcons name="trophy-outline" size={12} color={C.gold} />
           <Text style={st.topSub}> PRIZE </Text>
-          <Text style={st.topLabel}>₦{(stake || 0) * playerCount}</Text>
+          <Text style={st.topLabel}>{gamblingEnabled ? `₦${((stake || 0) * playerCount).toLocaleString()}` : `${((stake || 0) * playerCount).toLocaleString()} coins`}</Text>
         </View>
 
         {/* Balance Pill */}

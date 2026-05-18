@@ -56,6 +56,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const [roomPlayers, setRoomPlayers] = React.useState<any[]>([]);
   const [stake, setStake] = React.useState(0);
   const [showTestResult, setShowTestResult] = React.useState(false);
+  const [rematchKey, setRematchKey] = React.useState(0);
   const [levelUpdate, setLevelUpdate] = React.useState<LevelUpdate | null>(null);
   const [ping, setPing] = React.useState<number | null>(null);
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
@@ -543,7 +544,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       )}
 
       {/* Floating HUD (no background of its own) */}
-      {(isLudo && (synced || isAiEnabled)) ? (
+      {!(winner || showTestResult) && (isLudo && (synced || isAiEnabled)) ? (
         <LudoGameUI 
           playerCount={playerCount} 
           onExit={onExit} 
@@ -558,8 +559,9 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
         />
-      ) : (isWhot && (synced || isAiEnabled)) ? (
+      ) : !(winner || showTestResult) && (isWhot && (synced || isAiEnabled)) ? (
         <WhotGameUI 
+          key={rematchKey}
           gameId={roomId || undefined}
           playerCount={playerCount}
           realPlayers={roomPlayers}
@@ -581,18 +583,20 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
                 isAiEnabled={isAiEnabled}
             />
           </View>
-          <SnakeLadderGameUI 
-            playerCount={playerCount}
-            onExit={onExit}
-            engine={{ ...snakeEngine, rollDice: wrappedRoll, handleTimeout: wrappedTimeout } as any}
-            localColor={localColor}
-            realPlayers={roomPlayers}
-            stake={stake}
-            isAiEnabled={isAiEnabled}
-            networkPing={ping}
-            externalEmojis={activeEmojis}
-            onSendEmoji={wrappedSendEmoji}
-          />
+          {!(winner || showTestResult) && (
+            <SnakeLadderGameUI 
+              playerCount={playerCount}
+              onExit={onExit}
+              engine={{ ...snakeEngine, rollDice: wrappedRoll, handleTimeout: wrappedTimeout } as any}
+              localColor={localColor}
+              realPlayers={roomPlayers}
+              stake={stake}
+              isAiEnabled={isAiEnabled}
+              networkPing={ping}
+              externalEmojis={activeEmojis}
+              onSendEmoji={wrappedSendEmoji}
+            />
+          )}
         </>
       ) : (
         <View style={StyleSheet.absoluteFill} />
@@ -610,13 +614,15 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           xpGained={levelUpdate?.xpGained}
           onPlayAgain={() => {
             if (isAiEnabled) {
-              // Bot game: Reset engine and keep playing
               setPayoutProcessed(false);
               setShowTestResult(false);
               if (isSnake) snakeEngine.resetGame();
               else if (isLudo) engine.resetGame();
-              // For Whot, since it's currently handled in its own UI, we'd need to handle it there too
-              // but for now, we'll just close the test result
+              if (isWhot) {
+                setWhotWinner(null);
+                setWhotScores({});
+                setRematchKey(k => k + 1);
+              }
             } else {
               // Real match: Back to lobby and auto-search
               (onExit as any)({ autoSearch: true });
