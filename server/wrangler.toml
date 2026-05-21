@@ -1,0 +1,8 @@
+#:schema https://api.cloudflare.com/workers-sdk/wrangler.schema.json
+name = "ludo-fusion"
+main = "index.js"
+compatibility_date = "2024-04-03"
+compatibility_flags = [ "nodejs_compat" ]
+
+[vars]
+PORT = "3001"
