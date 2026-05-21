@@ -62,6 +62,7 @@ interface GameTokenProps {
   position: number;
   id: string;
   offset: { dx: number; dy: number };
+  isKicked?: boolean;
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -86,8 +87,8 @@ function arcPath(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function GameToken({
-  color, isActive, isOnBoard, cellSize, position, id, offset,
+export const GameToken = React.memo(function GameToken({
+  color, isActive, isOnBoard, cellSize, position, id, offset, isKicked = false,
 }: GameTokenProps) {
 
   // ── Glow pulses ──────────────────────────────────────────────────────────
@@ -380,18 +381,29 @@ export function GameToken({
   // ── Render ────────────────────────────────────────────────────────────────
   const tokenGlow = GLOW_COLORS[color] || '#FFF';
   const isYellow  = color === 'yellow';
-  const tokenSize = cellSize * (isYellow ? 0.82 : 0.92);
+  const tokenSize = cellSize * (isYellow ? 0.85 : 0.95);
 
   return (
     /*
-     * offsetWrapper is a plain (non-animated) View so the native-driver
-     * transform on movementContainer never has to mix driver types.
+     * offsetWrapper is given full token size with negative margins to center it
+     * on the coordinate. This completely eliminates the 1x1 Android clipping bug.
      */
-    <View style={[st.offsetWrapper, { left: offset.dx, top: offset.dy }]}>
-      <Animated.View style={[st.movementContainer, {
-        transform: anim.getTranslateTransform(),
-      }]}>
-        <View style={st.container}>
+    <View style={[st.offsetWrapper, { 
+      left: offset.dx, 
+      top: offset.dy, 
+      width: tokenSize, 
+      height: tokenSize, 
+      marginLeft: -tokenSize / 2, 
+      marginTop: -tokenSize / 2 
+    }]}>
+      <Animated.View 
+        style={[st.movementContainer, { 
+          width: tokenSize, 
+          height: tokenSize, 
+          transform: anim.getTranslateTransform() 
+        }]}
+      >
+        <View style={[st.container, { width: tokenSize, height: tokenSize }]}>
 
           {/* Layer 1 — far outer ring, slow inverse pulse */}
           {isActive && isOnBoard && (
@@ -427,8 +439,8 @@ export function GameToken({
               borderRadius:    (tokenSize + 18) / 2,
               backgroundColor: tokenGlow,
               opacity:         pulse.interpolate({
-                inputRange:  [0, 1],
-                outputRange: isActive ? [0.22, 0.42] : [0.10, 0.22],
+                 inputRange:  [0, 1],
+                 outputRange: isActive ? [0.22, 0.42] : [0.10, 0.22],
               }),
               shadowColor:  tokenGlow,
               shadowRadius: isActive ? 18 : 9,
@@ -444,8 +456,8 @@ export function GameToken({
               borderRadius:    (tokenSize + 6) / 2,
               backgroundColor: tokenGlow,
               opacity:         fastPulse.interpolate({
-                inputRange:  [0, 1],
-                outputRange: isActive ? [0.45, 0.75] : [0.20, 0.35],
+                 inputRange:  [0, 1],
+                 outputRange: isActive ? [0.45, 0.75] : [0.20, 0.35],
               }),
               shadowColor:  tokenGlow,
               shadowRadius: isActive ? 10 : 4,
@@ -466,7 +478,7 @@ export function GameToken({
           }]}>
             <Image
               source={TOKEN_IMAGES[color] || TOKEN_IMAGES.green}
-              style={st.image}
+              style={[st.image, isKicked && { opacity: 0.3, tintColor: '#888' }]}
               contentFit="contain"
             />
           </Animated.View>
@@ -475,24 +487,28 @@ export function GameToken({
       </Animated.View>
     </View>
   );
-}
+}, (prev, next) => (
+  prev.position === next.position &&
+  prev.isActive === next.isActive &&
+  prev.isOnBoard === next.isOnBoard &&
+  prev.isKicked === next.isKicked &&
+  prev.offset.dx === next.offset.dx &&
+  prev.offset.dy === next.offset.dy
+));
 
 const st = StyleSheet.create({
   offsetWrapper: {
     position: 'absolute',
-    width:    1,
-    height:   1,
   },
   movementContainer: {
     position:       'absolute',
     left:           0,
     top:            0,
-    width:          1,
-    height:         1,
     alignItems:     'center',
     justifyContent: 'center',
   },
   container: {
+    position:       'absolute',
     alignItems:     'center',
     justifyContent: 'center',
   },
@@ -522,6 +538,7 @@ const st = StyleSheet.create({
     shadowOpacity: 1,
   },
   pawnWrap: {
+    position:       'absolute',
     alignItems:     'center',
     justifyContent: 'center',
   },

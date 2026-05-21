@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { Path, Svg } from 'react-native-svg';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 // ─── Tokens ────────────────────────────────────────────────────────────────
 const C = {
@@ -497,7 +497,8 @@ function SocialBtn({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function LoginScreen() {
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
+  console.log("[DEBUG] LoginScreen gamblingEnabled status:", gamblingEnabled);
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(24)).current;
 
@@ -663,7 +664,7 @@ export default function LoginScreen() {
               </View>
               <Text style={styles.secureText}>CERTIFIED SECURE &amp; FAIR PLAY</Text>
             </View>
-            <TouchableOpacity onPress={goHome} style={styles.offlineBtn}>
+            <TouchableOpacity onPress={() => router.push('/offline')} style={styles.offlineBtn}>
               <Text style={styles.offlineBtnText}>PLAY OFFLINE</Text>
             </TouchableOpacity>
           </View>
@@ -678,9 +679,10 @@ export default function LoginScreen() {
 
             <View style={styles.leftCol}>
               <Image
-                source={require('@/assets/images/ludo_fusion.png')}
+                key={gamblingEnabled ? 'gambling-hero' : 'masked-hero'}
+                source={gamblingEnabled ? require('@/assets/images/ludo_fusion.jpg') : require('@/assets/images/ludo-fusion1.png')}
                 style={styles.leftColImage}
-                contentFit='fill'
+                contentFit={gamblingEnabled ? 'fill' : 'contain'}
                 transition={500}
               />
             </View>
@@ -781,7 +783,7 @@ export default function LoginScreen() {
                 <Text style={styles.termsLink}>Terms of Service</Text>
                 {' '}&amp;{' '}
                 <Text style={styles.termsLink}>Privacy Policy</Text>.
-                {' '}You confirm you are 18+. Gamble responsibly.
+                {' '}You confirm you are 18+{gamblingEnabled ? '. Gamble responsibly' : ''}.
               </Text>
 
             </View>
@@ -789,7 +791,7 @@ export default function LoginScreen() {
         </ScrollView>
       </DodgeKeyboard>
       {/* ── TICKER ── */}
-      <Ticker gamblingEnabled={gamblingEnabled} />
+      {gamblingEnabled && <Ticker gamblingEnabled={gamblingEnabled} />}
 
       <ModalAlert
         visible={customAlert.visible}

@@ -9,6 +9,7 @@ import {
   Animated,
   DeviceEventEmitter,
   Dimensions,
+  Image,
   ImageBackground,
   Modal,
   Pressable,
@@ -23,7 +24,7 @@ import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { GameplayScreen } from './GameplayScreen';
 import { getBotName } from '@/lib/botNames';
 import { startProgressLoop, stopProgressLoop, playPlayerFoundSound } from '@/lib/sounds';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { preloadGameAssets, AssetPreloader } from '@/lib/preloader';
 import Dice3D from './Dice3D';
 
@@ -376,6 +377,7 @@ function StakeOptionCard({
   accentSoft,
   accentBorder,
   playerCount,
+  platformFeePercent,
 }: {
   opt: StakeOption;
   i: number;
@@ -385,11 +387,14 @@ function StakeOptionCard({
   accentSoft: string;
   accentBorder: string;
   playerCount: number;
+  platformFeePercent: number;
 }) {
   const active = selected === opt.amount;
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const prefix = gamblingEnabled ? '₦' : '';
   const anim = useFadeSlide(300 + i * 40);
+  const factor = 1.0 - (platformFeePercent / 100.0);
+  const winAmount = opt.amount * playerCount * factor;
   return (
     <Animated.View style={anim}>
       <Pressable
@@ -405,7 +410,7 @@ function StakeOptionCard({
           </View>
         )}
         <Text style={[sl.stakeAmount, active && { color: accentColor }]}>{prefix}{opt.label}</Text>
-        <Text style={sl.stakeWin}>{gamblingEnabled ? `Win ₦${(opt.amount * playerCount * 0.9).toLocaleString('en-NG', { maximumFractionDigits: 0 })}` : `${Math.floor(opt.amount * playerCount * 0.9).toLocaleString()} coins`}</Text>
+        <Text style={sl.stakeWin}>{gamblingEnabled ? `Win ₦${winAmount.toLocaleString('en-NG', { maximumFractionDigits: 0 })}` : `${Math.floor(winAmount).toLocaleString()} coins`}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -418,6 +423,7 @@ function StakeSelector({
   accentSoft,
   accentBorder,
   playerCount,
+  platformFeePercent,
 }: {
   selected: number;
   onChange: (v: number) => void;
@@ -425,10 +431,11 @@ function StakeSelector({
   accentSoft: string;
   accentBorder: string;
   playerCount: PlayerCount;
+  platformFeePercent: number;
 }) {
   const totalPot = selected * playerCount;
   const mainAnim = useFadeSlide(220);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
 
   return (
     <Animated.View style={[sl.stakeSection, mainAnim]}>
@@ -456,13 +463,14 @@ function StakeSelector({
             accentSoft={accentSoft}
             accentBorder={accentBorder}
             playerCount={playerCount}
+            platformFeePercent={platformFeePercent}
           />
         ))}
       </View>
 
       <View style={sl.feeNote}>
         <MaterialCommunityIcons name="information-outline" size={s(10)} color={C.textFaint} />
-        <Text style={sl.feeNoteText}>10% platform fee deducted from winnings</Text>
+        <Text style={sl.feeNoteText}>{platformFeePercent}% platform fee deducted from winnings</Text>
       </View>
     </Animated.View>
   );
@@ -477,6 +485,7 @@ interface PlayerSlot {
   status: SlotStatus;
   name?: string;
   initials?: string;
+  avatar_url?: string;
   rank?: string;
   winRate?: string;
 }
@@ -487,7 +496,8 @@ function buildSlots(
   realPlayers?: any[],
   searchingPlayers?: any[],
   currentUser?: any,
-  isAiEnabled?: boolean
+  isAiEnabled?: boolean,
+  profilesCache?: Record<string, any>
 ): PlayerSlot[] {
   // Use centralized bot names for consistency
   const getInitials = (n: string) => n.substring(0, 2).toUpperCase();
@@ -503,18 +513,37 @@ function buildSlots(
 
     const slots: PlayerSlot[] = sortedPlayers.map((p, i) => {
       const isMe = currentUser && p.id === currentUser.id;
-      const myRank = currentUser?.global_rank ? `#${currentUser.global_rank}` : `#${Math.floor(Math.random() * 50) + 20}`;
-      const myWinRate = currentUser?.games_played ? `${Math.round(((currentUser.wins || 0) / currentUser.games_played) * 100)}%` : '55%';
+      
+      const cached = profilesCache?.[p.id] || {};
+      const level = cached.level || p.level;
+      const games_played = cached.games_played || p.games_played;
+      const wins = cached.wins || p.wins;
+      const win_rate = cached.win_rate || p.win_rate;
+      const avatar_url = cached.avatar_url || p.avatar_url;
+
+      const myRank = currentUser?.global_rank ? `#${currentUser.global_rank}` : (currentUser?.level ? `Lv.${currentUser.level}` : undefined);
+      const myWinRate = currentUser?.games_played ? `${Math.round(((currentUser.wins || 0) / currentUser.games_played) * 100)}%` : (currentUser?.win_rate ? `${currentUser.win_rate}%` : undefined);
+
+      const opRank = level ? `Lv.${level}` : undefined;
+      const opWinRate = win_rate ? `${win_rate}%` : (games_played ? `${Math.round(((wins || 0) / games_played) * 100)}%` : undefined);
 
       const name = p.username || 'Player';
+      let avatarUrl = avatar_url;
+      if (!avatarUrl && name && p.id !== currentUser?.id) {
+        const bgColors = ['b6e3f4','ffdfbf','c0aede','d1d4f9','ffd5dc','c1f4c1','f0d5c1','c1d4f0','d4f0c1','f0c1d4','c1f0e0','e0c1f0'];
+        const h = Math.abs(name.split('').reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0)|0,0));
+        avatarUrl = `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(name)}&backgroundColor=${bgColors[h%bgColors.length]}`;
+      }
+
       return {
         id: i + 1,
-        status: isMe ? 'you' : (p.ready ? 'ready' : 'ready'),
+        status: isMe ? 'you' : 'ready',
         name: name,
         initials: getInitials(name),
+        avatar_url: isMe ? (currentUser?.avatar_url || avatarUrl) : avatarUrl,
         color: p.color,
-        rank: isMe ? myRank : `#${Math.floor(Math.random() * 100) + 10}`,
-        winRate: isMe ? myWinRate : `${50 + Math.floor(Math.random() * 40)}%`
+        rank: isMe ? myRank : opRank,
+        winRate: isMe ? myWinRate : opWinRate,
       };
     });
 
@@ -528,6 +557,9 @@ function buildSlots(
         status: 'waiting',
         name: name,
         initials: name ? getInitials(name) : undefined,
+        avatar_url: sp?.avatar_url,
+        rank: sp?.level ? `Lv.${sp.level}` : undefined,
+        winRate: sp?.games_played ? `${Math.round(((sp.wins || 0) / sp.games_played) * 100)}%` : undefined,
       });
       searchIdx++;
     }
@@ -537,14 +569,17 @@ function buildSlots(
   // REAL MULTIPLAYER (searching, room not yet assigned)
   if (!isAiEnabled) {
     const myName = currentUser?.username || 'You';
+    const myRank = currentUser?.global_rank ? `#${currentUser.global_rank}` : (currentUser?.level ? `Lv.${currentUser.level}` : undefined);
+    const myWinRate = currentUser?.games_played ? `${Math.round(((currentUser.wins || 0) / currentUser.games_played) * 100)}%` : (currentUser?.win_rate ? `${currentUser.win_rate}%` : undefined);
     const slots: PlayerSlot[] = [
       {
         id: 1,
         status: 'you',
         name: myName,
         initials: getInitials(myName),
-        rank: currentUser?.global_rank ? `#${currentUser.global_rank}` : '#--',
-        winRate: currentUser?.games_played ? `${Math.round(((currentUser.wins || 0) / currentUser.games_played) * 100)}%` : '0%'
+        avatar_url: currentUser?.avatar_url,
+        rank: myRank,
+        winRate: myWinRate,
       }
     ];
     let searchIdx = 0;
@@ -552,13 +587,14 @@ function buildSlots(
       const sp = searchingPlayers && searchIdx < searchingPlayers.length ? searchingPlayers[searchIdx] : null;
       const name = sp ? sp.username : undefined;
       const spWinRate = sp?.games_played ? `${Math.round(((sp.wins || 0) / sp.games_played) * 100)}%` : '0%';
-      const spRank = sp?.global_rank ? `#${sp.global_rank}` : `#${Math.floor(Math.random() * 50) + 10}`;
+      const spRank = sp?.level ? `Lv.${sp.level}` : undefined;
 
       slots.push({
         id: slots.length + 1,
         status: 'waiting',
         name: name,
         initials: name ? getInitials(name) : undefined,
+        avatar_url: sp?.avatar_url,
         rank: name ? spRank : undefined,
         winRate: name ? spWinRate : undefined,
       });
@@ -605,6 +641,21 @@ function buildSlots(
   return count === 2 ? base.slice(0, 2) : base;
 }
 
+function SlotAvatar({ slot, accentColor, accentBorder }: { slot: PlayerSlot; accentColor: string; accentBorder: string }) {
+  if (slot.avatar_url) {
+    return (
+      <View style={{ width: s(32), height: s(32), borderRadius: s(16), overflow: 'hidden', borderWidth: 1.5, borderColor: accentBorder }}>
+        <Image source={{ uri: slot.avatar_url }} style={{ width: '100%', height: '100%' }} />
+      </View>
+    );
+  }
+  return (
+    <View style={[sl.slotAvatar, { borderColor: accentBorder, backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+      <Text style={sl.slotAvatarText}>{slot.initials ?? '??'}</Text>
+    </View>
+  );
+}
+
 function PlayerSlotCard({
   slot,
   delay,
@@ -641,12 +692,7 @@ function PlayerSlotCard({
       {isYou || isReady ? (
         <>
           <View style={sl.slotAvatarWrap}>
-            <LinearGradient
-              colors={isYou ? ['#1E5A39', '#0A2318'] : ['#163D27', '#071510']}
-              style={[sl.slotAvatar, isYou && { borderColor: accentColor, borderWidth: 1.5 }]}
-            >
-              <Text style={sl.slotAvatarText}>{slot.initials ?? '??'}</Text>
-            </LinearGradient>
+            <SlotAvatar slot={slot} accentColor={accentColor} accentBorder={accentBorder} />
             {isYou && (
               <View style={[sl.youBadge, { backgroundColor: accentSoft, borderColor: accentBorder }]}>
                 <Text style={[sl.youBadgeText, { color: accentColor }]}>YOU</Text>
@@ -676,9 +722,7 @@ function PlayerSlotCard({
           {slot.name ? (
             <>
               <View style={sl.slotAvatarWrap}>
-                <View style={[sl.slotAvatar, { borderColor: accentBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                  <Text style={sl.slotAvatarText}>{slot.initials ?? '??'}</Text>
-                </View>
+                <SlotAvatar slot={slot} accentColor={accentColor} accentBorder={accentBorder} />
               </View>
               <Text style={sl.slotName} numberOfLines={1}>{slot.name}</Text>
               <View style={sl.slotMeta}>
@@ -747,9 +791,37 @@ function PlayerSlots({
   serverSearchingPlayers?: any[];
 }) {
   const [realPlayers, setRealPlayers] = useState<any[]>([]);
+  const [profilesCache, setProfilesCache] = useState<Record<string, any>>({});
   const searchingPlayers = serverSearchingPlayers || [];
   const prevPlayersCount = useRef(0);
   const prevSearchersCount = useRef(0);
+
+  useEffect(() => {
+    if (realPlayers.length === 0) return;
+    const missingIds = realPlayers.filter(p => p.id && !profilesCache[p.id]).map(p => p.id);
+    if (missingIds.length === 0) return;
+
+    supabase.from('profiles').select('id, username, avatar_url, level').in('id', missingIds).then(({ data: profiles }) => {
+      if (profiles) {
+        supabase.from('profile_stats').select('player_id, total_matches, total_wins, win_rate').in('player_id', missingIds).then(({ data: stats }) => {
+          const statsMap = new Map((stats || []).map(s => [s.player_id, s]));
+          setProfilesCache(prev => {
+            const next = { ...prev };
+            profiles.forEach(p => {
+              const stat = statsMap.get(p.id) || {};
+              next[p.id] = {
+                ...p,
+                games_played: stat.total_matches || 0,
+                wins: stat.total_wins || 0,
+                win_rate: stat.win_rate || 0,
+              };
+            });
+            return next;
+          });
+        });
+      }
+    });
+  }, [realPlayers]);
 
   useEffect(() => {
     if (realPlayers.length > prevPlayersCount.current && realPlayers.length > 1) {
@@ -786,7 +858,7 @@ function PlayerSlots({
     return () => { channel.unsubscribe(); };
   }, [roomId]);
 
-  const slots = buildSlots(playerCount, readyCount, realPlayers, searchingPlayers, currentUser, isAiEnabled);
+  const slots = buildSlots(playerCount, readyCount, realPlayers, searchingPlayers, currentUser, isAiEnabled, profilesCache);
   const anim = useFadeSlide(160);
 
   return (
@@ -826,6 +898,7 @@ const RoomOptions = React.memo(({
   accentBorder,
   roomCode,
   onJoinPrivateRoom,
+  isOffline,
 }: {
   isPrivate: boolean;
   onToggle: () => void;
@@ -836,6 +909,7 @@ const RoomOptions = React.memo(({
   accentBorder: string;
   roomCode?: string;
   onJoinPrivateRoom?: (code: string) => void;
+  isOffline?: boolean;
 }) => {
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCode, setJoinCode] = useState('');
@@ -869,6 +943,36 @@ const RoomOptions = React.memo(({
     setJoinCode('');
     setShowJoinInput(false);
   };
+
+  if (isOffline) {
+    return (
+      <Animated.View style={[sl.roomOptions, anim]}>
+        <View style={sl.roomToggleRow}>
+          <View style={sl.roomToggleInfo}>
+            <MaterialCommunityIcons
+              name="wifi-off"
+              size={s(13)}
+              color={accentColor}
+            />
+            <View>
+              <Text style={[sl.roomToggleLabel, { color: accentColor }]}>
+                Offline Mode Active
+              </Text>
+              <Text style={sl.roomToggleSub}>
+                Practice matches only (skips matchmaking)
+              </Text>
+            </View>
+          </View>
+          <View style={[
+            sl.toggle,
+            { backgroundColor: accentSoft, borderColor: accentBorder },
+          ]}>
+            <Animated.View style={[sl.toggleKnob, { transform: [{ translateX: 17 }], backgroundColor: accentColor }]} />
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={[sl.roomOptions, anim]}>
@@ -1037,8 +1141,6 @@ function RoomCodeRow({
   );
 }
 
-// ─── CTA Footer ───────────────────────────────────────────────────────────────
-
 function CtaFooter({
   stake,
   playerCount,
@@ -1046,6 +1148,7 @@ function CtaFooter({
   searching,
   gameState,
   onFindMatch,
+  platformFeePercent,
 }: {
   stake: number;
   playerCount: PlayerCount;
@@ -1053,6 +1156,7 @@ function CtaFooter({
   searching: boolean;
   gameState: 'lobby' | 'starting' | 'playing';
   onFindMatch: () => void;
+  platformFeePercent: number;
 }) {
   const anim = useFadeSlide(400);
   const pressAnim = useRef(new Animated.Value(1)).current;
@@ -1061,7 +1165,8 @@ function CtaFooter({
   const onPressOut = () => Animated.spring(pressAnim, { toValue: 1, useNativeDriver: true, speed: 20 }).start();
 
   const pot = stake * playerCount;
-  const win = Math.floor(pot * 0.9);
+  const factor = 1.0 - (platformFeePercent / 100.0);
+  const win = Math.floor(pot * factor);
 
   // Searching spinner dots
   const dot1 = useRef(new Animated.Value(0.3)).current;
@@ -1086,7 +1191,7 @@ function CtaFooter({
 
   // ── Balance ────────────────────────────────────────────────────────────────
   const [balance, setBalance] = useState<number>(0);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
@@ -1171,15 +1276,90 @@ function CtaFooter({
 
 // ─── Recent Activity ──────────────────────────────────────────────────────────
 
-const RECENT_RESULTS = [
-  { name: 'AbujaBoss vs KingObi', amount: '900', winner: 'AbujaBoss', time: '3m ago' },
-  { name: 'FujiQueen vs DiceSlayer', amount: '450', winner: 'FujiQueen', time: '11m ago' },
-  { name: 'CardEze vs LagosKing', amount: '1,800', winner: 'CardEze', time: '18m ago' },
-  { name: '4-player Ludo', amount: '3,600', winner: 'ZikoRoyal', time: '25m ago' },
-];
+type RecentMatch = {
+  name: string;
+  amount: string;
+  winner: string;
+  time: string;
+};
+
+function timeAgo(isoString: string): string {
+  const dateMs = new Date(isoString).getTime();
+  if (isNaN(dateMs)) return 'Recently';
+  const diff = Date.now() - dateMs;
+  const absDiff = Math.abs(diff);
+  if (absDiff < 60000) return 'Just now';
+  const minutes = Math.floor(absDiff / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(absDiff / 36e5);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(absDiff / 864e5);
+  return `${days}d ago`;
+}
 
 const RecentActivity = React.memo(({ accentColor, accentSoft, accentBorder }: { accentColor: string; accentSoft: string; accentBorder: string }) => {
+  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const anim = useFadeSlide(180);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchRecent = async () => {
+      let matches: RecentMatch[] = [];
+
+      // Try finished game_rooms first
+      const { data: rooms } = await supabase
+        .from('game_rooms')
+        .select('*')
+        .eq('status', 'finished')
+        .order('updated_at', { ascending: false })
+        .limit(6);
+      if (rooms && rooms.length > 0) {
+        matches = rooms.map(room => {
+          const players: Array<{ id: string; username: string; color: string }> = (room.players || []) as any;
+          const names = players.map(p => p.username).filter(Boolean);
+          const winnerPlayer = players.find(p => p.id === room.winner_id);
+          const winnerName = winnerPlayer?.username || 'Unknown';
+          let matchName: string;
+          if (room.max_players === 2 && names.length >= 2) {
+            matchName = `${names[0]} vs ${names[1]}`;
+          } else if (room.max_players === 4) {
+            const label = (room.game_type || '').replace('_t', '').replace(/_/g, ' ');
+            matchName = `4-player ${label || 'Match'}`;
+          } else {
+            matchName = names.join(', ') || 'Match';
+          }
+          return {
+            name: matchName,
+            amount: ((room.stake || 0) * (room.max_players || 2)).toLocaleString(),
+            winner: winnerName,
+            time: timeAgo(room.updated_at || room.created_at),
+          };
+        });
+      } else {
+        // Fallback to individual games table
+        const { data: games } = await supabase
+          .from('games')
+          .select('*, profiles(username)')
+          .order('created_at', { ascending: false })
+          .limit(6);
+        if (games && mounted) {
+          matches = games.map(g => ({
+            name: `${(g as any).profiles?.username || 'Player'} · ${(g.game_type || '').replace(/_/g, ' ')}`,
+            amount: (g.win_amount || 0).toLocaleString(),
+            winner: g.result === 'win' ? ((g as any).profiles?.username || 'Player') : '—',
+            time: timeAgo(g.created_at),
+          }));
+        }
+      }
+
+      if (mounted) setRecentMatches(matches);
+    };
+    fetchRecent();
+    return () => { mounted = false; };
+  }, []);
+
+  if (recentMatches.length === 0) return null;
+
   return (
     <Animated.View style={[sl.section, anim]}>
       <View style={sl.sectionHeader}>
@@ -1189,17 +1369,17 @@ const RecentActivity = React.memo(({ accentColor, accentSoft, accentBorder }: { 
           <Text style={sl.livePillText}>Live</Text>
         </View>
       </View>
-      {RECENT_RESULTS.map((r, i) => (
-        <RecentActivityRow key={i} r={r} i={i} accentColor={accentColor} accentSoft={accentSoft} accentBorder={accentBorder} />
+      {recentMatches.map((r, i) => (
+        <RecentActivityRow key={i} r={r} i={i} recentMatchesLength={recentMatches.length} accentColor={accentColor} accentSoft={accentSoft} accentBorder={accentBorder} />
       ))}
     </Animated.View>
   );
 });
 
-function RecentActivityRow({ r, i, accentColor, accentSoft, accentBorder }: any) {
+function RecentActivityRow({ r, i, recentMatchesLength, accentColor, accentSoft, accentBorder }: any) {
   const anim = useFadeSlideX(300 + i * 70);
   return (
-    <Animated.View style={[sl.recentRow, i < RECENT_RESULTS.length - 1 && sl.recentDivider, anim]}>
+    <Animated.View style={[sl.recentRow, i < recentMatchesLength - 1 && sl.recentDivider, anim]}>
       <View style={[sl.recentDot, { backgroundColor: accentSoft, borderColor: accentBorder }]}>
         <MaterialCommunityIcons name="dice-5" size={s(10)} color={accentColor} />
       </View>
@@ -1275,7 +1455,7 @@ export function GameLobbyScreen({
   const [playerCount, setPlayerCount] = useState<PlayerCount>(2);
   const [stake, setStake] = useState(200);
   const [isPrivate, setIsPrivate] = useState(false);
-  const [isAiEnabled, setIsAiEnabled] = useState(true);
+  const [isAiEnabled, setIsAiEnabled] = useState(false);
   const searching = globalSearching;
   const setSearching = (s: boolean) => onSearchingChange(s, { stake, playerCount });
   const [readyCount, setReadyCount] = useState(1);
@@ -1284,7 +1464,23 @@ export function GameLobbyScreen({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [searchingPlayers, setSearchingPlayers] = useState<any[]>([]);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
+  const [platformFeePercent, setPlatformFeePercent] = useState<number>(10);
+
+  // Fetch dynamic platform percentage configuration from database
+  useEffect(() => {
+    supabase
+      .from('platform_config')
+      .select('platform_percentage')
+      .eq('id', 1)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data && data.platform_percentage !== undefined) {
+          setPlatformFeePercent(data.platform_percentage);
+        }
+      })
+      .catch(err => console.warn('Failed to load platform percentage config:', err));
+  }, []);
 
   // Generate a stable private room code for this session
   const [privateRoomCode] = useState<string>(() => {
@@ -1342,7 +1538,30 @@ export function GameLobbyScreen({
             });
           }
         });
+      } else {
+        // Guest/Offline fallback
+        console.log('Offline/Guest mode detected in Gamelobby');
+        setCurrentUser({
+          id: 'guest-player',
+          username: 'Guest Player',
+          wallet_balance: 1000,
+          level: 1,
+          xp: 0,
+          global_rank: 999
+        });
+        setIsAiEnabled(true);
       }
+    }).catch(err => {
+      console.log('Offline/Guest catch triggered in Gamelobby:', err);
+      setCurrentUser({
+        id: 'guest-player',
+        username: 'Guest Player',
+        wallet_balance: 1000,
+        level: 1,
+        xp: 0,
+        global_rank: 999
+      });
+      setIsAiEnabled(true);
     });
   }, []);
 
@@ -1575,6 +1794,7 @@ export function GameLobbyScreen({
                   if (searching) cancelMatchmaking();
                   else startMatchmaking();
                 }}
+                platformFeePercent={platformFeePercent}
               />
 
               <View style={{ marginTop: s(8) }}>
@@ -1587,6 +1807,7 @@ export function GameLobbyScreen({
                   accentSoft={config.accentSoft}
                   accentBorder={config.accentBorder}
                   roomCode={isPrivate ? privateRoomCode : undefined}
+                  isOffline={!currentUser || currentUser.id === 'guest-player'}
                   onJoinPrivateRoom={async (code) => {
                     // Look up the room by its private code
                     const { data: room, error } = await supabase
@@ -1664,6 +1885,7 @@ export function GameLobbyScreen({
                     accentSoft={config.accentSoft}
                     accentBorder={config.accentBorder}
                     playerCount={playerCount}
+                    platformFeePercent={platformFeePercent}
                   />
                 )}
 

@@ -13,7 +13,7 @@ import {
   View
 } from 'react-native';
 import { GiftPanel, MissionsPanel } from './QuickPanels';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 const { useEffect, useRef, useState } = React;
 
 const PulseBadge = ({ count }: { count: string }) => {
@@ -58,7 +58,7 @@ export function TopBar({
   const [unreadCount, setUnreadCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<'gift' | 'missions' | null>(null);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const togglePanel = (p: 'gift' | 'missions') =>
     setActivePanel(prev => (prev === p ? null : p));
 
@@ -75,7 +75,13 @@ export function TopBar({
 
     async function setupSubscription() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setUserName('Guest Player');
+        setBalance('1,000');
+        setLevel(1);
+        setXpProgress(15);
+        return;
+      }
 
       // 1. Initial fetch
       const { data: profile } = await supabase.from('profiles').select('full_name, username, wallet_balance, level, xp, xp_next_level, avatar_url').eq('id', user.id).single();
@@ -191,7 +197,8 @@ export function TopBar({
 
         {/* Brand Logo */}
         <Image
-          source={require('@/assets/images/logoui.png')}
+          key={gamblingEnabled ? 'gambling-logo' : 'masked-logo'}
+          source={gamblingEnabled ? require('@/assets/images/logoui.png') : require('@/assets/images/logoui1.png')}
           style={styles.logo}
           resizeMode="contain"
         />

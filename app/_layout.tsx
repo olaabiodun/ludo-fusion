@@ -6,6 +6,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/poppins';
 import { Kanit_900Black } from '@expo-google-fonts/kanit';
+import { FeatureProvider } from '@/lib/FeatureContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -270,10 +271,12 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <FeatureProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <View style={{ flex: 1 }}>
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false, statusBarHidden: true }} />
+            <Stack.Screen name="offline" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
             <Stack.Screen name="home" options={{ headerShown: false, statusBarHidden: true, contentStyle: { backgroundColor: '#08111b' } }} />
             <Stack.Screen name="profile" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
             <Stack.Screen name="leaderboard" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
@@ -292,6 +295,7 @@ export default function RootLayout() {
         </View>
         <StatusBar hidden={true} />
       </ThemeProvider>
+      </FeatureProvider>
     </GestureHandlerRootView>
   );
 }

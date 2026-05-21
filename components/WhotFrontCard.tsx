@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing, useAnimatedProps } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Line, Path, Pattern, Polygon, Rect } from 'react-native-svg';
+
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 const CARD_RED = '#C8000A';
@@ -310,37 +312,86 @@ export function WhotFrontCard({
   const centerSize = 185 * scale;
   const ornamentSize = 32 * scale;
 
-  const pulse = useSharedValue(0.4);
+  const pulse = useSharedValue(0.3);
+  const glowOpacity = useSharedValue(0.15);
+  const dashOffset = useSharedValue(0);
+
   React.useEffect(() => {
     if (isPlayable) {
       pulse.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 800 }),
-          withTiming(0.4, { duration: 800 })
+          withTiming(1, { duration: 600 }),
+          withTiming(0.3, { duration: 600 })
         ),
         -1,
         true
       );
+      glowOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.35, { duration: 600 }),
+          withTiming(0.1, { duration: 600 })
+        ),
+        -1,
+        true
+      );
+      dashOffset.value = withRepeat(
+        withTiming(-32, { duration: 1000, easing: Easing.linear }),
+        -1,
+        false
+      );
     } else {
       cancelAnimation(pulse);
-      pulse.value = 0.4;
+      cancelAnimation(glowOpacity);
+      cancelAnimation(dashOffset);
+      pulse.value = 0.3;
+      glowOpacity.value = 0;
+      dashOffset.value = 0;
     }
   }, [isPlayable]);
 
-  const animatedPlayableStyle = useAnimatedStyle(() => ({
-    opacity: isPlayable ? pulse.value : 0,
-    borderWidth: 2.5 + (pulse.value * 1),
+  const animatedCardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: isPlayable ? 1 + (pulse.value - 0.3) * 0.04 : 1 }
+    ],
+  }));
+
+  const animatedGlowStyle = useAnimatedStyle(() => ({
+    opacity: isPlayable ? glowOpacity.value : 0,
+    transform: [
+      { scale: isPlayable ? 1.02 + glowOpacity.value * 0.06 : 1.02 }
+    ],
+  }));
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: dashOffset.value,
   }));
 
   return (
-    <View style={[styles.card, { width, height, borderRadius: radius }]}>
+    <Animated.View style={[styles.card, { width, height, borderRadius: radius }, animatedCardStyle]}>
       {isPlayable && (
         <Animated.View style={[
           StyleSheet.absoluteFillObject,
-          styles.playableCard,
+          styles.playableGlow,
           { borderRadius: radius },
-          animatedPlayableStyle
+          animatedGlowStyle
         ]} />
+      )}
+      {isPlayable && (
+        <Svg width={width} height={height} style={[StyleSheet.absoluteFillObject, { zIndex: 10 }]}>
+          <AnimatedRect
+            x={1.5}
+            y={1.5}
+            width={width - 3}
+            height={height - 3}
+            rx={radius}
+            ry={radius}
+            fill="none"
+            stroke="#30D158"
+            strokeWidth={3}
+            strokeDasharray="12, 8"
+            animatedProps={animatedProps}
+          />
+        </Svg>
       )}
 
       {/* Dot-grid background texture */}
@@ -387,7 +438,7 @@ export function WhotFrontCard({
         <CenterShape shape={shape} size={centerSize} color={color} />
       </View>
 
-    </View>
+    </Animated.View>
   );
 }
 
@@ -418,9 +469,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   playableCard: {
-    borderColor: '#34C759',
-    borderStyle: 'dashed',
+    borderColor: '#30D158',
     zIndex: 10,
+  },
+  playableGlow: {
+    backgroundColor: 'rgba(48, 209, 88, 0.15)',
+    borderColor: '#30D158',
+    borderWidth: 1.5,
+    shadowColor: '#30D158',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 9,
   },
 });
 

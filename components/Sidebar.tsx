@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path, Polyline, Rect } from 'react-native-svg';
 import { playButtonSound } from '../lib/sounds';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 const C = {
   gold: '#D4AF37',
@@ -63,10 +63,12 @@ const FriendsIcon = ({ active }: { active?: boolean }) => (
   </Svg>
 );
 
-const WalletIcon = ({ active }: { active?: boolean }) => (
+const VaultIcon = ({ active }: { active?: boolean }) => (
   <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
-    <Rect x={2} y={4} width={14} height={10} rx={2} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.5} />
-    <Path d="M6 9H12M9 6V12" stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.3} strokeLinecap="round" />
+    <Rect x={2} y={2} width={14} height={14} rx={2} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.5} />
+    <Circle cx={9} cy={9} r={3.5} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.3} />
+    <Circle cx={9} cy={9} r={1} fill={active ? C.gold : "rgba(255,255,255,0.7)"} />
+    <Path d="M9 5.5V7M9 11V12.5M5.5 9H7M11 9H12.5" stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.2} />
   </Svg>
 );
 
@@ -95,12 +97,21 @@ const SettingsIcon = ({ active }: { active?: boolean }) => (
   </Svg>
 );
 
+const SpinIcon = ({ active }: { active?: boolean }) => (
+  <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+    <Circle cx={9} cy={9} r={7} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.5} />
+    <Path d="M9 2V16M2 9H16M4.05 4.05L13.95 13.95M4.05 13.95L13.95 4.05" stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1} />
+    <Circle cx={9} cy={9} r={1.8} fill={active ? C.gold : "rgba(255,255,255,0.7)"} />
+  </Svg>
+);
+
 export const NAV_ITEMS = [
   { label: 'HOME', Icon: HomeIcon },
   { label: 'PROFILE', Icon: ProfileIcon },
   { label: 'LEADERBOARD', Icon: LeaderboardIcon },
   { label: 'FRIENDS', Icon: FriendsIcon },
-  { label: 'WALLET', Icon: WalletIcon },
+  { label: 'VAULT', Icon: VaultIcon },
+  { label: 'LUCKY_SPIN', Icon: SpinIcon },
   { label: 'HISTORY', Icon: HistoryIcon },
   { label: 'SETTINGS', Icon: SettingsIcon },
 ] as const;
@@ -174,7 +185,7 @@ function AnimatedNavItem({ label, Icon, active, index, onPress }: AnimatedNavIte
         activeOpacity={1}
       >
         <Icon active={active} />
-        <Text style={[s.navText, active && s.navTextActive]}>{label}</Text>
+        <Text style={[s.navText, active && s.navTextActive]}>{label.replace('_', ' ')}</Text>
         {active && <View style={s.navActiveDot} />}
       </TouchableOpacity>
     </Animated.View>
@@ -187,8 +198,8 @@ type SidebarProps = {
 };
 
 export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
-  const gamblingEnabled = useGamblingEnabled();
-  const items = gamblingEnabled ? NAV_ITEMS : NAV_ITEMS.filter(i => i.label !== 'WALLET');
+  const featureActive = useFeatureActive();
+  const items = (featureActive ? NAV_ITEMS : NAV_ITEMS.filter(i => i.label !== 'VAULT')).filter(i => i.label !== 'LUCKY_SPIN');
   return (
     <View style={s.sidebar}>
       {items.map(({ label, Icon }, index) => (

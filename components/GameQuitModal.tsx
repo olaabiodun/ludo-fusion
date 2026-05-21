@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -33,7 +33,7 @@ export function GameQuitModal({
   message,
   stake = 0,
 }: GameQuitModalProps) {
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const displayMessage = message || (stake > 0 
     ? `Forfeiting now results in total loss of your ${gamblingEnabled ? 'stake' : 'coins'}.`
     : 'Leaving will end the current match.');

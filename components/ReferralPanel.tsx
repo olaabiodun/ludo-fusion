@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DodgeKeyboard } from 'react-native-dodge-keyboard';
 import { supabase } from '@/lib/supabase';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 const C = {
   gold: '#D4AF37',
@@ -71,6 +72,8 @@ function Sparkle({ delay }: { delay: number }) {
 }
 
 export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => void }) {
+  const gambling = useFeatureActive();
+  const bonusLabel = gambling ? '₦50' : '50 coins';
   const [referralCode, setReferralCode] = useState('');
   const [inputCode, setInputCode] = useState('');
   const [referrals, setReferrals] = useState<any[]>([]);
@@ -136,7 +139,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join Ludo Fusion! 👑 Use my referral code ${referralCode} to get ₦50 bonus instantly!`,
+        message: `Join Ludo Fusion! 👑 Use my referral code ${referralCode} to get ${bonusLabel} bonus instantly!`,
       });
     } catch (e) { console.error(e); }
   };
@@ -180,7 +183,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
 
       setHasReferrer(true);
       DeviceEventEmitter.emit('wallet_updated');
-      alert('Referral claimed! ₦50 added to your balance.');
+      alert(`Referral claimed! ${bonusLabel} added to your balance.`);
     } catch (e: any) {
       alert(e.message || 'Error processing code');
     } finally {
@@ -236,7 +239,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
                     </View>
                   </View>
                   <Text style={s.heroTitle}>
-                    Earn <Text style={{ color: C.gold }}>₦50</Text> per{'\n'}Friend
+                    Earn <Text style={{ color: C.gold }}>{bonusLabel}</Text> per{'\n'}Friend
                   </Text>
                   <Text style={s.heroSub}>No limit — invite everyone you know</Text>
                   <View style={s.heroBadgeRow}>
@@ -288,7 +291,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
                     <MaterialCommunityIcons name="ticket-confirmation-outline" size={14} color={C.gold} />
                     <Text style={s.sectionTitle}>Redeem a Code</Text>
                   </View>
-                  <Text style={s.sectionCaption}>Enter a friend's referral code to claim ₦50</Text>
+                  <Text style={s.sectionCaption}>Enter a friend's referral code to claim {bonusLabel}</Text>
                   <View style={s.inputRow}>
                     <TextInput
                       style={s.input}
@@ -314,7 +317,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
                   <View style={s.statIconWrap}>
                     <MaterialCommunityIcons name="cash" size={16} color={C.gold} />
                   </View>
-                  <Text style={s.statVal}>₦{stats.totalEarned}</Text>
+                  <Text style={s.statVal}>{gambling ? `₦${stats.totalEarned}` : `${stats.totalEarned} coins`}</Text>
                   <Text style={s.statLabel}>Total Earned</Text>
                 </LinearGradient>
                 <LinearGradient colors={['rgba(87,208,139,0.12)', 'rgba(87,208,139,0.02)']} style={s.statCard}>
@@ -350,7 +353,7 @@ export function ReferralPanel({ onClose }: { visible?: boolean; onClose: () => v
                           <Text style={s.historyDate}>{new Date(ref.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
                         </View>
                         <View style={s.historyBadge}>
-                          <Text style={s.historyAmount}>+₦{ref.bonus_amount}</Text>
+                          <Text style={s.historyAmount}>+{gambling ? `₦${ref.bonus_amount}` : `${ref.bonus_amount} coins`}</Text>
                         </View>
                       </View>
                     ))

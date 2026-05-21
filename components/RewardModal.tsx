@@ -196,8 +196,9 @@ export function RewardModal({
           <Text style={styles.subtitle}>{subtitle}</Text>
           
           <Animated.View style={[styles.amountWrap, { transform: [{ scale: pulse }] }]}>
-            <Text style={styles.amountSign}>{prefix}</Text>
+            {prefix ? <Text style={styles.amountSign}>{prefix}</Text> : null}
             <Text style={styles.amountText}>{amount}</Text>
+            {unit ? <Text style={[styles.amountSign, { marginLeft: 6, fontSize: 18 }]}>{unit}</Text> : null}
           </Animated.View>
 
           <TouchableOpacity style={styles.btn} onPress={onClose} activeOpacity={0.8}>

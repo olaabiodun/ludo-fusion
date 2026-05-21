@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 // ─── Landscape dimensions ─────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -289,7 +289,7 @@ function PlayerRow({
   const rankCol = RANK_COLOR[p.rank] ?? C.faint;
   const isFirst = p.rank === 1;
   const isEliminated = p.eliminated || p.lives === 0;
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
 
   useEffect(() => {
     const intro = Animated.parallel([
@@ -486,7 +486,7 @@ function PlayerRow({
       <View style={[st.statCell, { alignItems: 'flex-end' }]}>
         {p.prize > 0 && !isBotGame ? (
           <>
-            <Text style={st.prizeVal}>+{gamblingEnabled ? '₦' : ''}{(p.prize / 1000).toFixed(1)}k</Text>
+            <Text style={st.prizeVal}>+{gamblingEnabled ? '₦' : ''}{p.prize}</Text>
             <Text style={st.rowSub}>prize</Text>
           </>
         ) : (
@@ -562,7 +562,7 @@ export function GameResultScreen({
   onShare,
 }: GameResultScreenProps) {
   const sorted = useMemo(() => [...players].sort((a, b) => a.rank - b.rank), [players]);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const local = sorted.find(p => p.isLocal);
   const isWin = local?.rank === 1;
   const winner = sorted[0];
@@ -713,12 +713,9 @@ export function GameResultScreen({
           {!isBotGame && (
             <MetaPill
               icon="trophy-outline"
-              value={`${gamblingEnabled ? '₦' : ''}${(totalPrize / 1000).toFixed(0)}k`}
+              value={`${gamblingEnabled ? '₦' : ''}${totalPrize}`}
               accent={C.gold}
               animated
-              value2={totalPrize}
-              divisor={1000}
-              suffix="k"
               prefix={gamblingEnabled ? '₦' : ''}
               duration={1800}
             />
@@ -824,8 +821,6 @@ export function GameResultScreen({
                   <AnimatedNumber
                     value={localPrize}
                     duration={2200}
-                    divisor={1000}
-                    suffix="k"
                     style={[st.yourPrize, { color: isWin ? C.win : C.faint }]}
                   />
                 </View>
@@ -865,7 +860,7 @@ export function GameResultScreen({
               <StatCell
                 icon="trophy-variant-outline"
                 label={isBotGame ? 'Match' : 'Pot'}
-                value={isBotGame ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${(totalPrize / 1000).toFixed(0)}k`}
+                value={isBotGame ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${totalPrize}`}
                 accent={isBotGame ? C.faint : C.gold}
                 delay={1200}
               />

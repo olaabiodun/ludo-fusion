@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { usePathname } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { RewardModal } from './RewardModal';
 import Svg, {
   Circle,
@@ -479,7 +479,21 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   const [claimedXp, setClaimedXp] = React.useState(0);
   const [searchAnim] = React.useState(new Animated.Value(0));
   const [announceUnread, setAnnounceUnread] = React.useState(0);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
+  const [membershipTier, setMembershipTier] = React.useState<string | null>(null);
+  const [membershipExpires, setMembershipExpires] = React.useState<string | null>(null);
+
+  const isMemberActive = membershipTier === 'royale' && 
+    (!membershipExpires || new Date(membershipExpires).getTime() > Date.now());
+
+  const getExpiryString = () => {
+    if (!isMemberActive) return 'JOIN NOW';
+    if (!membershipExpires) return 'Active';
+    const expiresDate = new Date(membershipExpires);
+    return 'Expires ' + expiresDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  };
+
+  const expiryString = getExpiryString();
 
   useEffect(() => {
     if (searching) {
@@ -490,19 +504,43 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   }, [searching]);
 
   useEffect(() => {
-    if (!isHome) return;
-
     let interval: any;
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await supabase.from('profiles').select('last_daily_claim, streak').eq('id', user.id).single();
-      
+      let { data: profile, error } = await supabase
+        .from('profiles')
+        .select('last_daily_claim, streak, membership_tier, membership_expires')
+        .eq('id', user.id)
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            username: user.email?.split('@')[0] || 'player',
+            full_name: 'Player',
+            wallet_balance: 1000,
+            streak: 0,
+            level: 1,
+            xp: 0,
+            xp_next_level: 1000
+          })
+          .select('last_daily_claim, streak, membership_tier, membership_expires')
+          .single();
+        if (!insertError && newProfile) {
+          profile = newProfile;
+        }
+      }
+
       if (profile) {
+        setMembershipTier(profile.membership_tier || null);
+        setMembershipExpires(profile.membership_expires || null);
         setStreak(profile.streak || 0);
 
-        if (profile.last_daily_claim) {
+        if (isHome && profile.last_daily_claim) {
           const lastClaim = new Date(profile.last_daily_claim).getTime();
           const now = new Date().getTime();
           const diff = Math.floor((now - lastClaim) / 1000);
@@ -510,6 +548,7 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
 
           if (diff < cooldown) {
             setCountdown(cooldown - diff);
+            clearInterval(interval);
             interval = setInterval(() => {
               setCountdown(prev => {
                 if (prev <= 1) {
@@ -523,10 +562,12 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
         }
       }
 
-      // Fetch unread announcements
-      const { data: announcements } = await supabase.from('inbox').select('id').is('user_id', null);
-      const { data: readAnnouncements } = await supabase.from('announcement_reads').select('announcement_id').eq('user_id', user.id);
-      setAnnounceUnread((announcements?.length || 0) - (readAnnouncements?.length || 0));
+      if (isHome) {
+        // Fetch unread announcements
+        const { data: announcements } = await supabase.from('inbox').select('id').is('user_id', null);
+        const { data: readAnnouncements } = await supabase.from('announcement_reads').select('announcement_id').eq('user_id', user.id);
+        setAnnounceUnread((announcements?.length || 0) - (readAnnouncements?.length || 0));
+      }
     };
 
     fetchData();
@@ -622,9 +663,9 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
               <GlowDot color={C.gold} size={5} />
               <Text style={[styles.label, { color: C.goldBright }]}>MEMBER</Text>
             </View>
-            <Text style={styles.sub}>Ludo Fusion</Text>
+            <Text style={styles.sub}>Ludo Fusion Hub</Text>
             <View style={[styles.pill, { borderColor: C.goldBorder, backgroundColor: C.goldSoft }]}>
-              <Text style={[styles.pillText, { color: C.gold }]}>Expires 24 May</Text>
+              <Text style={[styles.pillText, { color: C.gold }]}>{expiryString}</Text>
             </View>
           </View>
           <Svg width={6} height={10} viewBox="0 0 6 10">

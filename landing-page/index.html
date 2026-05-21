@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ludo Fusion - Experience The Next-Gen Ludo Multiplayer</title>
+    <meta name="description" content="Play Ludo Fusion. Experience seamless real-time multiplayer, secure profiles, daily rewards, and competitive matchmaking. Download now on Google Play.">
+    <meta name="keywords" content="Ludo, Ludo Fusion, Multiplayer Ludo, Board Game, Free Ludo, Real-time Ludo">
+    <meta name="author" content="Ludo Fusion Team">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Ludo Fusion - Experience The Next-Gen Ludo Multiplayer">
+    <meta property="og:description" content="Experience seamless real-time multiplayer, profile security, daily rewards, and competitive matchmaking.">
+    <meta property="og:image" content="assets/ludo_fusion_banner.png">
+
+    <!-- Google Fonts: Space Grotesk for headings, Inter for body -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Immersive Animated Background Canvas -->
+    <div class="space-background">
+        <div class="glowing-mesh"></div>
+        <div class="glow-orb orb-primary"></div>
+        <div class="glow-orb orb-secondary"></div>
+        <div class="glow-orb orb-tertiary"></div>
+    </div>
+
+    <div class="app-layout">
+        <!-- HEADER / NAVIGATION -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="15" y="15" width="30" height="30" rx="10" fill="url(#grad-red)" />
+                        <rect x="55" y="15" width="30" height="30" rx="10" fill="url(#grad-green)" />
+                        <rect x="15" y="55" width="30" height="30" rx="10" fill="url(#grad-blue)" />
+                        <rect x="55" y="55" width="30" height="30" rx="10" fill="url(#grad-yellow)" />
+                        <circle cx="30" cy="30" r="6" fill="white" />
+                        <circle cx="70" cy="30" r="6" fill="white" />
+                        <circle cx="30" cy="70" r="6" fill="white" />
+                        <circle cx="70" cy="70" r="6" fill="white" />
+                        <defs>
+                            <linearGradient id="grad-red" x1="15" y1="15" x2="45" y2="45" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#ff4b2b" />
+                                <stop offset="1" stop-color="#ff416c" />
+                            </linearGradient>
+                            <linearGradient id="grad-green" x1="55" y1="15" x2="85" y2="45" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#11998e" />
+                                <stop offset="1" stop-color="#38ef7d" />
+                            </linearGradient>
+                            <linearGradient id="grad-blue" x1="15" y1="55" x2="45" y2="85" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#00c6ff" />
+                                <stop offset="1" stop-color="#0072ff" />
+                            </linearGradient>
+                            <linearGradient id="grad-yellow" x1="55" y1="55" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#f857a6" stop-opacity="0" />
+                                <stop offset="0.0001" stop-color="#ffb347" />
+                                <stop offset="1" stop-color="#ffcc33" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span class="brand-name">LUDO FUSION</span>
+            </div>
+            
+            <nav class="nav-tabs" id="nav-tabs-container">
+                <div class="nav-active-indicator" id="tab-indicator"></div>
+                <button class="tab-trigger active" data-tab="tab-home">Home</button>
+                <button class="tab-trigger" data-tab="tab-privacy">Privacy</button>
+                <button class="tab-trigger" data-tab="tab-deletion">Data Deletion</button>
+                <button class="tab-trigger" data-tab="tab-support">Support</button>
+            </nav>
+        </header>
+
+        <!-- MAIN CONTAINER -->
+        <div class="content-frame">
+            <!-- TAB 1: HOME -->
+            <div id="tab-home" class="tab-panel active">
+                <div class="hero-split">
+                    <div class="hero-content">
+                        <div class="hero-badge">
+                            <span class="pulse-dot"></span>
+                            COMPLIANT & SECURE FOR GOOGLE PLAY
+                        </div>
+                        <h1 class="hero-title">Experience The Next Gen of <span class="gradient-text">Ludo Esports.</span></h1>
+                        <p class="hero-subtitle">
+                            Uncompromising security, fluid real-time mechanics, and secure profile sync stats engineered on a hardened PostgreSQL architecture. Roll your way to the top of the leaderboards.
+                        </p>
+                        
+                        <div class="action-row">
+                            <a href="#" class="store-badge-premium" id="playstore-dl">
+                                <div class="badge-glow"></div>
+                                <svg class="badge-play-icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M5,3.06C4.8,3 4.57,3.05 4.38,3.2C3.69,3.77 3.5,4.72 3.5,4.72L11.5,12.72L14.77,9.45L5,3.06M15.42,10.1L12.2,13.32L15.42,16.54L20.25,13.39C20.93,12.95 21.05,12.11 20.25,11.59L15.42,10.1M3.5,5.86V19.14L11.5,13.5L3.5,5.86M5,21.94L14.77,15.55L11.5,12.28L3.5,20.28C3.5,20.28 3.73,21.23 4.38,21.8C4.57,21.95 4.8,22 5,21.94Z" />
+                                </svg>
+                                <div class="badge-text">
+                                    <span class="badge-top">GET IT ON</span>
+                                    <span class="badge-bottom">Google Play</span>
+                                </div>
+                            </a>
+                            
+                            <button class="btn-outline-glow" onclick="switchTabDirect('tab-support')">
+                                Need Help? Contact Support
+                            </button>
+                        </div>
+
+                        <!-- Highlights Grid -->
+                        <div class="highlights-grid">
+                            <div class="highlight-card">
+                                <div class="card-glow"></div>
+                                <div class="card-icon-container bg-purple">🛡️</div>
+                                <h3>Profile Security</h3>
+                                <p>Atomic server RPC database operations safeguard your earned coins.</p>
+                            </div>
+                            <div class="highlight-card">
+                                <div class="card-glow"></div>
+                                <div class="card-icon-container bg-rose">⚡</div>
+                                <h3>Active Anti-Cheat</h3>
+                                <p>Server-side game validation eliminates manipulation.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Smartphone Visual Mockup containing 3D Neon Splash Art -->
+                    <div class="hero-visual">
+                        <div class="phone-mockup-wrapper">
+                            <div class="phone-glow"></div>
+                            <div class="phone-frame">
+                                <div class="phone-screen">
+                                    <img src="assets/ludo_fusion_banner.png" alt="Ludo Fusion Futuristic Board" class="phone-screenshot">
+                                    <div class="screen-overlay-reflection"></div>
+                                    <div class="phone-dynamic-island"></div>
+                                    
+                                    <!-- Interactive Overlay Game Dice Widget inside screen -->
+                                    <div class="in-game-widget">
+                                        <div class="widget-header">
+                                            <span>Roll to Test your Luck</span>
+                                        </div>
+                                        <div class="widget-dice-area">
+                                            <div class="premium-die-wrapper" id="home-die" onclick="rollPremiumDie()">
+                                                <div class="premium-die-face" id="die-face-body">
+                                                    <span class="die-dot dot-center"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: PRIVACY POLICY -->
+            <div id="tab-privacy" class="tab-panel">
+                <div class="panel-header">
+                    <h2>Privacy Policy</h2>
+                    <p class="panel-tagline">Last revised: May 21, 2026</p>
+                </div>
+                
+                <div class="privacy-container-grid">
+                    <div class="privacy-toc">
+                        <h4>Sections</h4>
+                        <ul class="toc-links">
+                            <li class="active"><a href="#p-intro">1. Overview</a></li>
+                            <li><a href="#p-data">2. Information Collection</a></li>
+                            <li><a href="#p-usage">3. Usage of Data</a></li>
+                            <li><a href="#p-deletion">4. Data Erasure Rights</a></li>
+                            <li><a href="#p-sec">5. Technical Security</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="privacy-content scrolling-panel" id="privacy-text-scroller">
+                        <div id="p-intro" class="scroll-anchor-point">
+                            <h3>1. Overview & Scope</h3>
+                            <p>This Privacy Policy outlines how <strong>Ludo Fusion</strong> ("we", "us", "our"), developer of the mobile application <em>Ludo Fusion</em> (Package ID: <code>com.ludofusion</code>), processes personal user profiles and operational system logs. By engaging with our servers, you acknowledge the secure handling methods described herein.</p>
+                        </div>
+                        
+                        <div id="p-data" class="scroll-anchor-point">
+                            <h3>2. Data We Safely Collect</h3>
+                            <p>To enable safe and robust multiplayer matchmaking and profile sync persistence, we collect specific parameters:</p>
+                            <ul>
+                                <li><strong>User Account Identities:</strong> Authentic user emails, screen-names, and profile avatars securely bound via Supabase Auth services.</li>
+                                <li><strong>Database Profiles & Match Ledger:</strong> Logs of competitive coin distribution, XP growth, and game state signatures generated by secure atomic Postgres routines.</li>
+                                <li><strong>Device Telemetry:</strong> Device hardware models, OS build numbers, and installation identifiers utilized strictly for fraud mitigation and server diagnostics.</li>
+                            </ul>
+                        </div>
+                        
+                        <div id="p-usage" class="scroll-anchor-point">
+                            <h3>3. Core Operational Data Usage</h3>
+                            <p>Data collected is strictly operational. We do not participate in third-party data broker sales. Information is used to:</p>
+                            <ul>
+                                <li>Maintain low-latency server-side matchmaking boards.</li>
+                                <li>Protect matchmaking games from external cheating software or balance tampering.</li>
+                                <li>Enforce structural database lock mechanisms to avoid transaction concurrency conflicts.</li>
+                            </ul>
+                        </div>
+                        
+                        <div id="p-deletion" class="scroll-anchor-point">
+                            <h3>4. Player Data Deletion Rights</h3>
+                            <p>In accordance with Google Play developer policies, players hold absolute rights to request complete data and account erasure. Initiating a deletion request immediately tags your profile, matchmaking statistics, and game state balances for total, irreversible deletion. This can be processed directly via our <strong>Data Deletion</strong> panel on this website, or through your in-game profile configuration menu.</p>
+                        </div>
+                        
+                        <div id="p-sec" class="scroll-anchor-point">
+                            <h3>5. Deep Technical Protection</h3>
+                            <p>Our server cluster stores data utilizing robust end-to-end database encryption. Safe Postgres RPC calls handle data allocations strictly server-side, preventing front-end injection. We consistently verify and update security certificates to ensure a locked network interface.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DATA DELETION -->
+            <div id="tab-deletion" class="tab-panel">
+                <div class="panel-header">
+                    <h2>Account & Data Erasure Panel</h2>
+                    <p class="panel-tagline">Strictly compliant with Google Play Data Safety guidelines</p>
+                </div>
+                
+                <div class="split-compliance-grid">
+                    <div class="compliance-left-info">
+                        <div class="warning-banner">
+                            <span class="warning-banner-icon">🚨</span>
+                            <div class="warning-banner-body">
+                                <h3>Irreversible Wipe Operation</h3>
+                                <p>Submitting this request completely purges your Ludo Fusion profiles, active virtual coin levels, tournament logs, achievement levels, and XP standings within 7 business days.</p>
+                            </div>
+                        </div>
+                        <ul class="check-list">
+                            <li>Wipes authenticated email credentials</li>
+                            <li>Wipes virtual coin balances and history</li>
+                            <li>Erases match history and rank standing</li>
+                        </ul>
+                    </div>
+
+                    <div class="compliance-right-form">
+                        <div class="glass-form-box">
+                            <form id="deletion-form-premium" onsubmit="handleDeletionSubmit(event)">
+                                <div class="form-input-group">
+                                    <label for="del-email">Account Email Address</label>
+                                    <input type="email" id="del-email" required placeholder="name@domain.com">
+                                </div>
+                                <div class="form-input-group">
+                                    <label for="del-user">Ludo Fusion Username</label>
+                                    <input type="text" id="del-user" required placeholder="LudoPro_41">
+                                </div>
+                                <div class="form-checkbox-row">
+                                    <input type="checkbox" id="del-agree" required>
+                                    <label for="del-agree">I authorize the absolute removal of all associated data balances.</label>
+                                </div>
+                                <button type="submit" class="btn-neon-danger">Initialize Account Deletion</button>
+                            </form>
+                            
+                            <div id="deletion-premium-success" class="success-widget hidden">
+                                <div class="success-checkmark-circle">✓</div>
+                                <h3>Erasure Scheduled</h3>
+                                <p>We've registered an automated erasure request for <strong id="delete-target-email">user@domain.com</strong>. All files will be permanently purged in 7 days.</p>
+                                <button class="btn-form-reset" onclick="resetDeletionForm()">Back to Form</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: SUPPORT -->
+            <div id="tab-support" class="tab-panel">
+                <div class="panel-header">
+                    <h2>App Support & Feedback Hub</h2>
+                    <p class="panel-tagline">Dedicated assistance for Ludo Fusion competitors</p>
+                </div>
+                
+                <div class="split-compliance-grid">
+                    <div class="compliance-left-info">
+                        <h3>Connect with Administrators</h3>
+                        <p>Having trouble with matchmaking queues, mission accomplishments, or profile avatars? Raise a ticket, and our database coordinators will review your session logs.</p>
+                        
+                        <div class="contact-methods-grid">
+                            <div class="contact-pill-card">
+                                <span class="pill-icon">✉️</span>
+                                <div>
+                                    <h5>Email Response Unit</h5>
+                                    <p>support@ludofusion.com</p>
+                                </div>
+                            </div>
+                            <div class="contact-pill-card">
+                                <span class="pill-icon">🛠️</span>
+                                <div>
+                                    <h5>App Reference Package</h5>
+                                    <p>com.ludofusion</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="compliance-right-form">
+                        <div class="glass-form-box">
+                            <form id="support-form-premium" onsubmit="handleSupportSubmit(event)">
+                                <div class="form-input-group">
+                                    <label for="sup-name">Full Name</label>
+                                    <input type="text" id="sup-name" required placeholder="Jane Doe">
+                                </div>
+                                <div class="form-input-group">
+                                    <label for="sup-email">Contact Email</label>
+                                    <input type="email" id="sup-email" required placeholder="jane@domain.com">
+                                </div>
+                                <div class="form-input-group">
+                                    <label for="sup-msg">Describe the Issue</label>
+                                    <textarea id="sup-msg" required rows="3" placeholder="Provide details like Match IDs or error codes..."></textarea>
+                                </div>
+                                <button type="submit" class="btn-neon-primary">Create Support Ticket</button>
+                            </form>
+                            
+                            <div id="support-premium-success" class="success-widget hidden">
+                                <div class="success-checkmark-circle">✓</div>
+                                <h3>Ticket Opened</h3>
+                                <p>Your support ticket has been compiled. Our operations crew will review your inquiry and follow up via email.</p>
+                                <button class="btn-form-reset" onclick="resetSupportForm()">Send Another Ticket</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="glass-footer">
+            <p class="copyright">&copy; 2026 Ludo Fusion. Developed in compliance with the Google Play Developer Distribution Agreement.</p>
+            <div class="footer-nav">
+                <a href="#" class="foot-link" onclick="switchTabDirect('tab-privacy')">Privacy Policy</a>
+                <span class="foot-divider">/</span>
+                <a href="#" class="foot-link" onclick="switchTabDirect('tab-deletion')">Data Deletion</a>
+                <span class="foot-divider">/</span>
+                <a href="#" class="foot-link" onclick="switchTabDirect('tab-support')">Support Portal</a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

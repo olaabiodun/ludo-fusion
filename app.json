@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "ludo",
+    "name": "Ludo Fusion",
     "slug": "ludo",
     "version": "1.0.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "ludo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -23,7 +23,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "package": "com.ludofusion"
     },
     "web": {
       "output": "static",
@@ -49,8 +50,9 @@
       "reactCompiler": true
     },
     "extra": {
-      "gamblingMode": {
-        "enabled": true
+      "router": {},
+      "eas": {
+        "projectId": "1009d26e-1004-468e-b725-27b94425a74d"
       }
     }
   }

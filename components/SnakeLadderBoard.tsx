@@ -94,7 +94,7 @@ function RankCard({ player, rank, total }: { player: any; rank: number; total: n
   }, [rank]);
 
   const ordinals = ['1ST', '2ND', '3RD', '4TH'];
-  let rankColors = ['#2b2b2b', '#111111'];
+  let rankColors: readonly [string, string, ...string[]] = ['#2b2b2b', '#111111'];
   let strokeColor = '#444';
   let textColor = '#aaa';
   
@@ -113,7 +113,9 @@ function RankCard({ player, rank, total }: { player: any; rank: number; total: n
   }
 
   return (
-    <Animated.View style={[
+    <Animated.View 
+      renderToHardwareTextureAndroid={true}
+      style={[
       s.rankingItem, 
       { 
         position: 'absolute',
@@ -306,7 +308,7 @@ const CELL_SHARE_OFFSETS: Record<number, { dx: number; dy: number }[]> = {
   ],
 };
 
-export function SnakeLadderBoard({ engine }: { engine?: any }) {
+export function SnakeLadderBoard({ engine, isAiEnabled }: { engine?: any; isAiEnabled?: boolean }) {
   const players = engine?.players ?? [];
   const turnIndex = engine?.turnIndex ?? -1;
   const diceValue: number = engine?.diceValue ?? 0;
@@ -347,11 +349,11 @@ export function SnakeLadderBoard({ engine }: { engine?: any }) {
 
   return (
     <View style={s.root}>
+      {/* ── Elevated Frame: Holds Grid, Ladders, and Snakes strictly within bounds ── */}
       <View style={[s.goldFrame, { width: BOARD_SIZE + 28, height: BOARD_SIZE + 28 }]}>
         <LinearGradient colors={[COLORS.goldLight, COLORS.gold, COLORS.goldDark, COLORS.gold]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         <View style={[s.outerFrame, { width: BOARD_SIZE + 16, height: BOARD_SIZE + 16 }]}>
           <View style={[s.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}>
-
             {/* 1. Grid Background (Memoized) */}
             <BoardGrid />
 
@@ -362,102 +364,110 @@ export function SnakeLadderBoard({ engine }: { engine?: any }) {
             {BOARD_SNAKES.map((snake, i) => (
               <SnakeImage key={`s-${i}`} {...snake} />
             ))}
-
-             {/* 3. Golden Start Container */}
-            <View style={[s.startContainer, { 
-              left: -CELL_SIZE * 2, 
-              top: BOARD_SIZE - CELL_SIZE * 1.45,
-              width: CELL_SIZE * 1.7,
-              height: CELL_SIZE * 1.7
-            }]}>
-              <LinearGradient colors={[COLORS.goldLight, COLORS.gold, COLORS.goldDark]} style={StyleSheet.absoluteFill} />
-              <View style={s.startContainerInner}>
-              </View>
-            </View>
-
-            {/* 3b. Golden Rankings Container (Live Leaderboard) */}
-            {/* 3b. Ultra-Premium Rankings Container (Live Leaderboard) */}
-            <Animated.View style={[s.rankingsContainer, {
-              right: -CELL_SIZE * 2.55,
-              top: CELL_SIZE * 1.4,
-              width: CELL_SIZE * 1.8,
-              height: BOARD_SIZE - CELL_SIZE * 3.0,
-              transform: [{ translateY: floatAnim }, { skewX: '-6deg' }]
-            }]}>
-              {/* Aggressive but Golden Glass Base */}
-              <LinearGradient colors={['rgba(35, 25, 5, 0.85)', 'rgba(10, 5, 0, 0.95)']} style={StyleSheet.absoluteFill} />
-              <View style={[StyleSheet.absoluteFill, { borderRadius: 8, borderWidth: 1.5, borderColor: 'rgba(212, 168, 39, 0.6)' }]} />
-              <View style={[StyleSheet.absoluteFill, { borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', margin: 1 }]} />
-
-              {/* Combat Header - Gold */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 8, gap: 4 }}>
-                <MaterialCommunityIcons name="sword-cross" size={12} color={COLORS.goldLight} />
-                <Text style={{ fontSize: 9, fontFamily: 'Kanit_900Black', color: COLORS.goldLight, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2, letterSpacing: 1.2 }}>RANKS</Text>
-              </View>
-
-              <View style={{ width: '100%', flex: 1, marginTop: 4 }}>
-                {(() => {
-                  const sorted = [...players].sort((a, b) => b.position - a.position);
-                  const rankMap = sorted.reduce((acc, p, i) => { acc[p.id] = i; return acc; }, {} as Record<string, number>);
-                  return players.map((p: any) => (
-                    <RankCard key={p.id} player={p} rank={rankMap[p.id]} total={players.length} />
-                  ));
-                })()}
-              </View>
-            </Animated.View>
-
-            {/* 4. Players Layer (Animated) */}
-            <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="none">
-              {(() => {
-                // Group players by current position to calculate share offsets
-                const posGroups: Record<number, string[]> = {};
-                players.forEach((p: any) => {
-                  const pos = p.position;
-                  if (!posGroups[pos]) posGroups[pos] = [];
-                  posGroups[pos].push(p.id);
-                });
-
-                return players.map((p: any, i: number) => {
-                  const isActive = turnIndex === i;
-                  const isOnBoard = p.position > 0;
-
-                  // Calculate same-cell offset
-                  const cellMates = posGroups[p.position] || [p.id];
-                  const myIndex = cellMates.indexOf(p.id);
-                  const count = Math.min(cellMates.length, 4) as 1 | 2 | 3 | 4;
-                  const offsets = CELL_SHARE_OFFSETS[count] || CELL_SHARE_OFFSETS[4];
-                  const offset = offsets[myIndex] || { dx: 0, dy: 0 };
-
-                  return (
-                    <View
-                      key={p.id}
-                      style={{
-                        position: 'absolute',
-                        width: CELL_SIZE,
-                        height: CELL_SIZE,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: isActive ? 110 + i : 100 + i,
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <GameToken 
-                        id={p.id}
-                        color={p.color} 
-                        isActive={isActive} 
-                        isOnBoard={isOnBoard} 
-                        cellSize={CELL_SIZE} 
-                        position={p.position}
-                        offset={offset}
-                      />
-                    </View>
-                  );
-                });
-              })()}
-            </View>
-
           </View>
         </View>
+      </View>
+
+      {/* ── Unclipped Sibling Overlay: Start Area, Rankings, and Player Tokens ── */}
+      <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE }} pointerEvents="box-none">
+        
+        {/* 3. Golden Start Container */}
+        <View style={[s.startContainer, { 
+          left: -CELL_SIZE * 2, 
+          top: BOARD_SIZE - CELL_SIZE * 1.45,
+          width: CELL_SIZE * 1.7,
+          height: CELL_SIZE * 1.7
+        }]}>
+          <LinearGradient colors={[COLORS.goldLight, COLORS.gold, COLORS.goldDark]} style={StyleSheet.absoluteFill} />
+          <View style={s.startContainerInner}>
+            <Text style={s.startText}>START</Text>
+          </View>
+        </View>
+
+        {/* 3b. Ultra-Premium Rankings Container (Live Leaderboard) */}
+        <Animated.View 
+          renderToHardwareTextureAndroid={true}
+          style={[s.rankingsContainer, {
+            right: -CELL_SIZE * 2.55,
+            top: CELL_SIZE * 1.4,
+            width: CELL_SIZE * 1.8,
+            height: BOARD_SIZE - CELL_SIZE * 3.0,
+            transform: [{ translateY: floatAnim }, { skewX: '-6deg' }]
+          }]}
+        >
+          {/* Aggressive but Golden Glass Base */}
+          <LinearGradient colors={['rgba(35, 25, 5, 0.85)', 'rgba(10, 5, 0, 0.95)']} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 8, borderWidth: 1.5, borderColor: 'rgba(212, 168, 39, 0.6)' }]} />
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', margin: 1 }]} />
+
+          {/* Combat Header - Gold */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 8, gap: 4 }}>
+            <MaterialCommunityIcons name="sword-cross" size={12} color={COLORS.goldLight} />
+            <Text style={{ fontSize: 9, fontFamily: 'Kanit_900Black', color: COLORS.goldLight, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2, letterSpacing: 1.2 }}>RANKS</Text>
+          </View>
+
+          <View style={{ width: '100%', flex: 1, marginTop: 4 }}>
+            {(() => {
+              const sorted = [...players].sort((a, b) => b.position - a.position);
+              const rankMap = sorted.reduce((acc, p, i) => { acc[p.id] = i; return acc; }, {} as Record<string, number>);
+              return players.map((p: any) => (
+                <RankCard key={p.id} player={p} rank={rankMap[p.id]} total={players.length} />
+              ));
+            })()}
+          </View>
+        </Animated.View>
+
+        {/* 4. Players Layer (Animated) */}
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="none">
+          {(() => {
+            // Group players by current position to calculate share offsets
+            const posGroups: Record<number, string[]> = {};
+            players.forEach((p: any) => {
+              const pos = p.position;
+              if (!posGroups[pos]) posGroups[pos] = [];
+              posGroups[pos].push(p.id);
+            });
+
+            return players.map((p: any, i: number) => {
+              const isActive = turnIndex === i;
+              const isOnBoard = p.position > 0;
+
+              // Calculate same-cell offset
+              const cellMates = posGroups[p.position] || [p.id];
+              const myIndex = cellMates.indexOf(p.id);
+              const count = Math.min(cellMates.length, 4) as 1 | 2 | 3 | 4;
+              const offsets = CELL_SHARE_OFFSETS[count] || CELL_SHARE_OFFSETS[4];
+              const offset = offsets[myIndex] || { dx: 0, dy: 0 };
+
+              return (
+                <View
+                  key={p.id}
+                  style={{
+                    position: 'absolute',
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: isActive ? 110 + i : 100 + i,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <GameToken 
+                    id={p.id}
+                    color={p.color} 
+                    isActive={isActive && p.lives > 0} 
+                    isOnBoard={isOnBoard} 
+                    isKicked={p.lives <= 0}
+                    cellSize={CELL_SIZE} 
+                    position={p.position}
+                    offset={offset}
+                  />
+                </View>
+              );
+            });
+          })()}
+        </View>
+
       </View>
     </View>
   );

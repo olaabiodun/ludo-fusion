@@ -6,8 +6,12 @@ import {
   Platform,
   StatusBar,
   StyleSheet,
-  View
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView
 } from 'react-native';
+
 import { Image } from 'expo-image';
 import { BC } from '../engine/LudoPath';
 import { useLudoEngine } from '../engine/useLudoEngine';
@@ -22,10 +26,10 @@ import { getBotName } from './WhotUtils';
 
 
 const AVATARS: Record<string, { uri: string }> = {
-  green: { uri: 'https://i.pravatar.cc/80?img=12' },
-  yellow: { uri: 'https://i.pravatar.cc/80?img=47' },
-  blue: { uri: 'https://i.pravatar.cc/80?img=32' },
-  red: { uri: 'https://i.pravatar.cc/80?img=13' },
+  green: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Felix&backgroundColor=c1f4c1' },
+  yellow: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka&backgroundColor=ffdfbf' },
+  blue: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Jasper&backgroundColor=b6e3f4' },
+  red: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Zara&backgroundColor=ffd5dc' },
 };
 const NAMES: Record<string, string> = { green: 'Ayo', yellow: 'Amina', blue: 'Obinna', red: 'Tunde' };
 const PRIZES: Record<number, number[]> = {
@@ -55,7 +59,6 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const [localUser, setLocalUser] = React.useState<any>(null);
   const [roomPlayers, setRoomPlayers] = React.useState<any[]>([]);
   const [stake, setStake] = React.useState(0);
-  const [showTestResult, setShowTestResult] = React.useState(false);
   const [rematchKey, setRematchKey] = React.useState(0);
   const [levelUpdate, setLevelUpdate] = React.useState<LevelUpdate | null>(null);
   const [ping, setPing] = React.useState<number | null>(null);
@@ -65,8 +68,15 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const [localColor, setLocalColor] = React.useState<BC>('green');
   const [synced, setSynced] = React.useState(false);
   const [isDiceRolling, setIsDiceRolling] = React.useState(false);
+  const channelRef = React.useRef<any>(null);
+  // Dedup guard: tracks the roll counter for the last emitted pawn_moved.
+  // Increments on every dice_rolled so extra turns (rolling 6) get a fresh slot.
+  const moveEmittedForRollRef = React.useRef<number>(-1);
+  const rollCountRef = React.useRef<number>(0);
   const [whotWinner, setWhotWinner] = React.useState<BC | null>(null);
   const [whotScores, setWhotScores] = React.useState<Record<string, number>>({});
+
+
 
   // 1. Fetch User & Sync Room
   React.useEffect(() => {
@@ -92,7 +102,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
                 ...rp,
                 username: prof?.username || rp.username || 'Player',
                 avatar_url: prof?.avatar_url || rp.avatar_url,
-                coins: prof?.coins || 0
+                coins: prof?.wallet_balance || prof?.coins || 0
               };
             });
             setRoomPlayers(mapped);
@@ -199,12 +209,66 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
 
       sharedSocket.on('dice_rolled', (payload: { userId: string, value: number }) => {
         setIsDiceRolling(false);
+        rollCountRef.current += 1;
         if (isSnake) {
-          snakeEngine.setIsRollingVisual(false);
-          snakeEngine.movePlayerByUserId(payload.userId, payload.value);
+          // Play rolling animation for exactly 1200ms, then wait 500ms before token moves
+          snakeEngine.setDiceValue(payload.value);
+          snakeEngine.setIsRollingVisual(true);
+          setTimeout(() => {
+            snakeEngine.setIsRollingVisual(false);
+            setTimeout(() => {
+              snakeEngine.movePlayerByUserId(payload.userId, payload.value);
+            }, 500);
+          }, 1200);
         } else {
           engine.setIsDiceRolling(false);
-          engine.rollDice(payload.value);
+          if (isLudo && payload.value != null) {
+            if (localUser?.id && payload.userId === localUser.id) {
+              // Local roll: full engine processing (valid-move checks, auto-advance, etc.)
+              engine.rollDice(payload.value);
+            } else {
+              // Remote roll: set visual dice value only — NO valid-move logic (server decides)
+              engine.setState(prev => ({ ...prev, diceValue: payload.value, hasRolled: true }));
+            }
+          }
+        }
+      });
+
+      // Opponent moved a pawn: just move — dice value already set from dice_rolled
+      sharedSocket.on('pawn_moved', (payload: { color: string, pawnId: string, diceValue: number }) => {
+        if (isLudo && payload.color !== localColor) {
+          // Ensure display state is set (in case dice_rolled was missed)
+          engine.setState(prev => ({ ...prev, diceValue: payload.diceValue, hasRolled: true }));
+          engine.movePawn(payload.pawnId);
+        }
+      });
+
+      // Opponent had no valid moves — set dice value, then advance after brief display
+      sharedSocket.on('turn_passed', (payload: { color: string, diceValue: number }) => {
+        if (isLudo && payload.color !== localColor) {
+          engine.setState(prev => ({
+            ...prev,
+            diceValue: payload.diceValue,
+            hasRolled: true,
+            messages: [`${payload.color} rolled ${payload.diceValue}. No valid moves!`, ...prev.messages],
+          }));
+          setTimeout(() => {
+            if (payload.diceValue === 6) {
+              // 6 with no moves → extra turn: keep turnIndex, just reset roll
+              engine.setState(prev => ({
+                ...prev, hasRolled: false, diceValue: null, turnId: prev.turnId + 1, action: null,
+              }));
+            } else {
+              engine.nextTurn();
+            }
+          }, 1500);
+        }
+      });
+
+      // Opponent timed out
+      sharedSocket.on('player_timeout', (payload: { targetColor: string, turnId: number }) => {
+        if (isLudo && payload.targetColor !== localColor) {
+          engine.handleTimeout(payload.targetColor as BC, payload.turnId);
         }
       });
 
@@ -220,21 +284,12 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       });
     }
 
-    // Supabase Sync for Pawns (for now)
-    const channel = supabase.channel(`room_${roomId}`, {
-      config: { broadcast: { self: true } }
-    });
-
+    // Supabase channel kept only for emoji sync (not for game moves)
+    const channel = supabase.channel(`room_${roomId}`);
+    channelRef.current = channel;
     channel
-      .on('broadcast', { event: 'move' }, ({ payload }) => {
-        if (payload.color !== localColor) {
-          engine.movePawn(payload.pawnId);
-        }
-      })
       .on('broadcast', { event: 'timeout' }, ({ payload }) => {
-        if (payload.senderColor !== localColor) {
-          engine.handleTimeout(payload.targetColor, payload.turnId);
-        }
+        // timeout broadcast kept for legacy compatibility; socket handles it now too
       })
       .subscribe();
 
@@ -252,6 +307,9 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
     return () => { 
       sharedSocket.off('dice_rolled');
       sharedSocket.off('dice_rolling');
+      sharedSocket.off('pawn_moved');
+      sharedSocket.off('player_timeout');
+      sharedSocket.off('turn_passed');
       sharedSocket.off('client_pong');
       clearInterval(pingInterval);
       channel.unsubscribe(); 
@@ -273,18 +331,40 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
     }
   };
 
+  // When the human's own roll results in no valid moves, tell the bot to advance its turn.
+  // The engine auto-calls nextTurn after 1500ms; we emit turn_passed at the same time.
+  React.useEffect(() => {
+    if (isAiEnabled || !roomId || !engine.state.hasRolled || engine.state.winner) return;
+    const turnColor = engine.state.activeColors[engine.state.turnIndex];
+    if (turnColor !== localColor) return;
+    // Check if any moves are possible for the human
+    const hasAnyMove = engine.state.pawns.some(p => {
+      if (p.color !== localColor || p.state === 'finished') return false;
+      if (p.state === 'home') return engine.state.diceValue === 6;
+      return p.pathIndex + (engine.state.diceValue ?? 0) <= 56;
+    });
+    if (!hasAnyMove && engine.state.diceValue != null) {
+      sharedSocket.emit('turn_passed', { color: localColor, diceValue: engine.state.diceValue });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.state.hasRolled, engine.state.turnIndex]);
+
+
   const wrappedMove = (pawnId: string) => {
     if (isSnake) {
-      // Snake engine handles movement automatically after roll, no manual move piece action needed yet.
+      // Snake engine handles movement automatically after roll
     } else {
+      const diceAtMove = engine.state.diceValue;
       engine.movePawn(pawnId);
-      
       if (!isAiEnabled && roomId) {
-        supabase.channel(`room_${roomId}`).send({
-          type: 'broadcast',
-          event: 'move',
-          payload: { color: localColor, pawnId }
-        });
+        const currentRoll = rollCountRef.current;
+        // Guard: only emit once per dice roll (auto-move + manual tap can both fire).
+        // rollCountRef increments on every dice_rolled, so extra turns after 6 are
+        // treated as a fresh roll and can emit correctly.
+        if (moveEmittedForRollRef.current !== currentRoll) {
+          moveEmittedForRollRef.current = currentRoll;
+          sharedSocket.emit('pawn_moved', { color: localColor, pawnId, diceValue: diceAtMove });
+        }
       }
     }
   };
@@ -297,11 +377,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
     }
     
     if (!isAiEnabled && roomId) {
-      supabase.channel(`room_${roomId}`).send({
-        type: 'broadcast',
-        event: 'timeout',
-        payload: { senderColor: localColor, targetColor: color, turnId }
-      });
+      sharedSocket.emit('player_timeout', { senderColor: localColor, targetColor: color, turnId });
     }
   };
 
@@ -322,7 +398,6 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
     }
   };
 
-
   // Derive a winner: only 1 player with lives left OR a player has all 4 pawns finished
   const { activeColors, pawns, lives } = engine.state;
   const ludoSurvivors = activeColors.filter(c => lives[c] > 0);
@@ -338,10 +413,20 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
 
   const winner = isLudo ? ludoWinner : isWhot ? whotWinner : snakeWinnerColor;
 
+  // Delay showing result screen to let capture/move animations play out
+  const [showResult, setShowResult] = React.useState(false);
+  React.useEffect(() => {
+    if (winner) {
+      const t = setTimeout(() => setShowResult(true), 1200);
+      return () => clearTimeout(t);
+    }
+    setShowResult(false);
+  }, [winner]);
+
   const [payoutProcessed, setPayoutProcessed] = React.useState(false);
   
   React.useEffect(() => {
-    if (winner && !payoutProcessed && !showTestResult) {
+    if (winner && !payoutProcessed) {
       setPayoutProcessed(true);
 
       const processPayout = async () => {
@@ -370,19 +455,16 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
                 win_amount: myPrize
               });
               if (gameErr) console.error('Error logging game:', gameErr);
-
-              // Log transaction for win
-              if (myRank === 1 && myPrize > 0) {
-                await supabase.from('transactions').insert({
-                  player_id: user.id,
-                  amount: myPrize,
-                  type: 'deposit',
-                  status: 'completed',
-                  description: `${playerCount}P ${gameType.toUpperCase()} Match - Rank ${myRank}`
+              // Log transaction for win securely via RPC
+              if (myRank === 1 && myPrize > 0 && roomId) {
+                const { error: rpcErr } = await supabase.rpc('claim_game_win', {
+                  p_room_id: roomId
                 });
-                
-                const { DeviceEventEmitter } = require('react-native');
-                DeviceEventEmitter.emit('wallet_updated');
+                if (rpcErr) console.error('Error claiming win:', rpcErr);
+                else {
+                  const { DeviceEventEmitter } = require('react-native');
+                  DeviceEventEmitter.emit('wallet_updated');
+                }
               }
             }
             
@@ -406,17 +488,17 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       
       processPayout();
     }
-  }, [winner, payoutProcessed, showTestResult, localColor, lives, playerCount, stake]);
+  }, [winner, payoutProcessed, localColor, lives, playerCount, stake]);
 
   const elapsedRef = React.useRef(0);
   React.useEffect(() => {
     const id = setInterval(() => { 
-      if (!winner && !showTestResult) {
+      if (!winner) {
         elapsedRef.current += 1; 
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [winner, showTestResult]);
+  }, [winner]);
 
   const buildResults = (): ResultPlayer[] => {
     let ranked: BC[] = [];
@@ -462,7 +544,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
     
     // Pot is stake * playerCount, winner gets 80%? Or whatever the prizes map says. 
     const pot = stake * playerCount;
-    const prizeList = playerCount === 4 ? [pot * 0.8, pot * 0.2, 0, 0] : [pot, 0];
+    const prizeList = playerCount === 4 ? [pot, 0, 0, 0] : [pot, 0];
 
     return ranked.map((color, idx) => {
       const colorPawns = pawns.filter(p => p.color === color);
@@ -471,7 +553,8 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       const realPlayer = roomPlayers.find(p => p.color === color);
       const isLocal = color === localColor;
       const name = realPlayer?.username || (isLocal ? 'You' : getBotName(color as any, localColor));
-      const avatar = realPlayer?.avatar_url ? { uri: realPlayer.avatar_url } : AVATARS[color];
+      const isBot = realPlayer?.isBot || (isAiEnabled && color !== localColor);
+      const avatar = (isBot || !realPlayer?.avatar_url) ? AVATARS[color as BC] : { uri: realPlayer.avatar_url };
 
       // Whot results use card score; Ludo uses token/lives state
       const whotScore = isWhot ? (whotScores[color] ?? 0) : 0;
@@ -538,13 +621,13 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
             isAiEnabled={isAiEnabled && !roomId} 
             onDiceReady={() => setDiceReady(true)} 
             isDiceRolling={isDiceRolling}
-            hidePopups={!!winner || showTestResult}
+            hidePopups={!!winner}
           />
         </View>
       )}
 
       {/* Floating HUD (no background of its own) */}
-      {!(winner || showTestResult) && (isLudo && (synced || isAiEnabled)) ? (
+      {!winner && (isLudo && (synced || isAiEnabled)) ? (
         <LudoGameUI 
           playerCount={playerCount} 
           onExit={onExit} 
@@ -559,18 +642,27 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
         />
-      ) : !(winner || showTestResult) && (isWhot && (synced || isAiEnabled)) ? (
+      ) : !winner && (isWhot && (synced || isAiEnabled)) ? (
         <WhotGameUI 
           key={rematchKey}
           gameId={roomId || undefined}
           playerCount={playerCount}
+          stake={stake}
           realPlayers={roomPlayers}
           localColor={localColor}
           localUserId={localUser?.id}
           onExit={onExit} 
           onWinner={(c, scores) => {
             setWhotWinner(c as BC);
-            if (scores) setWhotScores(scores);
+            if (scores) {
+              // Normalize score keys from userId → color name so buildResults() works correctly
+              const colorScores: Record<string, number> = {};
+              Object.entries(scores).forEach(([key, val]) => {
+                const p = roomPlayers.find(rp => rp.id === key || rp.color === key);
+                colorScores[p?.color || key] = val as number;
+              });
+              setWhotScores(colorScores);
+            }
           }}
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
@@ -583,7 +675,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
                 isAiEnabled={isAiEnabled}
             />
           </View>
-          {!(winner || showTestResult) && (
+          {!winner && (
             <SnakeLadderGameUI 
               playerCount={playerCount}
               onExit={onExit}
@@ -603,7 +695,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       )}
 
       {/* ── Results overlay ── */}
-      {(!!winner || showTestResult) && (
+      {showResult && (
         <GameResultScreen
           players={buildResults()}
           totalPrize={stake * playerCount}
@@ -615,7 +707,6 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           onPlayAgain={() => {
             if (isAiEnabled) {
               setPayoutProcessed(false);
-              setShowTestResult(false);
               if (isSnake) snakeEngine.resetGame();
               else if (isLudo) engine.resetGame();
               if (isWhot) {
@@ -634,6 +725,8 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           isSnake={isSnake}
         />
       )}
+
+
 
     </View>
   );
@@ -661,19 +754,5 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  devBtn: {
-    position: 'absolute',
-    bottom: 18,
-    right: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(244,190,59,0.35)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    zIndex: 50,
-  },
 });
+

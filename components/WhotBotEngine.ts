@@ -30,9 +30,9 @@ export const createPracticePlayers = (
   const seats: Seat[] = playerCount === 2 ? ['DOWN', 'TOP'] : ['DOWN', 'LEFT', 'TOP', 'RIGHT'];
   const colors: Color[] = ['green', 'red', 'yellow', 'blue'];
   const botAvatars = [
-    { uri: 'https://i.pravatar.cc/150?u=bot1' },
-    { uri: 'https://i.pravatar.cc/150?u=bot2' },
-    { uri: 'https://i.pravatar.cc/150?u=bot3' },
+    { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Felix&backgroundColor=c1f4c1' },
+    { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka&backgroundColor=ffdfbf' },
+    { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Jasper&backgroundColor=b6e3f4' },
   ];
 
   const botNames = ['Amina', 'Tunde', 'Obinna', 'Zainab', 'Chidi', 'Folake', 'Ibrahim', 'Chioma'];

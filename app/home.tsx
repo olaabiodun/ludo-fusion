@@ -10,7 +10,8 @@ import { ReferralPanel } from '@/components/ReferralPanel';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { Sidebar, type SidebarNav } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
-import { WalletPanel } from '@/components/WalletPanel';
+import { AchievementHub } from '@/components/AchievementHub';
+import { LuckySpinPanel } from '@/components/LuckySpinPanel';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { playButtonSound } from '@/lib/sounds';
@@ -373,11 +374,11 @@ export default function LudoFusionHome() {
         }}
         onAddFundsPress={() => {
           setWalletAction('deposit');
-          setActiveNav('WALLET');
+          setActiveNav('VAULT');
         }}
         onWithdrawPress={() => {
           setWalletAction('withdrawal');
-          setActiveNav('WALLET');
+          setActiveNav('VAULT');
         }}
       />
       <View style={s.main}>
@@ -387,7 +388,7 @@ export default function LudoFusionHome() {
             onNavChange={(nav) => {
               setActiveNav(nav);
               if (nav === 'HOME') setSelectedGame(null);
-              if (nav !== 'WALLET') setWalletAction(undefined);
+              if (nav !== 'VAULT') setWalletAction(undefined);
             }}
           />
           {!isMainHome && <BottomBar forceHome={false} searching={globalSearching} />}
@@ -439,8 +440,10 @@ export default function LudoFusionHome() {
             <ProfilePanel />
           ) : activeNav === 'LEADERBOARD' ? (
             <LeaderboardPanel visible={true} onClose={() => setActiveNav('HOME')} />
-          ) : activeNav === 'WALLET' ? (
-            <WalletPanel initialAction={walletAction} />
+          ) : activeNav === 'VAULT' ? (
+            <AchievementHub initialAction={walletAction} />
+          ) : activeNav === 'LUCKY_SPIN' ? (
+            <LuckySpinPanel />
           ) : activeNav === 'FRIENDS' ? (
             <FriendsPanel />
           ) : activeNav === 'HISTORY' ? (

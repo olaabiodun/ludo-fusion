@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 export type SnakeLadderPlayer = {
   id: string;
@@ -46,10 +46,27 @@ export function useSnakeLadderEngine(playerCount: number, initialPlayers?: Snake
   const [isRollingVisual, setIsRollingVisual] = useState(false);
 
   const nextTurn = useCallback(() => {
-    setTurnIndex(prev => (prev + 1) % players.length);
+    setTurnIndex(prev => {
+      let nextIdx = (prev + 1) % players.length;
+      let loops = 0;
+      while (players[nextIdx].lives <= 0 && loops < players.length) {
+        nextIdx = (nextIdx + 1) % players.length;
+        loops++;
+      }
+      return nextIdx;
+    });
     setHasRolled(false);
     setIsMoving(false);
-  }, [players.length]);
+  }, [players]);
+
+  
+  useEffect(() => {
+    if (winner) return;
+    const alivePlayers = players.filter(p => p.lives > 0);
+    if (alivePlayers.length === 1 && players.length > 1) {
+      setWinner(alivePlayers[0].id);
+    }
+  }, [players, winner]);
 
   const movePlayer = useCallback((val: number, force = false) => {
     if (!force && (winner || isMoving)) return;
@@ -232,5 +249,6 @@ export function useSnakeLadderEngine(playerCount: number, initialPlayers?: Snake
     handleTimeout,
     resetGame,
     setPlayers,
+    setDiceValue,
   };
 }

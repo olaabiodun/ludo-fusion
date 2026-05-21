@@ -174,7 +174,7 @@ const CELLS: CellSpec[] = [
 ];
 
 // ─── 3-D Pawn ────────────────────────────────────────────────────────────────
-function Pawn({ color }: { color: BC }) {
+function Pawn({ color, isKicked }: { color: BC; isKicked?: boolean }) {
   const tokenImages = {
     green: require('../assets/images/tokeng.png'),
     yellow: require('../assets/images/tokeny.png'),
@@ -183,7 +183,7 @@ function Pawn({ color }: { color: BC }) {
   };
   return (
     <View style={pawnSt.pawn}>
-      <Image source={tokenImages[color]} style={pawnSt.image} contentFit="contain" />
+      <Image source={tokenImages[color]} style={[pawnSt.image, isKicked && { opacity: 0.3, tintColor: '#888' }]} contentFit="contain" />
     </View>
   );
 }
@@ -208,6 +208,7 @@ function EnginePawn({
   TOTAL,
   diceValue,
   action,
+  isKicked,
   onCaptureComplete,
 }: {
   pawn: PawnState;
@@ -224,6 +225,7 @@ function EnginePawn({
   TOTAL: number;
   diceValue: number | null;
   action: any;
+  isKicked?: boolean;
   onCaptureComplete?: (capturedPawnId: string) => void;
 }) {
   const getAbsoluteCoords = (pos: { c: number; r: number }) => ({
@@ -447,7 +449,7 @@ function EnginePawn({
           transform: [{ rotate: pawnRotation }],
         }}
       >
-        <Pawn color={pawn.color} />
+        <Pawn color={pawn.color} isKicked={isKicked} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -908,6 +910,7 @@ export function LudoBoard({
                         onPress={movePawn}
                         isActiveTurn={state.activeColors[state.turnIndex] === pawn.color}
                         hasRolled={state.hasRolled}
+                        isKicked={state.lives[pawn.color] <= 0}
                         pawnRotation={pawnRotation}
                         localColor={localColor}
                         offsetX={offsetX}

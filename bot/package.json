@@ -1,0 +1,13 @@
+{
+  "name": "ludo-bots",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "dotenv": "^16.4.7",
+    "socket.io-client": "^4.8.1"
+  }
+}

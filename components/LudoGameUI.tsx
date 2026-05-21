@@ -14,10 +14,11 @@ import {
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useLudoEngine } from '../engine/useLudoEngine';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { GameQuitModal } from './GameQuitModal';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { getPlayerAvatar } from '@/lib/avatars';
+import { EMOJI_PACK } from '../lib/emojis';
 import { Seat } from './WhotUtils';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -62,13 +63,13 @@ const pal: Record<Color, string[]> = {
 };
 
 const PLAYERS: Player[] = [
-  { name: 'Folake', color: 'green', seat: 'TL', coins: 3250, active: true, tokensHome: 2, avatar: { uri: 'https://i.pravatar.cc/80?img=12' } },
-  { name: 'Amina', color: 'yellow', seat: 'TR', coins: 4120, active: false, tokensHome: 3, avatar: { uri: 'https://i.pravatar.cc/80?img=47' } },
-  { name: 'Obinna', color: 'blue', seat: 'BL', coins: 2800, active: false, tokensHome: 4, avatar: { uri: 'https://i.pravatar.cc/80?img=32' } },
-  { name: 'Tunde', color: 'red', seat: 'BR', coins: 5500, active: false, tokensHome: 1, avatar: { uri: 'https://i.pravatar.cc/80?img=13' } },
+  { name: 'Folake', color: 'green', seat: 'TL', coins: 3250, active: true, tokensHome: 2, avatar: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Felix&backgroundColor=c1f4c1' } },
+  { name: 'Amina', color: 'yellow', seat: 'TR', coins: 4120, active: false, tokensHome: 3, avatar: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka&backgroundColor=ffdfbf' } },
+  { name: 'Obinna', color: 'blue', seat: 'BL', coins: 2800, active: false, tokensHome: 4, avatar: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Jasper&backgroundColor=b6e3f4' } },
+  { name: 'Tunde', color: 'red', seat: 'BR', coins: 5500, active: false, tokensHome: 1, avatar: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=Zara&backgroundColor=ffd5dc' } },
 ];
 
-const SEAT_POS: Record<Seat, object> = {
+const SEAT_POS: Record<string, object> = {
   TL: { top: 52, left: 8 },
   TR: { top: 52, right: 8 },
   BL: { bottom: 68, left: 8 },
@@ -427,7 +428,7 @@ export function LudoGameUI({
   const [showReportMenu, setShowReportMenu] = React.useState(false);
   const [reportSent, setReportSent] = React.useState<string | null>(null);
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const emojiAnim = React.useRef(new Animated.Value(0)).current;
   const quickSettingsAnim = React.useRef(new Animated.Value(0)).current;
   const reportMenuAnim = React.useRef(new Animated.Value(0)).current;
@@ -783,7 +784,7 @@ export function LudoGameUI({
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={st.emojiScroll}
               >
-                {EMOJI_PACK.map((img, i) => (
+                {EMOJI_PACK.map((img: any, i: number) => (
                   <BubblingEmoji 
                     key={i} 
                     img={img} 

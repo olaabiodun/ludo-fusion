@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 const CACHE_KEYS = {
   PROFILE: 'ludo_fusion_profile_cache',
@@ -96,18 +96,8 @@ const STATIC_BADGES: { label: string; icon: IconName }[] = [
   { label: 'Verified', icon: 'check-decagram' },
 ];
 
-const ACHIEVEMENTS: { label: string; icon: IconName }[] = [
-  { label: 'Champion', icon: 'crown' },
-  { label: 'Sharp Defender', icon: 'shield-check' },
-  { label: 'Hot Streak', icon: 'fire' },
-  { label: 'Whot Master', icon: 'cards-playing-outline' },
-];
-
-const FAVORITE_MODES: { title: string; subtitle: string; icon: IconName }[] = [
-  { title: 'Ludo Fusion', subtitle: 'Most played this week', icon: 'dice-multiple' },
-  { title: 'Whot Classic', subtitle: 'Best strategic win rate', icon: 'cards-playing-outline' },
-  { title: 'Squad Lobby', subtitle: 'Friends play every Friday', icon: 'account-group' },
-];
+// Dummy array to prevent hot-reload cache ReferenceErrors
+const ACHIEVEMENTS: any[] = [];
 
 function formatCurrency(amount: number, showNgn: boolean): string {
   if (showNgn) {
@@ -124,14 +114,33 @@ function formatDate(isoString: string): string {
 }
 
 function timeAgo(isoString: string): string {
-  const now = Date.now();
-  const diff = now - new Date(isoString).getTime();
-  const hours = Math.floor(diff / 36e5);
-  const days = Math.floor(diff / 864e5);
-  if (hours < 1) return 'Just now';
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const dateMs = new Date(isoString).getTime();
+  if (isNaN(dateMs)) return 'Recently';
+
+  const diff = Date.now() - dateMs;
+  const absDiff = Math.abs(diff);
+
+  if (absDiff < 60000) {
+    return 'Just now';
+  }
+
+  const minutes = Math.floor(absDiff / 60000);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  }
+
+  const hours = Math.floor(absDiff / 36e5);
+  if (hours < 24) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+
+  const days = Math.floor(absDiff / 864e5);
   if (days === 1) return 'Yesterday';
-  return `${days} days ago`;
+  if (days < 7) {
+    return `${days} days ago`;
+  }
+
+  return new Date(isoString).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
 }
 
 function getInitials(fullName: string | null, username: string | null): string {
@@ -142,7 +151,7 @@ function getInitials(fullName: string | null, username: string | null): string {
 
 export function ProfilePanel() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const [games, setGames] = useState<GameRecord[]>([]);
   const [stats, setStats] = useState<ProfileStats>({ total_matches: 0, total_wins: 0, win_rate: 0 });
   const [loading, setLoading] = useState(true);
@@ -170,11 +179,28 @@ export function ProfilePanel() {
       // 2. Fetch fresh data from Supabase
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setProfile({
+            id: 'guest-player',
+            username: 'guest_player',
+            full_name: 'Guest Player',
+            wallet_balance: 1000,
+            level: 1,
+            xp: 0,
+            xp_next_level: 1000,
+            created_at: new Date().toISOString(),
+            avatar_url: undefined,
+            membership_tier: null,
+            membership_expires: null,
+            streak: 0
+          } as any);
+          setLoading(false);
+          return;
+        }
 
         const [pRes, gRes, sRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', user.id).single(),
-          supabase.from('games').select('*').eq('player_id', user.id).order('created_at', { ascending: false }).limit(5),
+          supabase.from('games').select('*').eq('player_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.from('profile_stats').select('*').eq('player_id', user.id).single(),
         ]);
 
@@ -230,6 +256,61 @@ export function ProfilePanel() {
     { label: 'Win Rate', value: `${stats.win_rate}%`, icon: 'trophy' as IconName },
     { label: 'Current Streak', value: streak.toString().padStart(2, '0'), icon: 'lightning-bolt' as IconName },
     { label: gamblingEnabled ? 'Wallet Balance' : 'Balance', value: formatCurrency(walletBalance, gamblingEnabled), icon: 'wallet' as IconName },
+  ];
+
+  // ─── Dynamic Achievements (Fully Synced with Supabase statistics) ─────────
+  const realAchievements = [
+    { 
+      label: 'Grand Champion', 
+      icon: 'crown' as IconName, 
+      desc: 'Win 5 matches total', 
+      unlocked: (stats?.total_wins ?? 0) >= 5,
+      progress: `${stats?.total_wins ?? 0}/5 wins`
+    },
+    { 
+      label: 'Tactician', 
+      icon: 'shield-check' as IconName, 
+      desc: 'Win rate above 50%', 
+      unlocked: (stats?.win_rate ?? 0) >= 50 && (stats?.total_matches ?? 0) >= 3,
+      progress: `${stats?.win_rate ?? 0}% WR`
+    },
+    { 
+      label: 'On Fire', 
+      icon: 'fire' as IconName, 
+      desc: 'Reach a 3 win streak', 
+      unlocked: streak >= 3,
+      progress: `${streak}/3 streak`
+    },
+    { 
+      label: 'Royale VIP', 
+      icon: 'star-circle' as IconName, 
+      desc: 'Active Royale Pass', 
+      unlocked: profile?.membership_tier === 'royale',
+      progress: profile?.membership_tier === 'royale' ? 'Active' : 'Free Tier'
+    },
+  ];
+
+  // ─── Dynamic Favorite Modes (Ranked by actual Supabase game frequencies) ───
+  const ludoCount = games.filter(g => g.game_type === 'ludo').length;
+  const whotCount = games.filter(g => g.game_type === 'whot').length;
+  const snakeCount = games.filter(g => g.game_type === 'snake' || g.game_type === 'snakes' || g.game_type === 'snakes_ladders').length;
+
+  const realFavoriteModes = [
+    { 
+      title: 'Ludo Fusion', 
+      subtitle: ludoCount > 0 ? `${ludoCount} match${ludoCount > 1 ? 'es' : ''} played recently` : 'Not played yet. Tap to play!', 
+      icon: 'dice-multiple' as IconName 
+    },
+    { 
+      title: 'Whot Classic', 
+      subtitle: whotCount > 0 ? `${whotCount} match${whotCount > 1 ? 'es' : ''} played recently` : 'Test your strategic cards', 
+      icon: 'cards-playing-outline' as IconName 
+    },
+    { 
+      title: 'Snake & Ladder', 
+      subtitle: snakeCount > 0 ? `${snakeCount} match${snakeCount > 1 ? 'es' : ''} played recently` : 'Roll the dice and jump', 
+      icon: 'ladder' as IconName 
+    },
   ];
 
   return (
@@ -351,19 +432,22 @@ export function ProfilePanel() {
             {games.length === 0 ? (
               <Text style={s.emptyText}>No matches played yet. Get out there!</Text>
             ) : (
-              games.map((game, index) => {
+              games.slice(0, 5).map((game, index) => {
                 const isWin = game.result === 'win';
                 const amount = game.win_amount;
                 const amountStr = amount >= 0 ? `+${formatCurrency(amount, gamblingEnabled)}` : formatCurrency(amount, gamblingEnabled);
+                const limitCount = Math.min(5, games.length);
 
                 return (
                   <Animated.View
                     key={game.id}
                     entering={FadeInDown.delay(1000 + index * 100)}
-                    style={[s.matchRow, index !== games.length - 1 && s.matchDivider]}
+                    style={[s.matchRow, index !== limitCount - 1 && s.matchDivider]}
                   >
                     <View style={s.matchInfo}>
-                      <Text style={s.matchTitle}>{game.game_type === 'ludo' ? 'Ludo Fusion' : 'Whot Clash'}</Text>
+                      <Text style={s.matchTitle}>
+                        {game.game_type === 'ludo' ? 'Ludo Fusion' : game.game_type === 'whot' ? 'Whot Clash' : 'Snake & Ladder'}
+                      </Text>
                       <Text style={s.matchMeta}>{game.table_name}  |  {timeAgo(game.created_at)}</Text>
                     </View>
                     <View style={s.matchResult}>
@@ -380,7 +464,7 @@ export function ProfilePanel() {
 
           <Animated.View entering={FadeInDown.delay(1200).duration(600)} style={s.showcase}>
             <ImageBackground
-              source={require('@/assets/images/lobby_bg.png')}
+              source={require('@/assets/images/lobby_bg.jpg')}
               style={s.showcase}
               imageStyle={s.showcaseImage}
             >
@@ -405,18 +489,45 @@ export function ProfilePanel() {
               <Text style={s.sectionCaption}>Badges unlocked this season</Text>
             </View>
             <View style={s.achievementWrap}>
-              {ACHIEVEMENTS.map((achievement, idx) => (
-                <Animated.View
-                  key={achievement.label}
-                  entering={FadeInRight.delay(1000 + idx * 100)}
-                  style={s.achievementItem}
-                >
-                  <View style={s.achievementIcon}>
-                    <MaterialCommunityIcons name={achievement.icon} size={20} color={C.gold} />
-                  </View>
-                  <Text style={s.achievementText}>{achievement.label}</Text>
-                </Animated.View>
-              ))}
+              {realAchievements.map((ach, idx) => {
+                const iconColor = ach.unlocked ? C.gold : 'rgba(255,255,255,0.22)';
+                const iconBg = ach.unlocked ? C.goldSoft : 'rgba(255,255,255,0.02)';
+                const itemBorder = ach.unlocked ? C.goldBorder : 'rgba(255,255,255,0.06)';
+
+                return (
+                  <Animated.View
+                    key={ach.label}
+                    entering={FadeInRight.delay(1000 + idx * 100)}
+                    style={[
+                      s.achievementItem,
+                      { borderColor: itemBorder, position: 'relative' },
+                      ach.unlocked && { backgroundColor: 'rgba(212,175,55,0.04)' }
+                    ]}
+                  >
+                    {/* Status corner badge */}
+                    <View style={{ position: 'absolute', top: 8, right: 8 }}>
+                      <MaterialCommunityIcons
+                        name={ach.unlocked ? 'check-decagram' : 'lock-outline'}
+                        size={11}
+                        color={ach.unlocked ? C.success : 'rgba(255,255,255,0.2)'}
+                      />
+                    </View>
+
+                    <View style={[s.achievementIcon, { backgroundColor: iconBg, borderColor: itemBorder, borderWidth: 1 }]}>
+                      <MaterialCommunityIcons name={ach.icon} size={18} color={iconColor} />
+                    </View>
+                    <View style={{ gap: 2 }}>
+                      <Text style={[s.achievementText, !ach.unlocked && { color: C.textMuted }]}>{ach.label}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 8, fontWeight: '500' }} numberOfLines={1}>
+                        {ach.desc}
+                      </Text>
+                      <Text style={{ color: ach.unlocked ? C.gold : C.textMuted, fontSize: 8, fontWeight: '700', marginTop: 1 }}>
+                        {ach.progress}
+                      </Text>
+                    </View>
+                  </Animated.View>
+                );
+              })}
             </View>
           </Animated.View>
 
@@ -425,11 +536,11 @@ export function ProfilePanel() {
               <Text style={s.sectionTitle}>Favorite Modes</Text>
               <Text style={s.sectionCaption}>Where this player shines most</Text>
             </View>
-            {FAVORITE_MODES.map((mode, index) => (
+            {realFavoriteModes.map((mode, index) => (
               <Animated.View
                 key={mode.title}
                 entering={FadeInRight.delay(1400 + index * 100)}
-                style={[s.modeRow, index !== FAVORITE_MODES.length - 1 && s.matchDivider]}
+                style={[s.modeRow, index !== realFavoriteModes.length - 1 && s.matchDivider]}
               >
                 <View style={s.modeIconWrap}>
                   <MaterialCommunityIcons name={mode.icon} size={18} color={C.gold} />

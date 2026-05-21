@@ -13,7 +13,7 @@ import {
   View
 } from 'react-native';
 import Svg from 'react-native-svg';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { EMOJI_PACK } from '../lib/emojis';
 import { getPlayerAvatar } from '@/lib/avatars';
 import {
@@ -208,7 +208,7 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
   const { name, color, avatar, cardCount, active, seat = 'DOWN' } = player;
   const col = colorHex[color];
   const isRight = seat === 'RIGHT';
-  const isLocal = name === 'You';
+  const isLocal = seat === 'DOWN';
 
   const progress = useSharedValue(0);
   const bubbleAnim = React.useRef(new RNAnimated.Value(0)).current;
@@ -275,7 +275,7 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
   }, [isDealing]);
 
   return (
-    <View style={[{ position: 'absolute', zIndex: 50 }, SEAT_POS[seat]]}>
+    <View style={[{ position: 'absolute', zIndex: 50, opacity: player.lives <= 0 ? 0.4 : 1 }, SEAT_POS[seat]]}>
       {/* 1. Player Badge (Always Visible) */}
       <View style={{ 
         zIndex: 10,
@@ -406,6 +406,7 @@ const MatchTimer = React.memo(({ gameEndsAt }: { gameEndsAt: number | null }) =>
 export function WhotGameUI({
   onExit,
   playerCount = 4,
+  stake = 0,
   localColor = 'green',
   localUserId,
   onWinner,
@@ -417,6 +418,7 @@ export function WhotGameUI({
 }: {
   onExit: () => void;
   playerCount?: number;
+  stake?: number;
   localColor?: Color;
   localUserId?: string;
   onWinner?: (winnerColor: string, scores?: Record<string, number>) => void;
@@ -487,7 +489,7 @@ export function WhotGameUI({
   const [showScoring, setShowScoring] = React.useState(false);
   const [savedWinnerInfo, setSavedWinnerInfo] = React.useState<{ color: string; scores: Record<string, number> } | null>(null);
   const [wasHoldOn, setWasHoldOn] = React.useState(false);
-  const [realBalance, setRealBalance] = React.useState('0');
+  const [realBalance, setRealBalance] = React.useState(0);
   const [isBotGame, setIsBotGame] = React.useState(!gameId);
   const [gameStartedAt, setGameStartedAt] = React.useState<number | null>(null);
   const [ping, setPing] = React.useState(0);
@@ -496,7 +498,7 @@ export function WhotGameUI({
   const [gameEndsAt, setGameEndsAt] = React.useState<number | null>(null);
   const [playerLives, setPlayerLives] = React.useState<Record<string, number>>({});
   const [prize, setPrize] = React.useState(0);
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
@@ -621,7 +623,7 @@ export function WhotGameUI({
     if (v) gameEndedRef.current = true;
     setShowScoring(v);
   }, []);
-  const { handleRemotePlay, handleRemotePick, pendingTurnRef } = useWhotMultiplayer({
+  const { handleRemotePlay, handleRemotePick, pendingTurnRef, activePicksCountRef } = useWhotMultiplayer({
     gameId,
     players,
     visiblePlayers,
@@ -660,6 +662,7 @@ export function WhotGameUI({
     if (!gameId) {
       setPlayers(visiblePlayers);
       // Auto-deal for practice mode
+      if (stake > 0) setPrize(Math.floor(stake * playerCount * 0.9));
       const timer = setTimeout(() => {
         setTopCard(null);
         setDealing(true);
@@ -737,12 +740,7 @@ export function WhotGameUI({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data } = await supabase.from('profiles').select('wallet_balance').eq('id', user.id).single();
-      if (data) {
-        const bal = data.wallet_balance || 0;
-        if (bal >= 1e6) setRealBalance((bal / 1e6).toFixed(1) + 'm');
-        else if (bal >= 1e3) setRealBalance((bal / 1e3).toFixed(1) + 'k');
-        else setRealBalance(bal.toString());
-      }
+      if (data) setRealBalance(data.wallet_balance || 0);
     }
     fetchUser();
   }, []);
@@ -929,7 +927,9 @@ export function WhotGameUI({
           freezeTimer();
           const finalScores = getFinalScores();
           setActionMessage({ msg: 'winner', seat: p.seat as Seat });
-          playWhotCheckupSound();
+          if (!gameId) {
+            playWhotCheckupSound();
+          }
           if (playerCount === 2) {
             setTimeout(() => {
               if (onWinner) onWinner(p.color, finalScores);
@@ -1071,7 +1071,7 @@ export function WhotGameUI({
         } else {
           handlePickActionRef.current(turnIndex);
         }
-      }, 1500 + Math.random() * 1000);
+      }, 1500 + Math.random() * 1500);
       return () => clearTimeout(timer);
     }
   }, [gameId, turnIndex, dealing, reshuffling, players, activePlay, canPlayCard, showShapePicker, handlePlayCard]);
@@ -1106,7 +1106,7 @@ export function WhotGameUI({
         const aliveAfter = alive - 1;
 
         if (aliveAfter <= 1) {
-          const winner = playersRef.current.find(p => p.lives > 0 && p.cardCount > 0);
+          const winner = playersRef.current.find(p => p.lives > 0 && p.cardCount > 0 && p.id !== currentP.id);
           if (winner) {
             gameEndedRef.current = true;
             setActionMessage({ msg: 'winner', seat: winner.seat as Seat });
@@ -1169,8 +1169,13 @@ export function WhotGameUI({
       }
       return next;
     });
+
+    if (gameId && activePicksCountRef) {
+      activePicksCountRef.current = Math.max(0, activePicksCountRef.current - 1);
+    }
+
     setActiveMarketPicks(prev => prev.filter(p => p.key !== key));
-  }, []);
+  }, [gameId, activePicksCountRef]);
 
   // Advance turn after all picks have landed
   React.useEffect(() => {
@@ -1181,12 +1186,21 @@ export function WhotGameUI({
       lastLandedPi.current = null;
       lastLandedWasPenalty.current = false;
 
-      // Only advance turn if it wasn't a penalty draw and it's the current player's turn
-      if (!gameId && pi === turnIndex && !wasPenalty) {
-        setTurnIndex(v => getNextPlayer(v, 1, playersRef.current));
+      if (gameId) {
+        if (activePicksCountRef && activePicksCountRef.current === 0 && pendingTurnRef && pendingTurnRef.current !== null) {
+          const { turn, startedAt } = pendingTurnRef.current;
+          pendingTurnRef.current = null;
+          setTurnIndex(turn);
+          setTurnStartedAt(startedAt);
+        }
+      } else {
+        // Only advance turn if it wasn't a penalty draw and it's the current player's turn
+        if (pi === turnIndex && !wasPenalty) {
+          setTurnIndex(v => getNextPlayer(v, 1, playersRef.current));
+        }
       }
     }
-  }, [activeMarketPicks.length, gameId, turnIndex]);
+  }, [activeMarketPicks.length, gameId, turnIndex, pendingTurnRef, activePicksCountRef]);
 
   // handlePlayLand: fallback onLand for the PlayCardAnim when no custom onLand
   // is set. In multiplayer the custom onLand on activePlay is always set, so
@@ -1275,7 +1289,9 @@ export function WhotGameUI({
       const winnerColor = players[turnIndex].color;
       const finalScores = getFinalScores();
       setActionMessage({ msg: "winner", seat: players[turnIndex].seat as Seat });
-      playWhotCheckupSound();
+      if (!gameId) {
+        playWhotCheckupSound();
+      }
 
       if (playerCount === 2) {
         // For 2 players, skip scoring and go straight to result screen after the "winner" bubble
@@ -1551,7 +1567,7 @@ export function WhotGameUI({
           <View style={[pill, { marginLeft: rs(4) }]}>
             <MaterialCommunityIcons name="wallet-outline" size={rs(11)} color="#FFD030" />
             <Text style={{ color: '#FFF', fontSize: rs(10), fontWeight: '900', marginLeft: rs(4) }}>
-              {realBalance}
+              {gamblingEnabled ? `₦${realBalance.toLocaleString()}` : `${realBalance.toLocaleString()} coins`}
             </Text>
           </View>
         )}

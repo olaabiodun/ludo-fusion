@@ -1,0 +1,147 @@
+﻿Created At: 2026-05-21T07:41:20Z
+Completed At: 2026-05-21T07:41:20Z
+File Path: `file:///c:/Users/HP/ludo/app/offline.tsx`
+Total Lines: 1300
+Total Bytes: 39445
+Showing lines 1 to 800
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import { GameplayScreen } from '@/components/GameplayScreen';
+2: import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+3: import { LinearGradient } from 'expo-linear-gradient';
+4: import { router } from 'expo-router';
+5: import React, { useEffect, useRef, useState } from 'react';
+6: import {
+7:   Animated,
+8:   Dimensions,
+9:   Easing,
+10:   Image,
+11:   StatusBar,
+12:   StyleSheet,
+13:   Text,
+14:   TouchableOpacity,
+15:   View,
+16: } from 'react-native';
+17: 
+18: type OfflineGame = 'ludo' | 'whot' | 'snake_ladder';
+19: 
+20: interface BotTier {
+21:   label: string;
+22:   color: string;
+23:   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+24: }
+25: 
+26: interface GameCardData {
+27:   id: OfflineGame;
+28:   title: string;
+29:   subtitle: string;
+30:   accentColor: string;
+31:   accentSoft: string;
+32:   accentGlow: string;
+33:   image: any;
+34:   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+35:   difficulty: 'Easy' | 'Medium' | 'Hard';
+36:   difficultyColor: string;
+37:   description: string;
+38:   features: { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string }[];
+39:   bots: BotTier[];
+40:   timeEstimate: string;
+41: }
+42: 
+43: const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+44: 
+45: const C = {
+46:   gold: '#D4AF37',
+47:   goldLight: '#E7C75A',
+48:   goldDark: '#B8962E',
+49:   goldDeep: '#8A6A00',
+50:   bgDeep: '#05110B',
+51:   textMain: '#F0F0F0',
+52:   textMuted: '#A0B0A8',
+53:   textDim: '#3A4D42',
+54: };
+55: 
+56: const GAMES: GameCardData[] = [
+57:   {
+58:     id: 'ludo',
+59:     title: 'Ludo Fusion',
+60:     subtitle: 'C
+<truncated 30067 bytes>
+4,
+725:     fontWeight: '900',
+726:     color: '#FFF',
+727:     letterSpacing: 3,
+728:     textShadowColor: C.gold + '30',
+729:     textShadowOffset: { width: 0, height: 0 },
+730:     textShadowRadius: 20,
+731:   },
+732:   headerSub: {
+733:     fontSize: 10,
+734:     fontWeight: '600',
+735:     color: C.textMuted,
+736:     letterSpacing: 0.4,
+737:     marginTop: 3,
+738:   },
+739:   headerRight: {
+740:     flexDirection: 'row',
+741:     gap: 6,
+742:   },
+743:   badgeRow: {
+744:     flexDirection: 'row',
+745:     alignItems: 'center',
+746:     gap: 4,
+747:     paddingHorizontal: 10,
+748:     paddingVertical: 6,
+749:     borderRadius: 50,
+750:     backgroundColor: 'rgba(212,175,55,0.08)',
+751:     borderWidth: 1,
+752:     borderColor: 'rgba(212,175,55,0.2)',
+753:   },
+754:   badgeRowText: {
+755:     fontSize: 8,
+756:     fontWeight: '900',
+757:     color: C.gold,
+758:     letterSpacing: 1,
+759:   },
+760: 
+761:   // â”€â”€ Divider â”€â”€
+762:   divider: {
+763:     flexDirection: 'row',
+764:     alignItems: 'center',
+765:     marginVertical: 16,
+766:     paddingHorizontal: 60,
+767:   },
+768:   divLine: {
+769:     flex: 1,
+770:     height: 1,
+771:   },
+772:   divDot: {
+773:     width: 5,
+774:     height: 5,
+775:     borderRadius: 3,
+776:     marginHorizontal: 8,
+777:     borderWidth: 1,
+778:   },
+779: 
+780:   // â”€â”€ Cards row â”€â”€
+781:   cardsRow: {
+782:     flex: 1,
+783:     flexDirection: 'row',
+784:     justifyContent: 'center',
+785:     alignItems: 'center',
+786:     gap: 24,
+787:   },
+788: 
+789:   // â”€â”€ Card â”€â”€
+790:   card: {
+791:     width: CARD_W,
+792:     height: CARD_H,
+793:     borderRadius: 28,
+794:     borderWidth: 1.5,
+795:     overflow: 'hidden',
+796:     position: 'relative',
+797:     shadowColor: '#000',
+798:     shadowOffset: { width: 0, height: 16 },
+799:     shadowOpacity: 0.7,
+800:     shadowRadius: 30,
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+

@@ -172,7 +172,7 @@ export const SH = Dimensions.get('window').height;
 export const canPlayCard = (
   card: Card,
   topCard: Card | null,
-  currentShape: Color | null,
+  currentShape: Card['shape'] | null,
   pendingPicks: number,
   handLength: number
 ): boolean => {

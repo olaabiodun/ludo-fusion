@@ -197,7 +197,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
         colorCounts[op.color] = (colorCounts[op.color] || 0) + 1;
         if (colorCounts[op.color] >= 2) {
           const isVictimStart = perimeterIdx === START_INDICES[op.color as BC];
-          if (isDestination && isVictimStart) {
+          if (isVictimStart) {
             continue;
           }
           return true;
@@ -207,10 +207,10 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
     return false;
   }, []);
 
-  const rollDice = useCallback((value: number) => {
+  const rollDice = useCallback((value: number, force: boolean = false) => {
     setIsDiceRolling(false);
     setState(s => {
-      if (s.hasRolled || s.winner) return s;
+      if (!force && (s.hasRolled || s.winner)) return s;
 
       const turnColor = s.activeColors[s.turnIndex];
       const myPawns = s.pawns.filter(p => p.color === turnColor);
@@ -373,7 +373,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
 
       // Check if they just won
       const myPawnsFinished = newPawns.filter(p => p.color === turnColor && p.state === 'finished').length;
-      let finalWinner = s.winner;
+      let finalWinner: BC | null = s.winner;
       if (myPawnsFinished === 4) {
         grantExtraTurn = false;
         finalWinner = turnColor;

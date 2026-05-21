@@ -145,9 +145,9 @@ export function ActionPopup({
   const { entrance } = useSpring({
     from: { entrance: 0 },
     to: async (next) => {
-      await next({ entrance: 1, config: { duration: 300, easing: easings.easeOutBack } });
-      await new Promise(r => setTimeout(r, 1200));
-      await next({ entrance: 0, config: { duration: 300, easing: easings.easeInQuad } });
+      await next({ entrance: 1, config: { duration: 200, easing: easings.easeOutBack } });
+      await new Promise(r => setTimeout(r, 500));
+      await next({ entrance: 0, config: { duration: 200, easing: easings.easeInQuad } });
       onComplete();
     },
   });

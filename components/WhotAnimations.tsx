@@ -39,6 +39,7 @@ export interface MarketPick {
   pi: number;
   pickIndex: number;
   totalAtStart: number;
+  isPenalty?: boolean;
 }
 
 export interface RootLayout { w: number; h: number; }
@@ -156,10 +157,7 @@ export const FlyingCard = React.memo(({
         { rotate },
       ],
       opacity: interpolate(p, [0, 0.05, 0.95, 1], [0, 1, 1, 1], Extrapolate.CLAMP),
-      shadowColor: '#000',
-      shadowOpacity: shadowProgress * 0.4,
-      shadowRadius: rs(8),
-      shadowOffset: { width: 0, height: rs(4) },
+      // Dynamic shadows removed for low-end device animation performance (prevents rasterization thrashing)
     };
   });
 
@@ -174,6 +172,8 @@ export const FlyingCard = React.memo(({
   return (
     <Animated.View 
       style={[styles.cardBase, { overflow: 'visible' }, animatedStyle]}
+      renderToHardwareTextureAndroid={true}
+      shouldRasterizeIOS={true}
     >
       <Animated.View style={[StyleSheet.absoluteFill, backOpacity]}>
         <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
@@ -341,17 +341,15 @@ export const PlayCardAnim = React.memo(({
         { scale },
         { rotate },
       ],
-      shadowColor: '#000',
-      shadowOpacity: elev * 0.45,
-      shadowRadius: rs(10),
-      shadowOffset: { width: 0, height: rs(5) },
+      // Dynamic shadows removed for low-end device animation performance (prevents rasterization thrashing)
     };
   });
 
   return (
     <Animated.View 
       style={[styles.cardBase, { zIndex: 5000 }, animatedStyle]}
-      
+      renderToHardwareTextureAndroid={true}
+      shouldRasterizeIOS={true}
     >
       <WhotFrontCard shape={card.shape} value={card.value} width={CARD_W} height={CARD_H} />
     </Animated.View>
@@ -470,10 +468,7 @@ export const MarketPickAnim = React.memo(({
         { rotateZ: `${rotZ}deg` },
       ],
       zIndex: 3500,
-      shadowColor: '#FFD030',
-      shadowOpacity: val > 0.8 && val < 2.2 ? 0.45 : 0,
-      shadowRadius: rs(8),
-      shadowOffset: { width: 0, height: rs(4) },
+      // Dynamic shadows removed for low-end device animation performance (prevents rasterization thrashing)
     };
   });
 
@@ -490,7 +485,8 @@ export const MarketPickAnim = React.memo(({
   return (
     <Animated.View 
       style={[styles.cardBase, animatedStyle]}
-      
+      renderToHardwareTextureAndroid={true}
+      shouldRasterizeIOS={true}
     >
       <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
         <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
@@ -599,7 +595,8 @@ const ReshuffleCard = ({ index, total, progress, origin, target }: any) => {
   return (
     <Animated.View 
       style={[styles.cardBase, animatedStyle]}
-      
+      renderToHardwareTextureAndroid={true}
+      shouldRasterizeIOS={true}
     >
       <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
     </Animated.View>
@@ -661,6 +658,8 @@ const BurstCard = ({ index, total, seat, rootLayout }: any) => {
   return (
     <Animated.View 
       style={[styles.cardBase, { zIndex: 9000 }, animatedStyle]}
+      renderToHardwareTextureAndroid={true}
+      shouldRasterizeIOS={true}
     >
       <Image source={BACK_CARD} style={styles.fullImage} contentFit="contain" />
     </Animated.View>

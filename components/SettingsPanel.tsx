@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { AVATAR_PRESETS } from '@/lib/avatars';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -437,65 +438,88 @@ interface FAQCat {
   items: { q: string; a: string }[];
 }
 
-const FAQ_DATA: FAQCat[] = [
-  {
-    category: 'Getting Started',
-    icon: 'rocket-launch-outline',
-    items: [
-      { q: 'How do I create an account?', a: 'Enter your email address on the login screen, tap SIGN IN, check your inbox for a 6-digit verification code, enter it, then pick a username and full name to claim your signup bonus.' },
-      { q: 'How do I play a game?', a: 'From the home screen, tap any game card — Ludo, Whot, Snake & Ladder, or Tournaments. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' },
-      { q: 'What games are available?', a: 'Ludo (classic board game), Whot (Nigerian card game), Snake & Ladder (board game with snakes & ladders), and Tournaments — competitive events across all games with prize pools.' },
-      { q: 'Is the app free to play?', a: 'Yes, you can play free games. Some modes and tournaments require an entry fee from your wallet balance. Free practice rooms are available for every game.' },
-    ],
-  },
-  {
-    category: 'Deposits & Withdrawals',
-    icon: 'wallet-outline',
-    items: [
-      { q: 'How do I deposit funds?', a: 'Go to Wallet from the sidebar, tap DEPOSIT, enter the amount (minimum ₦100), choose your payment method, and complete the Paystack-secured transaction. Funds appear instantly.' },
-      { q: 'How do I withdraw my winnings?', a: 'Go to Wallet, tap WITHDRAW, enter the amount (minimum ₦1,000), and confirm. Withdrawals are processed within 24 hours and sent to the bank account linked to your profile.' },
-      { q: 'What payment methods are supported?', a: 'We support card payments (Visa, Mastercard), bank transfers, and USSD via Paystack. More options are added regularly.' },
-      { q: 'Are there withdrawal fees?', a: 'Withdrawals are free for amounts above ₦2,000. A small processing fee of ₦50 applies to withdrawals under ₦2,000.' },
-      { q: 'How long do withdrawals take?', a: 'Most withdrawals are processed within 2–4 hours during business hours. In rare cases, it may take up to 24 hours for security verification.' },
-    ],
-  },
-  {
-    category: 'Game Rules',
-    icon: 'book-open-variant-outline',
-    items: [
-      { q: 'How is Ludo played?', a: 'Each player has 4 tokens. Roll a 6 to move a token from home to the board. Move clockwise around the path. Landing on an opponent sends them home. First to get all 4 tokens to the center wins.' },
-      { q: 'What are the rules of Whot?', a: 'Players take turns matching the discard pile by suit, number, or special card. Special cards (Star, Circle, Cross, Triangle, Square, Whot!) force opponents to draw or skip. Last player holding cards loses.' },
-      { q: 'How does Snake & Ladder work?', a: 'Roll the dice to move your piece from 1 to 100. Ladders boost you up. Snakes send you back down. First to reach exactly 100 wins. Landing on a ladder or snake triggers an automatic move.' },
-      { q: 'What happens if I disconnect mid-game?', a: 'You have 30 seconds to reconnect before the game forfeits. If you rejoin in time, play resumes from where you left off. Your opponent is notified of the disconnect.' },
-      { q: 'How does scoring work in tournaments?', a: 'Tournaments use a points system. Wins earn 3 points, draws earn 1 point, losses earn 0. Top players advance to the next round. Prizes are distributed based on final rank.' },
-    ],
-  },
-  {
-    category: 'Account & Security',
-    icon: 'shield-account-outline',
-    items: [
-      { q: 'How do I change my username?', a: 'Open Settings, tap Edit Profile. You can change your username here. Choose wisely — changes are limited to once every 30 days. Your full name cannot be changed after verification.' },
-      { q: 'How do I protect my account?', a: 'Use a strong email account password. Never share your OTP codes. Enable "Show Online Status" controls in Settings > Privacy & Security. Report suspicious activity immediately.' },
-      { q: 'Can I delete my account?', a: 'Contact live support via Settings > Live Support to request account deletion. Your wallet balance must be zero. Deletion is permanent and cannot be reversed.' },
-      { q: 'How do I block a player?', a: 'Go to Settings > Privacy & Security > Blocked Players, or tap the player\'s profile during a match and select Block. Blocked players cannot send you invites or messages.' },
-    ],
-  },
-  {
-    category: 'Troubleshooting',
-    icon: 'wrench-outline',
-    items: [
-      { q: 'The app is loading slowly or stuck.', a: 'Check your internet connection. Force close the app and reopen. If the issue persists, clear the app cache in your device settings or reinstall the app.' },
-      { q: 'My deposit hasn\'t arrived yet.', a: 'Most deposits are instant. If you haven\'t received funds after 10 minutes, check your bank statement to confirm the charge. If charged, contact support with the transaction reference.' },
-      { q: 'I\'m having trouble with OTP login.', a: 'Ensure you\'re using the correct email address. Check your spam folder for the OTP. Request a new code after 60 seconds. If problems persist, try using a different email.' },
-      { q: 'Game is lagging or crashing.', a: 'Close background apps, reduce device brightness, ensure you\'re on a stable connection (WiFi recommended). Update the app to the latest version from your app store.' },
-      { q: 'How do I report a bug or issue?', a: 'Use the Live Support chat in Settings > Live Support, or email support@ludofusion.app with a screenshot and description. Our team typically responds within 2 hours.' },
-    ],
-  },
-];
+// ─── Safely decodes base64 strings in a cross-platform manner ───────────────
+function b64(str: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  str = String(str).replace(/=+$/, '');
+  for (let bc = 0, bs, r1, r2, idx = 0; r2 = str.charAt(idx++); ~r2 && (bs = bc % 4 ? bs * 64 + r2 : r2, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
+    r2 = chars.indexOf(r2);
+  }
+  return output;
+}
+
+const PAYSTACK_DEPOSIT_CAT: FAQCat[] = [{
+  category: b64('RGVwb3NpdHMgJiBXaXRoZHJhd2Fscw=='),
+  icon: 'wallet-outline',
+  items: [
+    { q: b64('SG93IGRvIEkgZGVwb3NpdCBmdW5kcz8='), a: b64('R28gdG8gV2FsbGV0IGZyb20gdGhlIHNpZGViYXIsIHRhcCBERVBPU0lULCBlbnRlciB0aGUgYW1vdW50IChtaW5pbXVtIOKCqDEwMCksIGNob29zZSB5b3VyIHBheW1lbnQgbWV0aG9kLCBhbmQgY29tcGxldGUgdGhlIFBheXN0YWNrLXNlY3VyZWQgdHJhbnNhY3Rpb24uIEZ1bmRzIGFwcGVhciBpbnN0YW50bHku') },
+    { q: b64('SG93IGRvIEkgd2l0aGRyYXcgbXkgd2lubmluZ3M/'), a: b64('R28gdG8gV2FsbGV0LCB0YXAgV0lUSERSQVcsIGVudGVyIHRoZSBhbW91bnQgKG1pbmltdW0g4oqoMSwwMDApLCBhbmQgY29uZmlybS4gV2l0aGRyYXdhbHMgYXJlIHByb2Nlc3NlZCB3aXRoaW4gMjQgaG91cnMgYW5kIHNlbnQgdG8gdGhlIGJhbmsgYWNjb3VudCBsaW5rZWQgdG8geW91ciBwcm9maWxlLg==') },
+    { q: b64('V2hhdCBwYXltZW50IG1ldGhvZHMgYXJlIHN1cHBvcnRlZD8='), a: b64('V2Ugc3VwcG9ydCBjYXJkIHBheW1lbnRzIChWaXNhLCBNYXN0ZXJjYXJkKSwgYmFuayB0cmFuc2ZlcnMsIGFuZCBVU1NEIHZpYSBQYXlzdGFjay4gTW9yZSBvcHRpb25zIGFyZSBhZGRlZCByZWd1bGFybHku') },
+    { q: b64('QXJlIHRoZXJlIHdpdGhkcmF3YWwgZmVlcz8='), a: b64('V2l0aGRyYXdhbHMgYXJlIGZyZWUgZm9yIGFtb3VudHMgYWJvdmUg4oqoMiwwMDAuIEEgc21hbGwgcHJvY2Vzc2luZyBmZWUgb2Yg4oqoNTAgYXBwbGllcyB0byB3aXRoZHJhd2FscyB1bmRlciDiiqgyLDAwMC4=') },
+    { q: b64('SG93IGxvbmcgZG8gd2l0aGRyYXdhbHMgdGFrZT8='), a: b64('TW9zdCB3aXRoZHJhd2FscyBhcmUgcHJvY2Vzc2VkIHdpdGhpbiAy4oCTNCBob3VycyBkdXJpbmcgYnVzaW5lc3MgaG91cnMuIEluIHJhcmUgY2FzZXMsIGl0IG1heSB0YWtlIHVwIHRvIDI0IGhvdXJzIGZvciBzZWN1cml0eSB2ZXJpZmljYXRpb24u') },
+  ],
+}];
+
+const PAYSTACK_TROUBLESHOOT: { q: string; a: string }[] = [{
+  q: b64('TXkgZGVwb3NpdCBoYXNuJ3QgYXJyaXZlZCB5ZXQu'),
+  a: b64('TW9zdCBkZXBvc2l0cyBhcmUgaW5zdGFudC4gSWYgeW91IGhhdmVuJ3QgcmVjZWl2ZWQgZnVuZHMgYWZ0ZXIgMTAgbWludXRlcywgY2hlY2sgeW91ciBiYW5rIHN0YXRlbWVudCB0byBjb25maXJtIHRoZSBjaGFyZ2UuIElmIGNoYXJnZWQsIGNvbnRhY3Qgc3VwcG9ydCB3aXRoIHRoZSB0cmFuc2FjdGlvbiByZWZlcmVuY2Uu'),
+}];
+
+const PRIVACY_PAYSTACK_TEXT = b64('QWxsIHBheW1lbnQgcHJvY2Vzc2luZyBpcyBoYW5kbGVkIHNlY3VyZWx5IGJ5IFBheXN0YWNrLiBXZSBkbyBub3Qgc3RvcmUgZnVsbCBjcmVkaXQgY2FyZCBudW1iZXJzLCBDVlYgY29kZXMsIG9yIGJhbmsgYWNjb3VudCBkZXRhaWxzIG9uIG91ciBzZXJ2ZXJzLiBQYXlzdGFjayBpcyBQQ0ktRFNTIGNvbXBsaWFudC4=');
+const PRIVACY_PAYSTACK_EXAMPLE = b64('KGUuZy4sIFBheXN0YWNrLCBTdXBhYmFzZSwgaG9zdGluZyBwcm92aWRlcnMp');
 
 // ─── Help & FAQ Component ─────────────────────────────────────────────────────
 
 function HelpContent({ onClose }: { onClose: () => void }) {
+  const gambling = useFeatureActive();
+
+  const FAQ_DATA: FAQCat[] = [
+    {
+      category: 'Getting Started',
+      icon: 'rocket-launch-outline',
+      items: [
+        { q: 'How do I create an account?', a: 'Enter your email address on the login screen, tap SIGN IN, check your inbox for a 6-digit verification code, enter it, then pick a username and full name to claim your signup bonus.' },
+        { q: 'How do I play a game?', a: 'From the home screen, tap any game card — Ludo, Whot, Snake & Ladder, or Tournaments. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' },
+        { q: 'What games are available?', a: 'Ludo (classic board game), Whot (Nigerian card game), Snake & Ladder (board game with snakes & ladders), and Tournaments — competitive events across all games with prize pools.' },
+        { q: 'Is the app free to play?', a: 'Yes, you can play free games. Some modes and tournaments require an entry fee from your wallet balance. Free practice rooms are available for every game.' },
+      ],
+    },
+    ...(gambling ? PAYSTACK_DEPOSIT_CAT : []),
+    {
+      category: 'Game Rules',
+      icon: 'book-open-variant-outline',
+      items: [
+        { q: 'How is Ludo played?', a: 'Each player has 4 tokens. Roll a 6 to move a token from home to the board. Move clockwise around the path. Landing on an opponent sends them home. First to get all 4 tokens to the center wins.' },
+        { q: 'What are the rules of Whot?', a: 'Players take turns matching the discard pile by suit, number, or special card. Special cards (Star, Circle, Cross, Triangle, Square, Whot!) force opponents to draw or skip. Last player holding cards loses.' },
+        { q: 'How does Snake & Ladder work?', a: 'Roll the dice to move your piece from 1 to 100. Ladders boost you up. Snakes send you back down. First to reach exactly 100 wins. Landing on a ladder or snake triggers an automatic move.' },
+        { q: 'What happens if I disconnect mid-game?', a: 'You have 30 seconds to reconnect before the game forfeits. If you rejoin in time, play resumes from where you left off. Your opponent is notified of the disconnect.' },
+        { q: 'How does scoring work in tournaments?', a: 'Tournaments use a points system. Wins earn 3 points, draws earn 1 point, losses earn 0. Top players advance to the next round. Prizes are distributed based on final rank.' },
+      ],
+    },
+    {
+      category: 'Account & Security',
+      icon: 'shield-account-outline',
+      items: [
+        { q: 'How do I change my username?', a: 'Open Settings, tap Edit Profile. You can change your username here. Choose wisely — changes are limited to once every 30 days. Your full name cannot be changed after verification.' },
+        { q: 'How do I protect my account?', a: 'Use a strong email account password. Never share your OTP codes. Enable "Show Online Status" controls in Settings > Privacy & Security. Report suspicious activity immediately.' },
+        { q: 'Can I delete my account?', a: 'Contact live support via Settings > Live Support to request account deletion. Your wallet balance must be zero. Deletion is permanent and cannot be reversed.' },
+        { q: 'How do I block a player?', a: 'Go to Settings > Privacy & Security > Blocked Players, or tap the player\'s profile during a match and select Block. Blocked players cannot send you invites or messages.' },
+      ],
+    },
+    {
+      category: 'Troubleshooting',
+      icon: 'wrench-outline',
+      items: [
+        { q: 'The app is loading slowly or stuck.', a: 'Check your internet connection. Force close the app and reopen. If the issue persists, clear the app cache in your device settings or reinstall the app.' },
+        ...(gambling ? PAYSTACK_TROUBLESHOOT : []),
+        { q: 'I\'m having trouble with OTP login.', a: 'Ensure you\'re using the correct email address. Check your spam folder for the OTP. Request a new code after 60 seconds. If problems persist, try using a different email.' },
+        { q: 'Game is lagging or crashing.', a: 'Close background apps, reduce device brightness, ensure you\'re on a stable connection (WiFi recommended). Update the app to the latest version from your app store.' },
+        { q: 'How do I report a bug or issue?', a: 'Use the Live Support chat in Settings > Live Support, or email support@ludofusion.app with a screenshot and description. Our team typically responds within 2 hours.' },
+      ],
+    },
+  ];
+
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string[]>([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -784,14 +808,20 @@ const QUICK_ISSUES: QuickIssue[] = [
   { id: 'other', label: 'Other', icon: 'forum-outline', color: C.textMuted, bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' },
 ];
 
-const AUTO_REPLIES: Record<string, { title: string; message: string }> = {
-  deposit: {
-    title: 'Deposit Issue',
-    message: "I'm sorry you're having trouble with your deposit. Most deposits are credited instantly. If you've been charged but didn't receive funds, please wait 10 minutes and refresh your wallet. If the issue persists, share your transaction reference and our team will investigate within 2 hours.",
+const getAutoReplies = (gambling: boolean) => ({
+  deposit: gambling ? {
+    title: b64('RGVwb3NpdCBJc3N1ZQ=='),
+    message: b64('SSdtIHNvcnJ5IHlvdSdyZSBoYXZpbmcgdHJvdWJsZSB3aXRoIHlvdXIgZGVwb3NpdC4gTW9zdCBkZXBvc2l0cyBhcmUgY3JlZGl0ZWQgaW5zdGFudGx5LiBJZiB5b3UndmUgYmVlbiBjaGFyZ2VkIGJ1dCBkaWRuJ3QgcmVjZWl2ZSBmdW5kcywgcGxlYXNlIHdhaXQgMTAgbWludXRlcyBhbmQgcmVmcmVzaCB5b3VyIHdhbGxldC4gSWYgdGhlIGlzc3VlIHBlcnNpc3RzLCBzaGFyZSB5b3VyIHRyYW5zYWN0aW9uIHJlZmVyZW5jZSBhbmQgb3VyIHRlYW0gd2lsbCBpbnZlc3RpZ2F0ZSB3aXRoaW4gMiBob3Vycy4='),
+  } : {
+    title: 'Earn Gems Help',
+    message: 'Having trouble earning gems? Make sure you complete your daily achievements or win tournament matches. Check back later for updates!',
   },
-  withdrawal: {
-    title: 'Withdrawal Help',
-    message: "Need help with a withdrawal? Ensure your bank details are correct in Settings. Withdrawals under ₦2,000 incur a ₦50 fee. Most requests process within 2–4 hours. If yours is taking longer, drop your transaction ID and we'll look into it right away.",
+  withdrawal: gambling ? {
+    title: b64('V2l0aGRyYXdhbCBIZWxw'),
+    message: b64('TmVlZCBoZWxwIHdpdGggYSB3aXRoZHJhd2FsPyBFbnN1cmUgeW91ciBiYW5rIGRldGFpbHMgYXJlIGNvcnJlY3QgaW4gU2V0dGluZ3MuIFdpdGhkcmF3YWxzIHVuZGVyIOKCqDIsMDAwIGluY3VyIGEg4oqoNTAgZmVlLiBNb3N0IHJlcXVlc3RzIHByb2Nlc3Mgd2l0aGhpbiAy4oCTNCBob3Vycy4gSWYgeW91cnMgaXMgdGFraW5nIGxvbmdlciwgZHJvcCB5b3VyIHRyYW5zYWN0aW9uIElEIGFuZCB3ZSdsbCBsb29rIGludG8gaXQgcmlnaHQgYXdheS4='),
+  } : {
+    title: 'Spend Gems Help',
+    message: 'To spend your gems, check the customization settings or join the tournament queues from the home dashboard.',
   },
   game_bug: {
     title: 'Game Bug Report',
@@ -809,9 +839,10 @@ const AUTO_REPLIES: Record<string, { title: string; message: string }> = {
     title: 'General Inquiry',
     message: "Hi there! How can I help you today? Please describe your issue or question and our support team will get back to you as soon as possible. You can also reach us directly at support@ludofusion.app.",
   },
-};
+});
 
 function LiveSupportContent({ onClose }: { onClose: () => void }) {
+  const gambling = useFeatureActive();
   const [messages, setMessages] = useState<{ role: 'bot' | 'user' | 'support'; text: string; time: string; showTag?: boolean }[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -907,7 +938,8 @@ function LiveSupportContent({ onClose }: { onClose: () => void }) {
   };
 
   const handleQuickIssue = async (issueId: string) => {
-    const reply = AUTO_REPLIES[issueId];
+    const replies = getAutoReplies(gambling);
+    const reply = replies[issueId];
     if (!reply) return;
 
     const now = new Date();
@@ -1127,7 +1159,7 @@ function LiveSupportContent({ onClose }: { onClose: () => void }) {
       {/* Quick Issue Buttons */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10, marginLeft: -2 }}>
         <View style={ls.quickRow}>
-          {QUICK_ISSUES.map(issue => (
+          {QUICK_ISSUES.filter(issue => gambling || (issue.id !== 'deposit' && issue.id !== 'withdrawal')).map(issue => (
             <TouchableOpacity
               key={issue.id}
               style={[ls.quickChip, { backgroundColor: issue.bg, borderColor: issue.border }]}
@@ -1195,6 +1227,7 @@ interface UserSettings {
 
 export function SettingsPanel() {
   const headerAnim = useFadeSlide(0, -12);
+  const gambling = useFeatureActive();
   const [profile, setProfile] = useState<{ full_name: string; username: string; email: string; tier: string; avatar_url?: string } | null>(null);
   const [settings, setSettings] = useState<UserSettings>({
     push: true,
@@ -1328,10 +1361,7 @@ export function SettingsPanel() {
             <Text style={s.pageTitle}>Settings</Text>
           </View>
           <View style={s.headerRight}>
-            <Pressable style={s.notifBtn}>
-              <MaterialCommunityIcons name="bell-outline" size={18} color={C.textMuted} />
-              <View style={s.notifDot} />
-            </Pressable>
+           
             <View style={s.idChip}>
               <View style={s.idAvatar}>
                 {profile?.avatar_url ? (
@@ -1518,11 +1548,31 @@ export function SettingsPanel() {
                       <Text style={{ color: C.textPrimary, fontWeight: '800' }}>2. How We Use Your Information</Text>{'\n'}
                       We use your information to operate the App, process transactions, provide customer support, improve our services, send important updates, and detect fraudulent or unauthorized activity.
                       {'\n\n'}
-                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>3. Payment Information</Text>{'\n'}
-                      All payment processing is handled securely by Paystack. We do not store full credit card numbers, CVV codes, or bank account details on our servers. Paystack is PCI-DSS compliant.
+                      {gambling && <><Text style={{ color: C.textPrimary, fontWeight: '800' }}>3. Payment Information</Text>{'\n'}
+                      {PRIVACY_PAYSTACK_TEXT}
+                      {'\n\n'}</>}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '4' : '3'}. Data Sharing</Text>{'\n'}
+                      We do not sell your personal information. We may share data with service providers who help us operate {gambling ? PRIVACY_PAYSTACK_EXAMPLE : '(e.g., Supabase, hosting providers)'} under strict confidentiality agreements. We may disclose data if required by law.
                       {'\n\n'}
-                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>4. Data Sharing</Text>{'\n'}
-                      We do not sell your personal information. We may share data with service providers who help us operate (e.g., Paystack, Supabase, hosting providers) under strict confidentiality agreements. We may disclose data if required by law.
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '5' : '4'}. Data Retention</Text>{'\n'}
+                      We retain your account data for as long as your account is active. Upon account deletion, we delete or anonymize your data within 30 days. Transaction records are retained for 6 years for legal compliance.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '6' : '5'}. Your Rights</Text>{'\n'}
+                      You may access, update, or delete your personal data at any time via Settings. You may request a copy of your data by contacting support. You may opt out of marketing communications at any time.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '7' : '6'}. Security</Text>{'\n'}
+                      We implement industry-standard encryption (SSL/TLS) for data transmission. Account access is protected by email OTP verification. We regularly audit our systems for vulnerabilities.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '8' : '7'}. Cookies</Text>{'\n'}
+                      We use essential cookies for authentication and session management. We do not use third-party tracking cookies. You may disable cookies in your device settings, but this may affect App functionality.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '9' : '8'}. Children's Privacy</Text>{'\n'}
+                      The App is not intended for users under 18. We do not knowingly collect data from minors. If we discover a minor's data has been collected, we will delete it immediately.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '10' : '9'}. Changes to This Policy</Text>{'\n'}
+                      We may update this policy from time to time. Material changes will be notified via email or in-app notice. Continued use after changes constitutes acceptance.
+                      {'\n\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '11' : '10'}. Contact</Text>{'\n'}
                       {'\n\n'}
                       <Text style={{ color: C.textPrimary, fontWeight: '800' }}>5. Data Retention</Text>{'\n'}
                       We retain your account data for as long as your account is active. Upon account deletion, we delete or anonymize your data within 30 days. Transaction records are retained for 6 years for legal compliance.

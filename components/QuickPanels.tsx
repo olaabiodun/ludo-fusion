@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -218,6 +219,7 @@ const gps = StyleSheet.create({
 });
 
 export function GiftPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const gambling = useFeatureActive();
   const [rewards, setRewards] = useState<any[]>([]);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -242,7 +244,7 @@ export function GiftPanel({ visible, onClose }: { visible: boolean; onClose: () 
 
         const mapped = defs.map(d => ({
           day: d.day_number,
-          label: d.label,
+          label: gambling ? d.label : d.label.replace(/\u20A6/g, '').trim() || d.label,
           icon: d.icon,
           color: d.color,
           claimed: claimSet.has(d.day_number),
@@ -317,6 +319,7 @@ export function GiftPanel({ visible, onClose }: { visible: boolean; onClose: () 
 // ── MISSIONS PANEL ────────────────────────────────────────────────────────────
 
 function MissionRow({ m, index, onClaim, claiming }: { m: any; index: number; onClaim: () => void; claiming: boolean }) {
+  const gambling = useFeatureActive();
   const pct = Math.min(1, m.progress / m.target);
   const done = m.is_claimed;
   const canClaim = m.progress >= m.target && !m.is_claimed;
@@ -362,7 +365,7 @@ function MissionRow({ m, index, onClaim, claiming }: { m: any; index: number; on
           done && { color: SUCCESS },
           canClaim && { color: '#000' }
         ]}>
-          {claiming ? '...' : (done ? 'DONE' : (canClaim ? 'CLAIM' : `₦${m.reward}`))}
+          {claiming ? '...' : (done ? 'DONE' : (canClaim ? 'CLAIM' : (gambling ? `₦${m.reward}` : `${m.reward} coins`)))}
         </Text>
       </TouchableOpacity>
     </Animated.View>
@@ -431,6 +434,7 @@ const mps = StyleSheet.create({
 });
 
 export function MissionsPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const gambling = useFeatureActive();
   const [missions, setMissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -449,6 +453,7 @@ export function MissionsPanel({ visible, onClose }: { visible: boolean; onClose:
           const um = userMap.get(m.id);
           return {
             ...m,
+            title: gambling ? m.title : m.title.replace(/\u20A6([\d,]+)/g, '$1 coins'),
             progress: um?.progress || 0,
             is_claimed: um?.is_claimed || false,
           };

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBackground } from '@/components/AppBackground';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 import { supabase } from '@/lib/supabase';
 
@@ -43,6 +44,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = React.useState(true);
   const [profile, setProfile] = React.useState<any>(null);
   const [recentMatches, setRecentMatches] = React.useState<GameRecord[]>([]);
+  const gamblingEnabled = useFeatureActive();
 
   useEffect(() => {
     async function loadData() {
@@ -106,15 +108,42 @@ export default function ProfileScreen() {
   }, []);
 
   const formatAmount = (amt: number) => {
-    if (amt >= 1000) return `₦${(amt / 1000).toFixed(1)}k`;
-    return `₦${amt}`;
+    if (gamblingEnabled) {
+      if (amt >= 1000) return `₦${(amt / 1000).toFixed(1)}k`;
+      return `₦${amt}`;
+    } else {
+      if (amt >= 1000) return `${(amt / 1000).toFixed(1)}k coins`;
+      return `${amt} coins`;
+    }
   };
 
   const getTimeAgo = (date: string) => {
-    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    const dateMs = new Date(date).getTime();
+    if (isNaN(dateMs)) return 'Recently';
+
+    const diff = Date.now() - dateMs;
+    const absDiff = Math.abs(diff);
+
+    if (absDiff < 60000) {
+      return 'Just now';
+    }
+
+    const minutes = Math.floor(absDiff / 60000);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+
+    const hours = Math.floor(absDiff / 36e5);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+
+    const days = Math.floor(absDiff / 864e5);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) {
+      return `${days} days ago`;
+    }
+
     return new Date(date).toLocaleDateString();
   };
 

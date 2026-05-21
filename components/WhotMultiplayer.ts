@@ -44,7 +44,7 @@ interface MultiplayerProps {
   setGameEndsAt: (v: number | null) => void;
   setPrize: (v: number) => void;
   setPlayerLives: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-  onWinner?: (color: string) => void;
+  onWinner?: (color: string, scores?: Record<string, number>) => void;
   pendingHandsRef: React.MutableRefObject<Record<string, Card[]>>;
   hasJoinedRoom: React.MutableRefObject<boolean>;
   /** Ref the parent keeps pointing at the current activePlay value so we can
@@ -87,6 +87,7 @@ export function useWhotMultiplayer({
    * once the animation's onLand callback fires.
    */
   const pendingTurnRef = React.useRef<{ turn: number; startedAt: number | null } | null>(null);
+  const activePicksCountRef = React.useRef<number>(0);
 
   // ─── Remote Play ──────────────────────────────────────────────────────────────
   const handleRemotePlay = React.useCallback((
@@ -100,6 +101,9 @@ export function useWhotMultiplayer({
     const p = players[pi];
     if (!p) return;
     
+    // Defer the turn index update until onLand of the played card
+    pendingTurnRef.current = { turn: nextTurn, startedAt: null };
+
     playWhotCardSound();
 
     if (specialMsg) {
@@ -190,7 +194,7 @@ export function useWhotMultiplayer({
   const handleRemotePick = React.useCallback((
     pi: number,
     cards: Card[],
-    _nextTurn: number,
+    nextTurn: number,
     specialMsg?: string,
   ) => {
     const p = players[pi];
@@ -199,6 +203,12 @@ export function useWhotMultiplayer({
     if (specialMsg) setActionMessage({ msg: specialMsg, seat: p.seat as Seat });
     setWasHoldOn(false);
     setPendingPicks(0); // Always clear pending picks when someone actually picks
+
+    // Increment active picks animation count
+    activePicksCountRef.current += cards.length;
+
+    // Defer the turn index update until all picked cards land in player's hand
+    pendingTurnRef.current = { turn: nextTurn, startedAt: null };
 
     const newPicks = cards.map((card, i) => ({
       key: `${Math.random()}-${i}`,
@@ -302,6 +312,8 @@ export function useWhotMultiplayer({
       specialMsg?: string;
       wantShape?: WhotShape | null;
     }) => {
+      // We do NOT update topCard here anymore.
+      // It is safely deferred until the card animation reaches the center in handleRemotePlay's onLand callback!
       handleRemotePlay(
         data.pi,
         data.cardIdx,
@@ -344,7 +356,8 @@ export function useWhotMultiplayer({
       playerLives?: Record<string, number>;
       prize?: number;
     }) => {
-      if (topCard) setTopCard(topCard);
+      // Do not sync topCard visually if an animation is currently flying to the center
+      if (topCard && !activePlayRef.current) setTopCard(topCard);
       if (prize !== undefined) setPrize(prize);
 
       if (currentShape !== undefined) {
@@ -367,7 +380,7 @@ export function useWhotMultiplayer({
       }
 
       if (currentTurn !== undefined) {
-        if (activePlayRef.current) {
+        if (activePlayRef.current || activePicksCountRef.current > 0) {
           pendingTurnRef.current = { turn: currentTurn, startedAt: turnStartedAt ?? null };
         } else {
           setTurnIndex(currentTurn);
@@ -378,7 +391,7 @@ export function useWhotMultiplayer({
 
     // ── whot_turn_update: lightweight turn-only sync ───────────────────────────
     const onWhotTurnUpdate = ({ nextTurn, turnStartedAt }: { nextTurn: number; turnStartedAt?: number | null }) => {
-      if (activePlayRef.current) {
+      if (activePlayRef.current || activePicksCountRef.current > 0) {
         pendingTurnRef.current = { turn: nextTurn, startedAt: turnStartedAt ?? null };
       } else {
         setTurnIndex(nextTurn);
@@ -409,7 +422,7 @@ export function useWhotMultiplayer({
       setMarketCount(newCount);
     };
 
-    const onWhotGameOver = (data: { winner: string, scores: any }) => {
+    const onWhotGameOver = (data: { winner: string, scores: any, reason?: string }) => {
       // Server sends scores as [{userId, score, handCount}] — convert to Record<userId, score>
       // so nothing tries to render a raw object as a React child.
       let normalizedScores: Record<string, number> = {};
@@ -427,7 +440,9 @@ export function useWhotMultiplayer({
 
       onWinner?.(winnerColor, normalizedScores);
       setShowScoring(true);
-      playWhotCheckupSound();
+      if (data.reason === 'WIN') {
+        playWhotCheckupSound();
+      }
     };
 
     const onWhotTimerStarted = ({ gameEndsAt }: { gameEndsAt: number }) => {
@@ -490,5 +505,5 @@ export function useWhotMultiplayer({
     activePlayRef,
   ]);
 
-  return { handleRemotePlay, handleRemotePick, pendingTurnRef };
+  return { handleRemotePlay, handleRemotePick, pendingTurnRef, activePicksCountRef };
 }

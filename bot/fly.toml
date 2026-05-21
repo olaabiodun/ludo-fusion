@@ -1,0 +1,22 @@
+app = "ludo-bots"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SUPABASE_URL = "https://zuspbhabwlpxzmlxydgx.supabase.co"
+  SUPABASE_ANON_KEY = "sb_publishable_KzgmXSkpNiajIPe9KGQKMA_Ff1pX8uJ"
+  SERVER_URL = "http://your-game-server-url:3001"
+  GAME_TYPE = "ludo"
+  STAKE = "100"
+  MAX_PLAYERS = "2"
+
+[[services]]
+  internal_port = 3001
+  protocol = "tcp"
+  auto_stop_machines = false
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
@@ -50,9 +51,11 @@ function formatDate(isoString: string): string {
   return new Date(isoString).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
 }
 
-function formatAmount(amount: number, isWin: boolean): string {
+function formatAmount(amount: number, isWin: boolean, gambling: boolean): string {
   const abs = Math.abs(amount);
-  const formatted = abs >= 1000 ? `₦${(abs / 1000).toFixed(1)}k` : `₦${abs}`;
+  const formatted = gambling
+    ? (abs >= 1000 ? `₦${(abs / 1000).toFixed(1)}k` : `₦${abs}`)
+    : `${abs.toLocaleString()} coins`;
   return isWin ? `+${formatted}` : `-${formatted}`;
 }
 
@@ -84,7 +87,7 @@ function CompactProgress({ progress }: { progress: number }) {
 }
 
 // ─── Individual History Row ───────────────────────────────────────────────────
-function HistoryRow({ item, delay }: { item: GameRecord; delay: number }) {
+function HistoryRow({ item, delay, gambling }: { item: GameRecord; delay: number; gambling: boolean }) {
   const isWin = item.result === 'win';
   
   const getGameMeta = () => {
@@ -113,7 +116,7 @@ function HistoryRow({ item, delay }: { item: GameRecord; delay: number }) {
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[s.rowAmount, { color: isWin ? C.success : C.danger }]}>
-          {formatAmount(isWin ? item.win_amount : item.stake, isWin)}
+          {formatAmount(isWin ? item.win_amount : item.stake, isWin, gambling)}
         </Text>
         <Text style={s.rowStatus}>{isWin ? 'VICTORY' : 'DEFEAT'}</Text>
       </View>
@@ -126,6 +129,7 @@ export function HistoryPanel() {
   const [tab, setTab] = useState(0);
   const [allGames, setAllGames] = useState<GameRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const gambling = useFeatureActive();
 
   // Career stats computed from data
   const totalWins     = allGames.filter(g => g.result === 'win').length;
@@ -201,23 +205,23 @@ export function HistoryPanel() {
       return;
     }
     
-    let report = "DUFUHS GAME HISTORY REPORT\n";
+    let report = gambling ? "DUFUHS GAME HISTORY REPORT\n" : "LUDO FUSION MATCH HISTORY REPORT\n";
     report += "--------------------------\n";
     report += `Total Matches: ${totalMatches}\n`;
     report += `Win Rate: ${winRate}%\n`;
-    report += `Net Earnings: ₦${totalEarnings}\n\n`;
-    report += "DATE | GAME | MODE | RESULT | STAKE | WINNINGS\n";
+    report += `Net Earnings: ${gambling ? `₦${totalEarnings}` : `${totalEarnings} coins`}\n\n`;
+    report += `DATE | GAME | MODE | RESULT | STAKE | ${gambling ? 'WINNINGS' : 'PRIZE'}\n`;
     
     allGames.forEach(g => {
       const date = new Date(g.created_at).toLocaleDateString();
       const game = g.game_type === 'ludo' ? 'Ludo' : g.game_type === 'whot' ? 'Whot' : 'Snake';
-      report += `${date} | ${game} | ${g.table_name} | ${g.result.toUpperCase()} | ₦${g.stake} | ₦${g.win_amount}\n`;
+      report += `${date} | ${game} | ${g.table_name} | ${g.result.toUpperCase()} | ${gambling ? `₦${g.stake}` : `${g.stake} coins`} | ${gambling ? `₦${g.win_amount}` : `${g.win_amount} coins`}\n`;
     });
 
     try {
       await Share.share({
         message: report,
-        title: 'My Game History'
+        title: gambling ? 'My Game History' : 'My Match History'
       });
     } catch (error) {
       Alert.alert("Error", "Failed to export history.");
@@ -254,7 +258,7 @@ export function HistoryPanel() {
 
           <View style={s.list}>
             {filteredGames.length > 0 ? (
-              filteredGames.map((r, i) => <HistoryRow key={r.id} item={r} delay={200 + i * 50} />)
+              filteredGames.map((r, i) => <HistoryRow key={r.id} item={r} delay={200 + i * 50} gambling={gambling} />)
             ) : (
               <View style={s.emptyState}>
                 <MaterialCommunityIcons name="history" size={32} color={C.gold} style={{ opacity: 0.4 }} />
@@ -293,7 +297,9 @@ export function HistoryPanel() {
               <View style={s.gridItem}>
                 <Text style={s.gridLabel}>EARNINGS</Text>
                 <Text style={s.gridValue}>
-                  {totalEarnings >= 1000 ? `₦${(totalEarnings / 1000).toFixed(1)}k` : `₦${totalEarnings}`}
+                  {gambling
+                    ? (totalEarnings >= 1000 ? `₦${(totalEarnings / 1000).toFixed(1)}k` : `₦${totalEarnings}`)
+                    : `${totalEarnings.toLocaleString()} coins`}
                 </Text>
               </View>
               <View style={s.gridItem}>

@@ -17,9 +17,10 @@ import { PlayerProfileModal } from './PlayerProfileModal';
 import { getBotName, Seat } from './WhotUtils';
 import { GameQuitModal } from './GameQuitModal';
 import { ActionPopup } from './ActionPopup';
-import { useGamblingEnabled } from '@/lib/GamblingContext';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { getPlayerAvatar } from '@/lib/avatars';
 import { playButtonSound, loadSounds, playDiceRollSound } from '../lib/sounds';
+import { EMOJI_PACK } from '../lib/emojis';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -57,7 +58,7 @@ const colorHex: Record<Color, string> = {
   red: C.red,
 };
 
-const SEAT_POS: Record<Seat, object> = {
+const SEAT_POS: Record<string, object> = {
   TL: { top: 52, left: 8 },
   TR: { top: 52, right: 8 },
   BL: { bottom: 12, left: 8 },
@@ -96,12 +97,14 @@ function BubblingEmoji({ img, onPress, index }: { img: any; onPress: () => void;
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.6}>
-      <Animated.View style={[st.emojiItem, { 
-        transform: [
-          { scale },
-          { translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }
-        ] 
-      }]}>
+      <Animated.View 
+        renderToHardwareTextureAndroid={true}
+        style={[st.emojiItem, { 
+          transform: [
+            { scale },
+            { translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }
+          ] 
+        }]}>
         <Image source={img} style={st.emojiImg} />
       </Animated.View>
     </TouchableOpacity>
@@ -202,7 +205,10 @@ function PlayerChip({
       onPress={onPressProfile}
     >
       {active && (
-        <Animated.View style={[StyleSheet.absoluteFillObject, st.activeRing, { borderColor: col, opacity: ringPulse }]} />
+        <Animated.View 
+          renderToHardwareTextureAndroid={true}
+          style={[StyleSheet.absoluteFillObject, st.activeRing, { borderColor: col, opacity: ringPulse }]} 
+        />
       )}
 
       {active && (
@@ -341,7 +347,7 @@ export function SnakeLadderGameUI({
   const [reportSent, setReportSent] = React.useState<string | null>(null);
   const [actionPopup, setActionPopup] = React.useState<{ message: string, seat: Seat } | null>(null);
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
-  const gamblingEnabled = useGamblingEnabled();
+  const gamblingEnabled = useFeatureActive();
   
   const emojiAnim = React.useRef(new Animated.Value(0)).current;
   const quickSettingsAnim = React.useRef(new Animated.Value(0)).current;
@@ -444,7 +450,7 @@ export function SnakeLadderGameUI({
     if (engine.hasRolled) return;         // already rolled this turn
     if (engine.isMoving) return;          // piece is animating
 
-    const activeTurnPlayer = visiblePlayers.find(p => p.color === activeColor);
+    const activeTurnPlayer = visiblePlayers.find((p: any) => p.color === activeColor);
     if (!activeTurnPlayer) return;
 
     const isBot = isAiEnabled
@@ -481,6 +487,19 @@ export function SnakeLadderGameUI({
           <Text style={st.topSub}> · {playerCount}P</Text>
         </View>
 
+        {networkPing !== undefined && networkPing !== null && !isAiEnabled && (
+          <View style={[st.glassPill, { marginLeft: 4 }]}>
+            <MaterialCommunityIcons
+              name={networkPing < 100 ? "wifi" : networkPing < 200 ? "wifi-strength-2" : "wifi-strength-1"}
+              size={12}
+              color={networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42'}
+            />
+            <Text style={[st.topSub, { marginLeft: 4, color: networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42' }]}>
+              {networkPing}ms
+            </Text>
+          </View>
+        )}
+
         <View style={{ flex: 1 }} />
         
         {/* Emoji Toggle (Before Prize) */}
@@ -503,7 +522,7 @@ export function SnakeLadderGameUI({
         <View style={[st.glassPill, { marginLeft: 4 }]}>
           <MaterialCommunityIcons name="wallet-outline" size={12} color={C.gold} />
           <Text style={st.topLabel}>
-            {` ${(visiblePlayers.find(p => p.color === localColor)?.coins || 0).toLocaleString()}`}
+            {` ${(visiblePlayers.find((p: any) => p.color === localColor)?.coins || 0).toLocaleString()}`}
           </Text>
         </View>
 
