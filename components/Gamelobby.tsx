@@ -1601,8 +1601,7 @@ export function GameLobbyScreen({
     });
 
     socket.on('room_sync', (room) => {
-      if (room.status === 'starting') setGameState('starting');
-      if (room.status === 'playing') {
+      if (room.status === 'starting' || room.status === 'playing') {
         setSearching(false);
         setGameState('playing');
       }
@@ -1672,8 +1671,8 @@ export function GameLobbyScreen({
       }, 1500 + Math.random() * 1500);
     } else if (isAiEnabled && searching && readyCount === playerCount) {
       if (gameState === 'lobby') {
-        setGameState('starting');
-        setCountdown(5);
+        setSearching(false);
+        setGameState('playing');
       }
     }
     return () => clearTimeout(timer);
@@ -1720,11 +1719,7 @@ export function GameLobbyScreen({
           if (room.players) {
             setReadyCount(room.players.length);
           }
-          if (room.status === 'starting' && gameState !== 'starting') {
-            setGameState('starting');
-            // Sync countdown if needed, but local is fine for now
-          }
-          if (room.status === 'playing' && gameState !== 'playing') {
+          if ((room.status === 'starting' || room.status === 'playing') && gameState !== 'playing') {
             setSearching(false);
             setGameState('playing');
           }
@@ -1736,8 +1731,7 @@ export function GameLobbyScreen({
     supabase.from('game_rooms').select('*').eq('id', roomId).single().then(({ data: room }) => {
       if (room && room.players) {
         setReadyCount(room.players.length);
-        if (room.status === 'starting') setGameState('starting');
-        if (room.status === 'playing') {
+        if (room.status === 'starting' || room.status === 'playing') {
           setSearching(false);
           setGameState('playing');
         }
@@ -1915,6 +1909,7 @@ export function GameLobbyScreen({
             isAiEnabled={isAiEnabled}
             roomId={roomId}
             socket={socket}
+            stake={stake}
             onExit={(params?: { autoSearch?: boolean }) => {
               setGameState('lobby');
               if (params?.autoSearch) {

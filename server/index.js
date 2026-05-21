@@ -525,7 +525,7 @@ io.on('connection', (socket) => {
                 }
               }
             }, 5000);
-          }, 5000);
+          }, 200);
 
         } catch (err) {
           console.error("Failed to create room:", err.message);

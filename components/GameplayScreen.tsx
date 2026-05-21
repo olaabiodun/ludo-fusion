@@ -75,8 +75,22 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const rollCountRef = React.useRef<number>(0);
   const [whotWinner, setWhotWinner] = React.useState<BC | null>(null);
   const [whotScores, setWhotScores] = React.useState<Record<string, number>>({});
+  const [platformFeePercent, setPlatformFeePercent] = React.useState<number>(10);
 
-
+  // Fetch dynamic platform percentage configuration from database
+  React.useEffect(() => {
+    supabase
+      .from('platform_config')
+      .select('platform_percentage')
+      .eq('id', 1)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data && data.platform_percentage !== undefined) {
+          setPlatformFeePercent(data.platform_percentage);
+        }
+      })
+      .catch(err => console.warn('Failed to load platform percentage config in GameplayScreen:', err));
+  }, []);
 
   // 1. Fetch User & Sync Room
   React.useEffect(() => {
@@ -542,9 +556,11 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       ranked = order as BC[];
     }
     
-    // Pot is stake * playerCount, winner gets 80%? Or whatever the prizes map says. 
-    const pot = stake * playerCount;
-    const prizeList = playerCount === 4 ? [pot, 0, 0, 0] : [pot, 0];
+    // Winner gets their own stake back + net winnings (opponents' combined stake with dynamic database fee deducted)
+    const platformPercentage = platformFeePercent;
+    const netWinnings = stake * (playerCount - 1) * (1.0 - (platformPercentage / 100.0));
+    const netPayout = stake + netWinnings;
+    const prizeList = playerCount === 4 ? [netPayout, 0, 0, 0] : [netPayout, 0];
 
     return ranked.map((color, idx) => {
       const colorPawns = pawns.filter(p => p.color === color);
@@ -723,6 +739,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           isBotGame={isAiEnabled}
           isWhot={isWhot}
           isSnake={isSnake}
+          platformFeePercent={platformFeePercent}
         />
       )}
 

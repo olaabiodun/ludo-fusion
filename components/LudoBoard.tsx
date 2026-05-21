@@ -569,6 +569,7 @@ export function LudoBoard({
   onDiceReady,
   isDiceRolling,
   hidePopups,
+  isCountdownActive = false,
 }: {
   engine: ReturnType<typeof useLudoEngine>;
   localColor?: BC;
@@ -576,6 +577,7 @@ export function LudoBoard({
   onDiceReady?: () => void;
   isDiceRolling?: boolean;
   hidePopups?: boolean;
+  isCountdownActive?: boolean;
 }) {
   // ── Responsive sizes ───────────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
@@ -646,7 +648,7 @@ export function LudoBoard({
 
   // ── AI turn automation (stale-closure-safe) ────────────────────────────────
   useEffect(() => {
-    if (!isAiEnabled || state.winner) return;
+    if (!isAiEnabled || state.winner || isCountdownActive) return;
 
     const currentTurnId = state.turnId;
     const currentTurnIndex = state.turnIndex;

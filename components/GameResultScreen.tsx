@@ -84,6 +84,7 @@ export interface GameResultScreenProps {
   isBotGame?: boolean;
   isWhot?: boolean;
   isSnake?: boolean;
+  platformFeePercent?: number;
   onPlayAgain: () => void;
   onExit: () => void;
   onShare?: () => void;
@@ -484,7 +485,7 @@ function PlayerRow({
 
       {/* Prize */}
       <View style={[st.statCell, { alignItems: 'flex-end' }]}>
-        {p.prize > 0 && !isBotGame ? (
+        {p.prize > 0 ? (
           <>
             <Text style={st.prizeVal}>+{gamblingEnabled ? '₦' : ''}{p.prize}</Text>
             <Text style={st.rowSub}>prize</Text>
@@ -559,6 +560,7 @@ export function GameResultScreen({
   isBotGame = false,
   isWhot = false,
   isSnake = false,
+  platformFeePercent = 10.0,
   onShare,
 }: GameResultScreenProps) {
   const sorted = useMemo(() => [...players].sort((a, b) => a.rank - b.rank), [players]);
@@ -566,6 +568,9 @@ export function GameResultScreen({
   const local = sorted.find(p => p.isLocal);
   const isWin = local?.rank === 1;
   const winner = sorted[0];
+
+  const numPlayers = mode === '2P' ? 2 : 4;
+  const calculatedFee = Math.round((totalPrize / numPlayers) * (numPlayers - 1) * (platformFeePercent / 100.0));
 
   const hCol = isWin ? C.win : C.lose;
   const hSoft = isWin ? C.winSoft : C.loseSoft;
@@ -710,12 +715,13 @@ export function GameResultScreen({
         {/* Meta pills row */}
         <View style={st.metaRow}>
           <MetaPill icon="timer-outline" value={fmtTime(durationSecs)} />
-          {!isBotGame && (
+          {totalPrize > 0 && (
             <MetaPill
               icon="trophy-outline"
-              value={`${gamblingEnabled ? '₦' : ''}${totalPrize}`}
+              value={`${gamblingEnabled ? '₦' : ''}${totalPrize - calculatedFee}`}
               accent={C.gold}
               animated
+              value2={totalPrize - calculatedFee}
               prefix={gamblingEnabled ? '₦' : ''}
               duration={1800}
             />
@@ -815,7 +821,7 @@ export function GameResultScreen({
                 {isWin ? '🏆 1st Place' : `#${local?.rank ?? '?'} Place`}
               </Text>
               <Text style={st.yourName}>{local?.name ?? '—'}</Text>
-              {!isBotGame && (
+              {totalPrize > 0 && (
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2 }}>
                   <Text style={[st.yourPrizeCur, { color: isWin ? C.win : C.faint }]}>{gamblingEnabled ? '₦' : ''}</Text>
                   <AnimatedNumber
@@ -825,7 +831,11 @@ export function GameResultScreen({
                   />
                 </View>
               )}
-              {isWin && !isBotGame && <Text style={st.earnedLabel}>earned this round</Text>}
+              {isWin && totalPrize > 0 && (
+                <Text style={st.earnedLabel}>
+                  earned ({gamblingEnabled ? '₦' : ''}{totalPrize} pot - {gamblingEnabled ? '₦' : ''}{calculatedFee} platform fee ({platformFeePercent}%))
+                </Text>
+              )}
             </View>
           </Animated.View>
 
@@ -859,9 +869,9 @@ export function GameResultScreen({
               <View style={st.statCellDiv} />
               <StatCell
                 icon="trophy-variant-outline"
-                label={isBotGame ? 'Match' : 'Pot'}
-                value={isBotGame ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${totalPrize}`}
-                accent={isBotGame ? C.faint : C.gold}
+                label={totalPrize === 0 ? 'Match' : 'Pot'}
+                value={totalPrize === 0 ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${totalPrize}`}
+                accent={totalPrize === 0 ? C.faint : C.gold}
                 delay={1200}
               />
             </View>
