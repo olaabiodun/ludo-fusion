@@ -321,6 +321,7 @@ export function SnakeLadderGameUI({
   networkPing,
   externalEmojis,
   onSendEmoji,
+  isCountdownActive = false,
 }: {
   playerCount: PlayerCount;
   onExit?: () => void;
@@ -332,6 +333,7 @@ export function SnakeLadderGameUI({
   networkPing?: number | null;
   externalEmojis?: Record<string, any>;
   onSendEmoji?: (emoji: any) => void;
+  isCountdownActive?: boolean;
 }) {
   const [showQuitModal, setShowQuitModal] = React.useState(false);
   const [profileModalVisible, setProfileModalVisible] = React.useState(false);
@@ -661,7 +663,7 @@ export function SnakeLadderGameUI({
         <PlayerChip
           key={p.id}
           player={p as any}
-          active={p.color === activeColor}
+          active={p.color === activeColor && !isCountdownActive}
           lives={(p as any).lives}
           turnId={engine.turnIndex}
           stake={stake || 0}

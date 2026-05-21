@@ -1601,7 +1601,11 @@ export function GameLobbyScreen({
     });
 
     socket.on('room_sync', (room) => {
-      if (room.status === 'starting' || room.status === 'playing') {
+      if (room.status === 'starting' && gameState !== 'starting' && gameState !== 'playing') {
+        // Keep searching=true so PlayerSlots stay visible during countdown
+        setGameState('starting');
+        setCountdown(5);
+      } else if (room.status === 'playing') {
         setSearching(false);
         setGameState('playing');
       }
@@ -1671,8 +1675,9 @@ export function GameLobbyScreen({
       }, 1500 + Math.random() * 1500);
     } else if (isAiEnabled && searching && readyCount === playerCount) {
       if (gameState === 'lobby') {
-        setSearching(false);
-        setGameState('playing');
+        // Keep searching=true so PlayerSlots stay visible; countdown effect handles the rest
+        setGameState('starting');
+        setCountdown(5);
       }
     }
     return () => clearTimeout(timer);
@@ -1719,7 +1724,10 @@ export function GameLobbyScreen({
           if (room.players) {
             setReadyCount(room.players.length);
           }
-          if ((room.status === 'starting' || room.status === 'playing') && gameState !== 'playing') {
+          if (room.status === 'starting' && gameState !== 'starting' && gameState !== 'playing') {
+            setGameState('starting');
+            setCountdown(5);
+          } else if (room.status === 'playing' && gameState !== 'playing') {
             setSearching(false);
             setGameState('playing');
           }
@@ -1731,7 +1739,10 @@ export function GameLobbyScreen({
     supabase.from('game_rooms').select('*').eq('id', roomId).single().then(({ data: room }) => {
       if (room && room.players) {
         setReadyCount(room.players.length);
-        if (room.status === 'starting' || room.status === 'playing') {
+        if (room.status === 'starting') {
+          setGameState('starting');
+          setCountdown(5);
+        } else if (room.status === 'playing') {
           setSearching(false);
           setGameState('playing');
         }

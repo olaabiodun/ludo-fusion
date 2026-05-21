@@ -160,8 +160,6 @@ export function useWhotMultiplayer({
         // remainingAfterPlay already defined above
         if (remainingAfterPlay <= 0) {
           setActionMessage({ msg: 'winner', seat: p.seat as Seat });
-          if (onWinner) onWinner(p.color);
-          setTimeout(() => setShowScoring(true), 2500);
         } else if (remainingAfterPlay === 1 && card.value !== 20) {
           // Only show 'last card' for normal cards.
           // When playing Whot (20), the shape picker will appear — don't overlay it.
@@ -438,10 +436,17 @@ export function useWhotMultiplayer({
       const winnerPlayer = players.find(p => p.id === data.winner);
       const winnerColor = winnerPlayer?.color ?? data.winner;
 
-      onWinner?.(winnerColor, normalizedScores);
-      setShowScoring(true);
       if (data.reason === 'WIN') {
         playWhotCheckupSound();
+        // Delay showing result screen and unmounting WhotGameUI by 3 seconds
+        // so the user can see the winning card play animation and final board state!
+        setTimeout(() => {
+          onWinner?.(winnerColor, normalizedScores);
+          setShowScoring(true);
+        }, 3000);
+      } else {
+        onWinner?.(winnerColor, normalizedScores);
+        setShowScoring(true);
       }
     };
 

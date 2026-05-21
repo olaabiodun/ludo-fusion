@@ -405,6 +405,7 @@ export function LudoGameUI({
   networkPing,
   externalEmojis,
   onSendEmoji,
+  isCountdownActive = false,
 }: {
   playerCount: PlayerCount;
   onExit?: () => void;
@@ -418,11 +419,11 @@ export function LudoGameUI({
   networkPing?: number | null;
   externalEmojis?: Record<string, any>;
   onSendEmoji?: (emoji: any) => void;
+  isCountdownActive?: boolean;
 }) {
   const [showQuitModal, setShowQuitModal] = React.useState(false);
   const [profileModalVisible, setProfileModalVisible] = React.useState(false);
   const [selectedProfileId, setSelectedProfileId] = React.useState<string | null>(null);
-  const [gameEndsAt, setGameEndsAt] = React.useState<number | null>(null);
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
@@ -496,54 +497,6 @@ export function LudoGameUI({
     }
   };
 
-  React.useEffect(() => {
-    if (isAiEnabled) {
-      // For Bot matches, start a 10 min timer
-      setGameEndsAt(Date.now() + 600000);
-    }
-    // For multiplayer, this should ideally come from room data/socket
-  }, [isAiEnabled]);
-
-  const timeWarnedRef = React.useRef(false);
-
-  const handleTimeWarning = () => {
-    if (timeWarnedRef.current) return;
-    timeWarnedRef.current = true;
-    engine.setState(s => ({
-      ...s,
-      action: { msg: 'time-warning', color: s.activeColors[s.turnIndex] as any, key: Date.now() }
-    }));
-  };
-
-  const handleGameTimeout = () => {
-    console.log('[LudoGameUI] Match timer expired!');
-    // Determine winner based on finished tokens, then path progress
-    const playersProgress = visiblePlayers.map(p => {
-      const pPawns = engine.state.pawns.filter(pw => pw.color === p.color);
-      const finished = pPawns.filter(pw => pw.state === 'finished').length;
-      const totalDist = pPawns.reduce((acc, pw) => acc + (pw.state === 'board' ? pw.pathIndex : pw.state === 'finished' ? 56 : 0), 0);
-      return { color: p.color, finished, totalDist };
-    });
-
-    playersProgress.sort((a, b) => {
-      if (b.finished !== a.finished) return b.finished - a.finished;
-      return b.totalDist - a.totalDist;
-    });
-
-    const winnerColor = playersProgress[0].color;
-    // We could trigger a winner event here. Since LudoGameUI doesn't have an onWinner prop directly 
-    // like Whot, we can manipulate engine state to show the winner.
-    engine.setState(s => {
-      const msgs = [`TIME'S UP! ${winnerColor.toUpperCase()} WINS!`, ...s.messages];
-      return {
-        ...s,
-        activeColors: [winnerColor as any], // Force only winner to be active to end game
-        messages: msgs.slice(0, 5),
-        action: { msg: 'timeout', color: winnerColor as any, key: Date.now() }
-      };
-    });
-  };
-
   const handleProfilePress = (player: Player) => {
     if (!(player as any).isOffline && player.id) {
       setSelectedProfileId(player.id);
@@ -615,10 +568,8 @@ export function LudoGameUI({
           <Text style={st.topLabel}>LUDO</Text>
           <Text style={st.topSub}> · {playerCount}P</Text>
         </View>
-        <MatchTimer gameEndsAt={gameEndsAt} onExpire={handleGameTimeout} onTimeWarning={handleTimeWarning} />
-        <View style={{ flex: 1 }} />
         {networkPing !== undefined && networkPing !== null && !isAiEnabled && (
-          <View style={[st.glassPill, { marginRight: 2 }]}>
+          <View style={[st.glassPill, { marginLeft: 4 }]}>
             <MaterialCommunityIcons
               name={networkPing < 100 ? "wifi" : networkPing < 200 ? "wifi-strength-2" : "wifi-strength-1"}
               size={12}
@@ -629,6 +580,7 @@ export function LudoGameUI({
             </Text>
           </View>
         )}
+        <View style={{ flex: 1 }} />
         <View style={st.glassPill}>
           <MaterialCommunityIcons name="trophy-outline" size={12} color={C.gold} />
           <Text style={st.topSub}> PRIZE </Text>
@@ -707,7 +659,7 @@ export function LudoGameUI({
         <PlayerChip
           key={p.id || p.name}
           player={p as any}
-          active={p.color === activeColor && diceReady}
+          active={p.color === activeColor && diceReady && !isCountdownActive}
           lives={(engine.state.lives as any)?.[p.color] ?? 4}
           turnId={engine.state.turnId ?? 1}
           finishedCount={engine.state.pawns.filter(pw => pw.color === p.color && pw.state === 'finished').length}

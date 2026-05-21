@@ -1,8 +1,11 @@
 import { calculateXpGained, LevelUpdate, updatePlayerLevel } from '@/lib/leveling';
+import { playPlayerFoundSound } from '@/lib/sounds';
 import { socket as sharedSocket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import React from 'react';
 import {
+  Animated,
+  Easing,
   Platform,
   StatusBar,
   StyleSheet,
@@ -47,10 +50,11 @@ interface GameplayScreenProps {
   roomId: string | null;
   onExit: () => void;
   socket?: any;
+  stake?: number;
 }
 
 
-export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit, socket }: GameplayScreenProps) {
+export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit, socket, stake: stakeProp = 0 }: GameplayScreenProps) {
   const isLudo = mode.includes('ludo');
   const isWhot = mode.includes('whot');
   const isSnake = mode.includes('snake');
@@ -58,7 +62,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const snakeEngine = useSnakeLadderEngine(playerCount);
   const [localUser, setLocalUser] = React.useState<any>(null);
   const [roomPlayers, setRoomPlayers] = React.useState<any[]>([]);
-  const [stake, setStake] = React.useState(0);
+  const [stake, setStake] = React.useState(stakeProp);
   const [rematchKey, setRematchKey] = React.useState(0);
   const [levelUpdate, setLevelUpdate] = React.useState<LevelUpdate | null>(null);
   const [ping, setPing] = React.useState<number | null>(null);
@@ -608,6 +612,44 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   }, []);
   const [diceReady, setDiceReady] = React.useState(false);
 
+  // ── In-game 5-second starting countdown ──────────────────────────────────
+  const [boardCountdown, setBoardCountdown] = React.useState<number>(5);
+  const countdownActive = boardCountdown > 0;
+
+  // Count 5 → 0, play a beep each tick, then clear
+  React.useEffect(() => {
+    if (boardCountdown <= 0) return;
+    playPlayerFoundSound();
+    const t = setTimeout(() => setBoardCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [boardCountdown]);
+
+  // Animated scale for the big countdown number (pops in on every change)
+  const cdScale = React.useRef(new Animated.Value(2)).current;
+  React.useEffect(() => {
+    if (boardCountdown <= 0) return;
+    cdScale.setValue(2.2);
+    Animated.spring(cdScale, {
+      toValue: 1,
+      friction: 4,
+      tension: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [boardCountdown]);
+
+  // Fade out the whole overlay when countdown reaches 0
+  const cdOpacity = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    if (boardCountdown === 0) {
+      Animated.timing(cdOpacity, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [boardCountdown]);
+
   return (
     <View style={st.root}>
       <StatusBar hidden translucent backgroundColor="transparent" />
@@ -638,6 +680,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
             onDiceReady={() => setDiceReady(true)} 
             isDiceRolling={isDiceRolling}
             hidePopups={!!winner}
+            isCountdownActive={countdownActive}
           />
         </View>
       )}
@@ -657,8 +700,9 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           networkPing={ping}
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
+          isCountdownActive={countdownActive}
         />
-      ) : !winner && (isWhot && (synced || isAiEnabled)) ? (
+      ) : (isWhot && (synced || isAiEnabled)) ? (
         <WhotGameUI 
           key={rematchKey}
           gameId={roomId || undefined}
@@ -682,6 +726,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           }}
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
+          isCountdownActive={countdownActive}
         />
       ) : isSnake ? (
         <>
@@ -691,20 +736,19 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
                 isAiEnabled={isAiEnabled}
             />
           </View>
-          {!winner && (
-            <SnakeLadderGameUI 
-              playerCount={playerCount}
-              onExit={onExit}
-              engine={{ ...snakeEngine, rollDice: wrappedRoll, handleTimeout: wrappedTimeout } as any}
-              localColor={localColor}
-              realPlayers={roomPlayers}
-              stake={stake}
-              isAiEnabled={isAiEnabled}
-              networkPing={ping}
-              externalEmojis={activeEmojis}
-              onSendEmoji={wrappedSendEmoji}
-            />
-          )}
+          <SnakeLadderGameUI 
+            playerCount={playerCount}
+            onExit={onExit}
+            engine={{ ...snakeEngine, rollDice: wrappedRoll, handleTimeout: wrappedTimeout } as any}
+            localColor={localColor}
+            realPlayers={roomPlayers}
+            stake={stake}
+            isAiEnabled={isAiEnabled}
+            networkPing={ping}
+            externalEmojis={activeEmojis}
+            onSendEmoji={wrappedSendEmoji}
+            isCountdownActive={countdownActive}
+          />
         </>
       ) : (
         <View style={StyleSheet.absoluteFill} />
@@ -745,6 +789,29 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
 
 
 
+
+      {/* ── In-game starting countdown overlay ── */}
+      {boardCountdown >= 0 && !winner && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            st.cdBackdrop,
+            { opacity: cdOpacity },
+          ]}
+          pointerEvents={countdownActive ? 'auto' : 'none'}
+        >
+          <Text style={st.cdGetReady}>GET READY</Text>
+          <Animated.Text
+            style={[
+              st.cdNumber,
+              { transform: [{ scale: cdScale }] },
+            ]}
+          >
+            {boardCountdown > 0 ? boardCountdown : '🏁'}
+          </Animated.Text>
+          <Text style={st.cdSub}>Game starting soon…</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -753,6 +820,39 @@ const st = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  // ── Countdown overlay ──────────────────────────────────────────────────────
+  cdBackdrop: {
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    gap: 6,
+  },
+  cdGetReady: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+  },
+  cdNumber: {
+    fontSize: 96,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(255,255,255,0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 110,
+  },
+  cdSub: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginTop: 4,
   },
   boardArea: {
     ...StyleSheet.absoluteFillObject,

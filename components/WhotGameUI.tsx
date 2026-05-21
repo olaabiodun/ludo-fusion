@@ -415,6 +415,7 @@ export function WhotGameUI({
   realPlayers,
   externalEmojis,
   onSendEmoji,
+  isCountdownActive = false,
 }: {
   onExit: () => void;
   playerCount?: number;
@@ -427,6 +428,7 @@ export function WhotGameUI({
   realPlayers?: any[];
   externalEmojis?: Record<string, any>;
   onSendEmoji?: (emoji: any) => void;
+  isCountdownActive?: boolean;
 }) {
   const rootRef = React.useRef<View>(null);
 
@@ -497,8 +499,14 @@ export function WhotGameUI({
   const [turnStartedAt, setTurnStartedAt] = React.useState<number | null>(null);
   const [gameEndsAt, setGameEndsAt] = React.useState<number | null>(null);
   const [playerLives, setPlayerLives] = React.useState<Record<string, number>>({});
-  const [prize, setPrize] = React.useState(0);
+  const [prize, setPrize] = React.useState(stake > 0 ? Math.floor(stake * playerCount * 0.9) : 0);
   const gamblingEnabled = useFeatureActive();
+
+  React.useEffect(() => {
+    if (stake > 0) {
+      setPrize(Math.floor(stake * playerCount * 0.9));
+    }
+  }, [stake, playerCount]);
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
@@ -1410,39 +1418,6 @@ export function WhotGameUI({
             </View>
             <Text style={[st.quickSettingsText, { color: C.red }]}>Quit Game</Text>
           </TouchableOpacity>
-
-          <View style={st.qDivider} />
-
-          <TouchableOpacity
-            style={st.quickSettingsItem}
-            activeOpacity={0.7}
-            onPress={() => {
-              runWhotTests();
-              setActionMessage({ msg: "AUDIT COMPLETE (Check Console)", seat: 'DOWN' });
-              setShowQuickSettings(false);
-            }}
-          >
-            <View style={[st.qIconBg, { backgroundColor: 'rgba(52,199,89,0.1)' }]}>
-              <MaterialCommunityIcons name="shield-check-outline" size={rs(14)} color={C.green} />
-            </View>
-            <Text style={[st.quickSettingsText, { color: C.green }]}>Run Logic Audit</Text>
-          </TouchableOpacity>
-
-          <View style={st.qDivider} />
-
-          <TouchableOpacity
-            style={st.quickSettingsItem}
-            activeOpacity={0.7}
-            onPress={() => {
-              setShowScoring(true);
-              setShowQuickSettings(false);
-            }}
-          >
-            <View style={[st.qIconBg, { backgroundColor: 'rgba(255,208,48,0.1)' }]}>
-              <MaterialCommunityIcons name="calculator" size={rs(14)} color="#FFD030" />
-            </View>
-            <Text style={[st.quickSettingsText, { color: '#FFD030' }]}>Simulate Counting</Text>
-          </TouchableOpacity>
         </RNAnimated.View>
       )}
 
@@ -1484,7 +1459,7 @@ export function WhotGameUI({
           onPlayCard={i === localPlayerIndex ? handlePlayLocal : undefined}
           fanCenters={fanCenters}
           onShowHand={() => setShowHandViewer(true)}
-          activeSince={i === turnIndex ? turnStartedAt : null}
+          activeSince={i === turnIndex && !isCountdownActive ? turnStartedAt : null}
           isDealing={dealing}
           activeEmoji={externalEmojis?.[p.color] || activeEmojis[p.color]}
           isMultiplayer={!!gameId}
@@ -1572,14 +1547,6 @@ export function WhotGameUI({
           </View>
         )}
 
-        {/* Simulation Button */}
-        <TouchableOpacity
-          onPress={() => { playButtonSound(); setShowScoring(true); }}
-          activeOpacity={0.8}
-          style={[pill, { marginLeft: rs(4), paddingHorizontal: rs(8) }]}
-        >
-          <MaterialCommunityIcons name="calculator" size={rs(14)} color="#FFD030" />
-        </TouchableOpacity>
 
         {/* Settings Button (Icon Only) */}
         <TouchableOpacity

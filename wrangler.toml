@@ -1,0 +1,6 @@
+#:schema https://api.cloudflare.com/workers-sdk/wrangler.schema.json
+name = "ludo-fusion"
+compatibility_date = "2024-04-03"
+
+[assets]
+directory = "./landing-page"
