@@ -21,16 +21,28 @@ const io = new Server(server, {
   }
 });
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY, // Use service role for admin tasks
-  {
-    auth: { persistSession: false },
-    realtime: {
-      WebSocket: ws
+let supabase;
+try {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY, // Use service role for admin tasks
+    {
+      auth: { persistSession: false },
+      realtime: {
+        WebSocket: ws
+      }
     }
-  }
-);
+  );
+  console.log('[SUPABASE] Client initialized successfully');
+} catch (err) {
+  console.error('[SUPABASE] Failed to initialize client:', err.message);
+  // Create a no-op stub so the rest of the server can still start
+  supabase = {
+    from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null, error: new Error('Supabase unavailable') }) }) }), insert: () => ({ select: () => ({ single: async () => ({ data: null, error: new Error('Supabase unavailable') }) }) }), update: () => ({ eq: async () => ({ error: new Error('Supabase unavailable') }) }) }),
+    rpc: async () => ({ data: null, error: new Error('Supabase unavailable') }),
+    channel: () => ({ on: function() { return this; }, subscribe: function(cb) { if (cb) cb('CHANNEL_ERROR', new Error('Supabase unavailable')); return this; } }),
+  };
+}
 
 // --- Platform Configuration ---
 let platformPercentage = 10.0;
@@ -52,19 +64,29 @@ async function loadPlatformConfig() {
 loadPlatformConfig();
 
 // Subscribe to real-time configuration changes from Supabase
-supabase
-  .channel('platform_config_changes')
-  .on(
-    'postgres_changes',
-    { event: 'UPDATE', schema: 'public', table: 'platform_config', filter: 'id=eq.1' },
-    (payload) => {
-      if (payload.new && payload.new.platform_percentage !== undefined) {
-        platformPercentage = Number(payload.new.platform_percentage);
-        console.log(`[CONFIG] Realtime updated platform percentage: ${platformPercentage}%`);
+try {
+  supabase
+    .channel('platform_config_changes')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'platform_config', filter: 'id=eq.1' },
+      (payload) => {
+        if (payload.new && payload.new.platform_percentage !== undefined) {
+          platformPercentage = Number(payload.new.platform_percentage);
+          console.log(`[CONFIG] Realtime updated platform percentage: ${platformPercentage}%`);
+        }
       }
-    }
-  )
-  .subscribe();
+    )
+    .subscribe((status, err) => {
+      if (err) {
+        console.error('[CONFIG] Realtime subscription error:', err.message);
+      } else {
+        console.log('[CONFIG] Realtime subscription status:', status);
+      }
+    });
+} catch (err) {
+  console.error('[CONFIG] Failed to set up realtime subscription:', err.message);
+}
 
 // --- In-Memory State ---
 const players = new Map(); // socket.id -> { userId, username, avatar, roomId }
@@ -1970,7 +1992,13 @@ function spawnEmbeddedBotForPlayer(gameType, stake, maxPlayers) {
   bot.run();
 }
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Ludo Authority Server running on port ${PORT}`);
+  console.log(`[SERVER] Listening on 0.0.0.0:${PORT} — ready to accept connections`);
+});
+
+server.on('error', (err) => {
+  console.error(`[SERVER] Failed to start on port ${PORT}:`, err.message);
+  process.exit(1);
 });
