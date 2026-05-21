@@ -1,5 +1,7 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
+globalThis.WebSocket = ws; // Polyfill for Node.js < 22 WebSocket support
 const { io } = require('socket.io-client');
 
 const supabase = createClient(

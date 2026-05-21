@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
+globalThis.WebSocket = ws; // Polyfill missing WebSocket in Node.js < 22 for Supabase Realtime
 const crypto = require('crypto');
 const { io: ioClient } = require('socket.io-client');
 

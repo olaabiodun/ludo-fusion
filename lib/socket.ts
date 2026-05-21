@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 // all events arrive on — and are emitted from — the same connection.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SOCKET_URL = 'http://192.168.1.103:3001';
+const SOCKET_URL = 'https://ludo-fusion.onrender.com';
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,
