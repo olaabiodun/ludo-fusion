@@ -1971,6 +1971,6 @@ function spawnEmbeddedBotForPlayer(gameType, stake, maxPlayers) {
 }
 
 const PORT = process.env.PORT || 3002;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Ludo Authority Server running on port ${PORT}`);
 });
