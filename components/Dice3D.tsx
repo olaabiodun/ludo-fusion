@@ -225,22 +225,63 @@ const Dice3D = React.forwardRef(({
     onReady?.();
   }, []);
 
+  // Track when rolling started and the value when it started (to detect actual updates)
+  const rollStartRef = useRef<number>(0);
+  const valueAtRollStartRef = useRef<number>(value);
+  const minDurationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
+
   useEffect(() => {
     setDisplayValue(value);
+    if (controlled && rollingIntervalRef.current && !rolling) {
+      clearInterval(rollingIntervalRef.current);
+      rollingIntervalRef.current = null;
+    }
   }, [value]);
 
   // Sync internal display value with rapid randoms if rolling
   useEffect(() => {
-    let interval: any;
     if (rolling) {
-      interval = setInterval(() => {
+      rollStartRef.current = Date.now();
+      valueAtRollStartRef.current = value;
+      if (!controlled) {
+        setLastResult(null);
+      }
+      rollingIntervalRef.current = setInterval(() => {
         setDisplayValue(Math.floor(Math.random() * 6) + 1);
       }, 60);
     } else {
-      setDisplayValue(lastResult || value);
+      if (controlled) {
+        const elapsed = Date.now() - rollStartRef.current;
+        // Roll animation: 700ms total from start
+        const remaining = Math.max(700 - elapsed, 0);
+
+        rollingIntervalRef.current = setInterval(() => {
+          setDisplayValue(Math.floor(Math.random() * 6) + 1);
+        }, 60);
+
+        minDurationTimer.current = setTimeout(() => {
+          if (rollingIntervalRef.current) {
+            clearInterval(rollingIntervalRef.current);
+            rollingIntervalRef.current = null;
+          }
+          setDisplayValue(valueRef.current);
+        }, remaining);
+      }
+      if (!controlled) {
+        setDisplayValue(lastResult || value);
+      }
     }
-    return () => clearInterval(interval);
-  }, [rolling, value, lastResult]);
+    return () => {
+      if (rollingIntervalRef.current) {
+        clearInterval(rollingIntervalRef.current);
+        rollingIntervalRef.current = null;
+      }
+      if (minDurationTimer.current) clearTimeout(minDurationTimer.current);
+    };
+  }, [rolling, lastResult, controlled]);
 
   const handlePress = (force = false) => {
     if (typeof force !== 'boolean') force = false;
@@ -262,8 +303,8 @@ const Dice3D = React.forwardRef(({
     const dynamicDuration = 700 + Math.random() * 500;
     setTimeout(() => {
       let result = Math.floor(Math.random() * 6) + 1;
-      if (needsSixBoost && result !== 6) {
-        if (Math.random() < 0.40) result = 6;
+      if (needsSixBoost && result !== 6 && Math.random() < 0.30) {
+        result = 6;
       }
       setLastResult(result);
       setInternalRolling(false);

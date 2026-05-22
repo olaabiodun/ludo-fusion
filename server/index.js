@@ -1233,7 +1233,7 @@ class EmbeddedBot {
           // Tell client engine to show the roll value and auto-advance
           this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
           this.triggerTurnAction();
-        }, 1500);
+        }, 350 + Math.random() * 350);
         return;
       }
 
@@ -1245,7 +1245,7 @@ class EmbeddedBot {
         setTimeout(() => {
           this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
           this.applyPawnMove(bestPawnId, d.value);
-        }, 2200);
+        }, 350 + Math.random() * 350);
       }
     });
 

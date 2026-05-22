@@ -77,6 +77,8 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   // Increments on every dice_rolled so extra turns (rolling 6) get a fresh slot.
   const moveEmittedForRollRef = React.useRef<number>(-1);
   const rollCountRef = React.useRef<number>(0);
+  // Guard against double-tap: blocks request_roll until server responds
+  const rollPendingRef = React.useRef<boolean>(false);
   const [whotWinner, setWhotWinner] = React.useState<BC | null>(null);
   const [whotScores, setWhotScores] = React.useState<Record<string, number>>({});
   const [platformFeePercent, setPlatformFeePercent] = React.useState<number>(10);
@@ -242,10 +244,11 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           engine.setIsDiceRolling(false);
           if (isLudo && payload.value != null) {
             if (localUser?.id && payload.userId === localUser.id) {
-              // Local roll: full engine processing (valid-move checks, auto-advance, etc.)
+              // Local roll response: clear pending guard, full engine processing
+              rollPendingRef.current = false;
               engine.rollDice(payload.value);
             } else {
-              // Remote roll: set visual dice value only — NO valid-move logic (server decides)
+              // Remote roll: set visual dice value only
               engine.setState(prev => ({ ...prev, diceValue: payload.value, hasRolled: true }));
             }
           }
@@ -264,6 +267,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       // Opponent had no valid moves — set dice value, then advance after brief display
       sharedSocket.on('turn_passed', (payload: { color: string, diceValue: number }) => {
         if (isLudo && payload.color !== localColor) {
+          rollPendingRef.current = false; // Clear pending in case local double-tap caused stale state
           engine.setState(prev => ({
             ...prev,
             diceValue: payload.diceValue,
@@ -286,6 +290,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       // Opponent timed out
       sharedSocket.on('player_timeout', (payload: { targetColor: string, turnId: number }) => {
         if (isLudo && payload.targetColor !== localColor) {
+          rollPendingRef.current = false;
           engine.handleTimeout(payload.targetColor as BC, payload.turnId);
         }
       });
@@ -337,8 +342,12 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   // Wrap engine actions to broadcast
   const wrappedRoll = (val?: number) => {
     if (!isAiEnabled && (val === 0 || val === undefined)) {
-      // Ask server for a new roll (authoritative)
+      // Ask server for a new roll (authoritative) — guard against double-tap
+      if (rollPendingRef.current) return;
+      rollPendingRef.current = true;
       sharedSocket.emit('request_roll', { roomId });
+      // Safety timeout: clear pending after 10s if server never responds
+      setTimeout(() => { rollPendingRef.current = false; }, 10000);
     } else {
       // Apply the result (from server, AI, or if val > 0)
       if (isSnake) {
@@ -702,7 +711,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           onSendEmoji={wrappedSendEmoji}
           isCountdownActive={countdownActive}
         />
-      ) : (isWhot && (synced || isAiEnabled)) ? (
+      ) : !winner && (isWhot && (synced || isAiEnabled)) ? (
         <WhotGameUI 
           key={rematchKey}
           gameId={roomId || undefined}
@@ -728,7 +737,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           onSendEmoji={wrappedSendEmoji}
           isCountdownActive={countdownActive}
         />
-      ) : isSnake ? (
+      ) : !winner && isSnake ? (
         <>
           <View style={st.boardArea}>
             <SnakeLadderBoard 

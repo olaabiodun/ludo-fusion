@@ -608,6 +608,8 @@ export function LudoBoard({
   const nextTurnRef = useRef(nextTurn);
   const stateRef = useRef(state);
   const resolveCapturesRef = useRef(resolveCaptures);
+  const rollStartedRef = useRef(false);
+  const diceAnimatedTurnRef = useRef(0); // tracks which turnId we already animated for
 
   useEffect(() => {
     turnIdRef.current = state.turnId;
@@ -631,11 +633,23 @@ export function LudoBoard({
     if (isAiEnabled) return; // Dice3D handles its own local animation in AI mode
 
     if (isDiceRolling) {
-      handleRollStart();
-    } else if (!isDiceRolling && state.diceValue) {
-      handleRollEnd(state.diceValue);
+      if (!rollStartedRef.current) {
+        rollStartedRef.current = true;
+        handleRollStart();
+      }
+    } else if (!isDiceRolling && state.diceValue && diceAnimatedTurnRef.current !== state.turnId) {
+      // Only animate back to center once per turn (prevents double animation
+      // when pawn_moved/turn_passed arrives later and sets diceValue again)
+      diceAnimatedTurnRef.current = state.turnId;
+      rollStartedRef.current = false;
+      Animated.timing(dicePan, {
+        toValue: { x: 0, y: 0 },
+        duration: 450,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }).start();
     }
-  }, [isDiceRolling, state.diceValue, isAiEnabled]);
+  }, [isDiceRolling, state.diceValue, state.turnId, isAiEnabled]);
 
   const handleDiceTapDisabled = () => {
     const activeColor = state.activeColors[state.turnIndex];
@@ -777,7 +791,11 @@ export function LudoBoard({
 
   const handleDiceTap = () => {
     if (!isAiEnabled) {
-      rollDice(0); // Only send the request to server
+      // Guard: only allow tap if it's the local player's turn
+      if (state.activeColors[state.turnIndex] !== localColor) return;
+      rollStartedRef.current = true;
+      handleRollStart(); // Start animation immediately for instant feedback
+      rollDice(0); // Then send the request to server
     } else {
       handleRollStart(); // Locally if AI
     }
