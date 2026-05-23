@@ -138,14 +138,11 @@ class Bot {
       await sleep(150);
 
       const pawns = Array.from({ length: 4 }, (_, i) => `${this.color}-${i}`);
-      const channel = this.supabase.channel(`room_${this.roomId}`);
-      await channel.subscribe();
-      channel.send({
-        type: 'broadcast',
-        event: 'move',
-        payload: { color: this.color, pawnId: pick(pawns), diceValue: dice },
+      this.socket.emit('pawn_moved', {
+        color: this.color,
+        pawnId: pick(pawns),
+        diceValue: dice
       });
-      setTimeout(() => this.supabase.removeChannel(channel), 1000);
     }
   }
 
