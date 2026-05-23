@@ -215,10 +215,12 @@ const Dice3D = React.forwardRef(({
   const [internalRolling, setInternalRolling] = useState(false);
   const [lastResult, setLastResult] = useState<number | null>(null);
 
-  const rolling = controlled ? !!externalRolling : internalRolling;
+  const rolling = controlled ? (!!externalRolling || internalRolling) : internalRolling;
 
   React.useImperativeHandle(ref, () => ({
-    roll: () => handlePress(true)
+    roll: () => handlePress(true),
+    startSpinning: () => setInternalRolling(true),
+    stopSpinning: () => setInternalRolling(false),
   }));
 
   useEffect(() => {

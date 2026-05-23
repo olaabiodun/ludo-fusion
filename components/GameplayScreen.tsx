@@ -254,7 +254,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           rollPendingRef.current = false;
           engine.setState(prev => ({ ...prev, diceValue: payload.value }));
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(600 - elapsed, 0);
+          const remaining = Math.max(1200 - elapsed, 0);
           setTimeout(() => {
             setIsDiceRolling(false);
             if (localUser?.id && payload.userId === localUser.id) {

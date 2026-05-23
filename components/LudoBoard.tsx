@@ -296,7 +296,7 @@ function EnginePawn({
         }
         playMoveSound();
         const isLast = idx === path.length - 1;
-        const dur = isLast ? 140 : 70;
+        const dur = isLast ? 250 : 120;
         Animated.parallel([
           Animated.timing(pan, { toValue: path[idx], duration: dur, easing: Easing.linear, useNativeDriver: true }),
           Animated.sequence([
@@ -319,7 +319,7 @@ function EnginePawn({
         }
         playMoveSound();
         const isLast = idx === path.length - 1;
-        const dur = isLast ? 140 : 70;
+        const dur = isLast ? 250 : 120;
         Animated.parallel([
           Animated.timing(pan, { toValue: path[idx], duration: dur, easing: Easing.linear, useNativeDriver: true }),
           Animated.sequence([
@@ -328,7 +328,7 @@ function EnginePawn({
           ]),
         ]).start(() => animateStep(idx + 1));
       };
-      animateStep(0);
+      setTimeout(() => animateStep(0), 1200);
     } else if (pawn.state === 'finished' && prev.state !== 'finished') {
       const path: { x: number; y: number }[] = [];
       const targetPathIndex = pawn.captureCell !== undefined ? pawn.captureCell : 56;
@@ -380,13 +380,11 @@ function EnginePawn({
           return;
         }
         playMoveSound();
-        const isLast = idx === path.length - 1;
-        const dur = isLast ? 140 : 70;
         Animated.parallel([
-          Animated.timing(pan, { toValue: path[idx], duration: dur, easing: Easing.linear, useNativeDriver: true }),
+          Animated.timing(pan, { toValue: path[idx], duration: 250, easing: Easing.linear, useNativeDriver: true }),
           Animated.sequence([
-            Animated.timing(scale, { toValue: 1.25 * sMult, duration: dur / 2, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1.05 * sMult, duration: dur / 2, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.25 * sMult, duration: 125, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.05 * sMult, duration: 125, useNativeDriver: true }),
           ]),
         ]).start(() => animateStep(idx + 1));
       };
@@ -644,6 +642,7 @@ export function LudoBoard({
       // when pawn_moved/turn_passed arrives later and sets diceValue again)
       diceAnimatedTurnRef.current = state.turnId;
       rollStartedRef.current = false;
+      diceRef.current?.stopSpinning();
       Animated.timing(dicePan, {
         toValue: { x: 0, y: 0 },
         duration: 450,
@@ -762,7 +761,7 @@ export function LudoBoard({
   // ── Dice throw animation ───────────────────────────────────────────────────
   const handleRollStart = () => {
     playDiceRollSound();
-    const maxOffset = U * 3.0;
+    const maxOffset = U * 3.5;
     const randomX = (Math.random() - 0.5) * maxOffset * 2;
     const randomY = (Math.random() - 0.5) * maxOffset * 2;
     
@@ -773,25 +772,28 @@ export function LudoBoard({
     Animated.parallel([
       Animated.timing(dicePan, {
         toValue: { x: randomX, y: randomY },
-        duration: 300,
+        duration: 800,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(diceScale, { toValue: 1.3, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(diceScale, { toValue: 1.0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(diceScale, { toValue: 1.4, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(diceScale, { toValue: 1, duration: 450, easing: Easing.bounce, useNativeDriver: true }),
       ]),
     ]).start();
   };
 
   const handleRollEnd = (result: number) => {
-    Animated.timing(dicePan, {
-      toValue: { x: 0, y: 0 },
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-    rollDice(result);
+    setTimeout(() => {
+      diceRef.current?.stopSpinning();
+      Animated.timing(dicePan, {
+        toValue: { x: 0, y: 0 },
+        duration: 450,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+      rollDice(result);
+    }, 800);
   };
 
   const handleDiceTap = () => {
@@ -799,6 +801,7 @@ export function LudoBoard({
       // Guard: only allow tap if it's the local player's turn
       if (state.activeColors[state.turnIndex] !== localColor) return;
       rollStartedRef.current = true;
+      diceRef.current?.startSpinning();
       handleRollStart(); // Start animation immediately for instant feedback
       rollDice(0); // Then send the request to server
     } else {

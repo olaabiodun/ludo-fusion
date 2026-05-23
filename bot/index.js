@@ -122,7 +122,7 @@ class Bot {
     });
 
     while (!this.gameOver && moves < 300) {
-      await sleep(2000 + Math.random() * 2000);
+      await sleep(100 + Math.random() * 100);
 
       this.socket.emit('request_roll', { roomId: this.roomId });
       const dice = await new Promise(r => {
