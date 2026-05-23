@@ -256,7 +256,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           engine.setState(prev => ({ ...prev, diceValue: payload.value }));
           
           const isRemote = payload.userId !== localUser?.id;
-          const targetDuration = isRemote ? 500 : 1200; // Fast 500ms roll for bots/opponents
+          const targetDuration = isRemote ? 1000 : 1200; // Smooth 1.0s roll for bots/opponents
           const elapsed = Date.now() - rollStartTimeRef.current;
           const remaining = Math.max(targetDuration - elapsed, 0);
           
@@ -276,7 +276,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
         if (isLudo && payload.color !== localColor) {
           // Sync state and move pawn, ensuring we wait for the dice spin animation to finish
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(500 - elapsed, 0);
+          const remaining = Math.max(1000 - elapsed, 0);
 
           setTimeout(() => {
             engine.setState(prev => ({ ...prev, diceValue: payload.diceValue, hasRolled: true }));
@@ -291,7 +291,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           rollPendingRef.current = false; // Clear pending in case local double-tap caused stale state
           
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(500 - elapsed, 0);
+          const remaining = Math.max(1000 - elapsed, 0);
 
           setTimeout(() => {
             engine.setState(prev => ({
