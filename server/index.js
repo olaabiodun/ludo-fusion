@@ -1277,6 +1277,11 @@ class EmbeddedBot {
     // Human moved a pawn — apply it locally and advance the bot's turn
     this.socket.on('pawn_moved', (d) => {
       if (this.gameOver) return;
+      // Guard: skip if turn already advanced (race condition with dice_rolled handler)
+      if (d.color && this.activeColors[this.turnIndex] !== d.color) {
+        this.log(`Human moved pawn: ${d.pawnId} (turn already advanced, ignoring move)`);
+        return;
+      }
       this.log(`Human moved pawn: ${d.pawnId} (dice=${d.diceValue})`);
       const steps = d.diceValue ?? this.diceValue;
       if (steps != null) {
@@ -1298,6 +1303,12 @@ class EmbeddedBot {
     this.socket.on('turn_passed', (d) => {
       if (this.gameOver) return;
       if (d.color && d.color !== this.color) {
+        // Guard: only advance if turn hasn't already advanced
+        // (dice_rolled handler may have fast-tracked this)
+        if (this.activeColors[this.turnIndex] !== d.color) {
+          this.log(`Human passed (turn already advanced, skipping)`);
+          return;
+        }
         this.log(`Human passed (rolled ${d.diceValue}, no moves)`);
         if (d.diceValue !== 6) {
           this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
@@ -1307,12 +1318,32 @@ class EmbeddedBot {
       }
     });
 
-    // Dice handler — ONLY for the bot's own rolls. Human turns come through
-    // pawn_moved / turn_passed / player_timeout — never here.
+    // Dice handler — handle ALL rolls (own + human) for fast turn advancement.
     this.socket.on('dice_rolled', (d) => {
       if (this.gameOver) return;
-      if (d.userId !== this.userId) return; // ignore human's rolls completely
 
+      if (d.userId !== this.userId) {
+        // ── Human (or other player) rolled ──
+        this.log(`Human rolled ${d.value}`);
+
+        // Fast-track: if human has NO valid moves, immediately advance turn
+        // instead of waiting ~2s for client animation + turn_passed relay.
+        const rollingPlayer = this.playersList.find(p => p.id === d.userId);
+        const rollingColor = rollingPlayer?.color;
+        const currentColor = this.activeColors[this.turnIndex];
+
+        if (rollingColor && rollingColor === currentColor) {
+          const validPawns = this.getPossibleMoves(rollingColor, d.value);
+          if (validPawns.length === 0 && d.value !== 6) {
+            this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
+            this.log(`Human no moves → advancing turn to ${this.activeColors[this.turnIndex]}`);
+            setTimeout(() => this.triggerTurnAction(), 80);
+          }
+        }
+        return;
+      }
+
+      // ── Bot's own roll ──
       this.diceValue = d.value;
       this.hasRolled = true;
       this.log(`Bot rolled ${d.value}`);
@@ -1322,15 +1353,12 @@ class EmbeddedBot {
       if (validPawns.length === 0) {
         this.hasRolled = false;
         this.diceValue = null;
-        setTimeout(() => {
-          if (d.value !== 6) {
-            this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
-          }
-          this.log(`Bot: no moves → turn is now ${this.activeColors[this.turnIndex]}`);
-          // Tell client engine to show the roll value and auto-advance
-          this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
-          this.triggerTurnAction();
-        }, 0);
+        if (d.value !== 6) {
+          this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
+        }
+        this.log(`Bot: no moves → turn is now ${this.activeColors[this.turnIndex]}`);
+        this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
+        this.triggerTurnAction();
         return;
       }
 
@@ -1339,10 +1367,8 @@ class EmbeddedBot {
       const bestPawnId = this.getBestMove(this.color, d.value);
       if (bestPawnId) {
         this.log(`Bot moves pawn: ${bestPawnId}`);
-        setTimeout(() => {
-          this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
-          this.applyPawnMove(bestPawnId, d.value);
-        }, 0);
+        this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
+        this.applyPawnMove(bestPawnId, d.value);
       }
     });
 
@@ -1587,17 +1613,11 @@ class EmbeddedBot {
 
   triggerTurnAction() {
     if (this.gameOver) return;
-    
+
     const activeColor = this.activeColors[this.turnIndex];
     if (activeColor === this.color) {
-      // It's the bot's turn! Wait a realistic delay (3.0 to 5.0 seconds) then request roll
-      const delay = 0;
-      setTimeout(() => {
-        if (this.activeColors[this.turnIndex] === this.color && !this.hasRolled && !this.gameOver) {
-          this.log(`Bot turn: Requesting roll...`);
-          this.socket.emit('request_roll', { roomId: this.roomId });
-        }
-      }, delay);
+      this.log(`Bot turn: Requesting roll...`);
+      this.socket.emit('request_roll', { roomId: this.roomId });
     }
   }
 
