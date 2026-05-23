@@ -227,6 +227,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
         if (!isSnake) {
           if (isLudo) engine.setIsDiceRolling(true);
           setIsDiceRolling(true);
+          rollStartTimeRef.current = Date.now(); // Record start time of the roll
         }
       });
 
@@ -253,8 +254,12 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           // Ludo: fixed total animation from tap regardless of network latency
           rollPendingRef.current = false;
           engine.setState(prev => ({ ...prev, diceValue: payload.value }));
+          
+          const isRemote = payload.userId !== localUser?.id;
+          const targetDuration = isRemote ? 500 : 1200; // Fast 500ms roll for bots/opponents
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(1200 - elapsed, 0);
+          const remaining = Math.max(targetDuration - elapsed, 0);
+          
           setTimeout(() => {
             setIsDiceRolling(false);
             if (localUser?.id && payload.userId === localUser.id) {
@@ -269,9 +274,14 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       // Opponent moved a pawn: just move — dice value already set from dice_rolled
       sharedSocket.on('pawn_moved', (payload: { color: string, pawnId: string, diceValue: number }) => {
         if (isLudo && payload.color !== localColor) {
-          // Ensure display state is set (in case dice_rolled was missed)
-          engine.setState(prev => ({ ...prev, diceValue: payload.diceValue, hasRolled: true }));
-          engine.movePawn(payload.pawnId);
+          // Sync state and move pawn, ensuring we wait for the dice spin animation to finish
+          const elapsed = Date.now() - rollStartTimeRef.current;
+          const remaining = Math.max(500 - elapsed, 0);
+
+          setTimeout(() => {
+            engine.setState(prev => ({ ...prev, diceValue: payload.diceValue, hasRolled: true }));
+            engine.movePawn(payload.pawnId);
+          }, remaining);
         }
       });
 
@@ -279,22 +289,28 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       sharedSocket.on('turn_passed', (payload: { color: string, diceValue: number }) => {
         if (isLudo && payload.color !== localColor) {
           rollPendingRef.current = false; // Clear pending in case local double-tap caused stale state
-          engine.setState(prev => ({
-            ...prev,
-            diceValue: payload.diceValue,
-            hasRolled: true,
-            messages: [`${payload.color} rolled ${payload.diceValue}. No valid moves!`, ...prev.messages],
-          }));
+          
+          const elapsed = Date.now() - rollStartTimeRef.current;
+          const remaining = Math.max(500 - elapsed, 0);
+
           setTimeout(() => {
-            if (payload.diceValue === 6) {
-              // 6 with no moves → extra turn: keep turnIndex, just reset roll
-              engine.setState(prev => ({
-                ...prev, hasRolled: false, diceValue: null, turnId: prev.turnId + 1, action: null,
-              }));
-            } else {
-              engine.nextTurn();
-            }
-          }, 1500);
+            engine.setState(prev => ({
+              ...prev,
+              diceValue: payload.diceValue,
+              hasRolled: true,
+              messages: [`${payload.color} rolled ${payload.diceValue}. No valid moves!`, ...prev.messages],
+            }));
+            setTimeout(() => {
+              if (payload.diceValue === 6) {
+                // 6 with no moves → extra turn: keep turnIndex, just reset roll
+                engine.setState(prev => ({
+                  ...prev, hasRolled: false, diceValue: null, turnId: prev.turnId + 1, action: null,
+                }));
+              } else {
+                engine.nextTurn();
+              }
+            }, 800); // Snappy 800ms wait to pass turn
+          }, remaining);
         }
       });
 

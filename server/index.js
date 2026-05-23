@@ -697,7 +697,7 @@ io.on('connection', (socket) => {
         userId: player.userId,
         value: diceValue 
       });
-    }, 600); // 600ms of "spinning" time
+    }, 150); // 150ms of "spinning" time on server
   });
 
 
@@ -1328,7 +1328,7 @@ class EmbeddedBot {
           // Tell client engine to show the roll value and auto-advance
           this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
           this.triggerTurnAction();
-        }, 1000);
+        }, 150);
         return;
       }
 
@@ -1340,7 +1340,7 @@ class EmbeddedBot {
         setTimeout(() => {
           this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
           this.applyPawnMove(bestPawnId, d.value);
-        }, 1000);
+        }, 150);
       }
     });
 
@@ -1589,7 +1589,7 @@ class EmbeddedBot {
     const activeColor = this.activeColors[this.turnIndex];
     if (activeColor === this.color) {
       // It's the bot's turn! Wait a realistic delay (3.0 to 5.0 seconds) then request roll
-      const delay = 1000;
+      const delay = 150;
       setTimeout(() => {
         if (this.activeColors[this.turnIndex] === this.color && !this.hasRolled && !this.gameOver) {
           this.log(`Bot turn: Requesting roll...`);
