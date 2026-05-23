@@ -122,7 +122,7 @@ class Bot {
     });
 
     while (!this.gameOver && moves < 300) {
-      await sleep(150);
+      await sleep(0);
 
       this.socket.emit('request_roll', { roomId: this.roomId });
       const dice = await new Promise(r => {
@@ -135,7 +135,7 @@ class Bot {
       moves++;
       this.log(`Rolled ${dice} (move ${moves})`);
 
-      await sleep(150);
+      await sleep(0);
 
       const pawns = Array.from({ length: 4 }, (_, i) => `${this.color}-${i}`);
       this.socket.emit('pawn_moved', {

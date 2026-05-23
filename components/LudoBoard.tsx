@@ -772,13 +772,13 @@ export function LudoBoard({
     Animated.parallel([
       Animated.timing(dicePan, {
         toValue: { x: randomX, y: randomY },
-        duration: 800,
+        duration: 400, // Speed up translation
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(diceScale, { toValue: 1.4, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(diceScale, { toValue: 1, duration: 450, easing: Easing.bounce, useNativeDriver: true }),
+        Animated.timing(diceScale, { toValue: 1.4, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(diceScale, { toValue: 1, duration: 250, easing: Easing.bounce, useNativeDriver: true }),
       ]),
     ]).start();
   };
@@ -788,12 +788,12 @@ export function LudoBoard({
       diceRef.current?.stopSpinning();
       Animated.timing(dicePan, {
         toValue: { x: 0, y: 0 },
-        duration: 450,
+        duration: 250, // Snappy return
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: true,
       }).start();
       rollDice(result);
-    }, 800);
+    }, 400); // Wait only 400ms instead of 800ms
   };
 
   const handleDiceTap = () => {

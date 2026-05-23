@@ -309,7 +309,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
               } else {
                 engine.nextTurn();
               }
-            }, 800); // Snappy 800ms wait to pass turn
+            }, 300); // Super-snappy 300ms wait to pass turn
           }, remaining);
         }
       });

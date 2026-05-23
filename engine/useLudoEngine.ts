@@ -232,7 +232,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4, randomStart?: boolean) {
         if (value === 6) {
           setTimeout(() => {
             setState(prev => ({ ...prev, hasRolled: false, diceValue: null, turnId: prev.turnId + 1 }));
-          }, 1500);
+          }, 500);
           return {
             ...s,
             diceValue: value,
@@ -245,7 +245,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4, randomStart?: boolean) {
         const rollTurnId = s.turnId;
         setTimeout(() => {
           nextTurn(rollTurnId);
-        }, 1500);
+        }, 500);
         return {
           ...s,
           diceValue: value,

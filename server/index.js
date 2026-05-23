@@ -688,6 +688,8 @@ io.on('connection', (socket) => {
     io.to(player.roomId).emit('dice_rolling', { userId: player.userId });
 
     // 2. After a short delay (for animation), send the authoritative result
+    const isBot = player.username.toLowerCase().includes('bot') || player.avatar === '';
+    const delayTime = isBot ? 0 : 150; // Instant roll for bots
     setTimeout(() => {
       // Support developer-forced values for testing corner cases
       const diceValue = (data && data.forcedValue) ? Number(data.forcedValue) : crypto.randomInt(1, 7); // 1-6 inclusive
@@ -697,7 +699,7 @@ io.on('connection', (socket) => {
         userId: player.userId,
         value: diceValue 
       });
-    }, 150); // 150ms of "spinning" time on server
+    }, delayTime);
   });
 
 
@@ -1328,7 +1330,7 @@ class EmbeddedBot {
           // Tell client engine to show the roll value and auto-advance
           this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
           this.triggerTurnAction();
-        }, 150);
+        }, 0);
         return;
       }
 
@@ -1340,7 +1342,7 @@ class EmbeddedBot {
         setTimeout(() => {
           this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
           this.applyPawnMove(bestPawnId, d.value);
-        }, 150);
+        }, 0);
       }
     });
 
@@ -1589,7 +1591,7 @@ class EmbeddedBot {
     const activeColor = this.activeColors[this.turnIndex];
     if (activeColor === this.color) {
       // It's the bot's turn! Wait a realistic delay (3.0 to 5.0 seconds) then request roll
-      const delay = 150;
+      const delay = 0;
       setTimeout(() => {
         if (this.activeColors[this.turnIndex] === this.color && !this.hasRolled && !this.gameOver) {
           this.log(`Bot turn: Requesting roll...`);
