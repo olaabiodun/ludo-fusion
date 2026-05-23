@@ -176,6 +176,17 @@ function PlayerChip({
   const col = colorHex[p.color];
   const isRight = p.seat === 'TR' || p.seat === 'BR';
   const isKicked = lives <= 0;
+  const [timeLeft, setTimeLeft] = React.useState(15);
+
+  React.useEffect(() => {
+    if (active && !isKicked && !winner) {
+      setTimeLeft(15);
+      const iv = setInterval(() => {
+        setTimeLeft(t => (t <= 1 ? 0 : t - 1));
+      }, 1000);
+      return () => clearInterval(iv);
+    }
+  }, [active, turnId, isKicked, winner]);
 
   const progress = React.useRef(new Animated.Value(0)).current;
   const bubbleAnim = React.useRef(new Animated.Value(0)).current;
@@ -197,7 +208,7 @@ function PlayerChip({
       progress.setValue(0);
       Animated.timing(progress, {
         toValue: 1,
-        duration: 20000,
+        duration: 15000,
         easing: Easing.linear,
         useNativeDriver: true,
       }).start(({ finished }) => {
@@ -266,7 +277,7 @@ function PlayerChip({
           isRight ? { right: 8 } : { left: 8 }
         ]}>
           <Text style={st.turnBadgeText}>
-            {p.name === 'You' ? 'YOUR TURN' : `${p.name.toUpperCase()}'S TURN`}
+            {p.name === 'You' ? `YOUR TURN (${timeLeft}s)` : `${p.name.toUpperCase()}'S TURN (${timeLeft}s)`}
           </Text>
         </View>
       )}
