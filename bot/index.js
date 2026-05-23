@@ -122,7 +122,7 @@ class Bot {
     });
 
     while (!this.gameOver && moves < 300) {
-      await sleep(100 + Math.random() * 100);
+      await sleep(1000);
 
       this.socket.emit('request_roll', { roomId: this.roomId });
       const dice = await new Promise(r => {
@@ -134,6 +134,8 @@ class Bot {
       if (dice === null) continue;
       moves++;
       this.log(`Rolled ${dice} (move ${moves})`);
+
+      await sleep(1000);
 
       const pawns = Array.from({ length: 4 }, (_, i) => `${this.color}-${i}`);
       const channel = this.supabase.channel(`room_${this.roomId}`);
