@@ -6,7 +6,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/poppins';
 import { Kanit_900Black } from '@expo-google-fonts/kanit';
-import { FeatureProvider } from '@/lib/FeatureContext';
+import { FeatureProvider, useFeatureActive } from '@/lib/FeatureContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -138,6 +138,27 @@ function CustomSplash() {
       />
       <PremiumLoader />
     </View>
+  );
+}
+
+function AppStack() {
+  const gamblingEnabled = useFeatureActive();
+
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false, statusBarHidden: true }} />
+      <Stack.Screen name="offline" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      <Stack.Screen name="home" options={{ headerShown: false, statusBarHidden: true, contentStyle: { backgroundColor: '#08111b' } }} />
+      <Stack.Screen name="profile" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      <Stack.Screen name="leaderboard" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      <Stack.Screen name="friends" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      {gamblingEnabled && (
+        <Stack.Screen name="wallet" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      )}
+      <Stack.Screen name="history" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      <Stack.Screen name="settings" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
+      <Stack.Screen name="placeholder" options={{ headerShown: false, statusBarHidden: true, animation: 'fade' }} />
+    </Stack>
   );
 }
 
@@ -274,18 +295,7 @@ export default function RootLayout() {
       <FeatureProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <View style={{ flex: 1 }}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false, statusBarHidden: true }} />
-            <Stack.Screen name="offline" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="home" options={{ headerShown: false, statusBarHidden: true, contentStyle: { backgroundColor: '#08111b' } }} />
-            <Stack.Screen name="profile" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="leaderboard" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="friends" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="wallet" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="history" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="settings" options={{ headerShown: false, statusBarHidden: true, animation: 'slide_from_right' }} />
-            <Stack.Screen name="placeholder" options={{ headerShown: false, statusBarHidden: true, animation: 'fade' }} />
-          </Stack>
+          <AppStack />
 
           {!isReady && (
             <View style={[StyleSheet.absoluteFill, { zIndex: 99999 }]}>

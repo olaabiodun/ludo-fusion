@@ -177,9 +177,9 @@ export const canPlayCard = (
   handLength: number
 ): boolean => {
   // [House Rule] No Special Card Checkouts
-  // Prohibit winning with 1, 2, 5, 8, 14, 20
+  // Prohibit winning with 1, 2, 5, 8, 14
   if (handLength === 1) {
-    if ([1, 2, 5, 8, 14, 20].includes(card.value as number)) return false;
+    if ([1, 2, 5, 8, 14].includes(card.value as number)) return false;
   }
 
   // Handle pending picks (2 or 5)

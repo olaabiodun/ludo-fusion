@@ -1,5 +1,5 @@
 import { calculateXpGained, LevelUpdate, updatePlayerLevel } from '@/lib/leveling';
-import { playPlayerFoundSound } from '@/lib/sounds';
+import { playPlayerFoundSound, playDiceRollSound } from '@/lib/sounds';
 import { socket as sharedSocket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import React from 'react';
@@ -58,7 +58,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const isLudo = mode.includes('ludo');
   const isWhot = mode.includes('whot');
   const isSnake = mode.includes('snake');
-  const engine = useLudoEngine(playerCount);
+  const engine = useLudoEngine(playerCount, isAiEnabled);
   const snakeEngine = useSnakeLadderEngine(playerCount);
   const [localUser, setLocalUser] = React.useState<any>(null);
   const [roomPlayers, setRoomPlayers] = React.useState<any[]>([]);
@@ -79,6 +79,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const rollCountRef = React.useRef<number>(0);
   // Guard against double-tap: blocks request_roll until server responds
   const rollPendingRef = React.useRef<boolean>(false);
+  const rollStartTimeRef = React.useRef<number>(0);
   const [whotWinner, setWhotWinner] = React.useState<BC | null>(null);
   const [whotScores, setWhotScores] = React.useState<Record<string, number>>({});
   const [platformFeePercent, setPlatformFeePercent] = React.useState<number>(10);
@@ -222,36 +223,46 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       });
       
       sharedSocket.on('dice_rolling', () => {
-        if (isSnake) snakeEngine.setIsRollingVisual(true);
-        if (isLudo) engine.setIsDiceRolling(true);
-        setIsDiceRolling(true);
+        // Snake uses client-side prediction for local and a 3.5s delayed dice_rolled for remotes
+        if (!isSnake) {
+          if (isLudo) engine.setIsDiceRolling(true);
+          setIsDiceRolling(true);
+        }
       });
 
       sharedSocket.on('dice_rolled', (payload: { userId: string, value: number }) => {
-        setIsDiceRolling(false);
         rollCountRef.current += 1;
         if (isSnake) {
-          // Play rolling animation for exactly 1200ms, then wait 500ms before token moves
-          snakeEngine.setDiceValue(payload.value);
-          snakeEngine.setIsRollingVisual(true);
+          // If it's a bot/opponent, artificially delay the visual roll by 1.0s so the dice has time to glide to their profile!
+          const isRemote = payload.userId !== localUser?.id;
+          const glideDelay = isRemote ? 1000 : 0;
+
           setTimeout(() => {
-            snakeEngine.setIsRollingVisual(false);
+            snakeEngine.setDiceValue(payload.value);
+            snakeEngine.setIsRollingVisual(true);
+            rollPendingRef.current = false; // clear pending guard
             setTimeout(() => {
-              snakeEngine.movePlayerByUserId(payload.userId, payload.value);
-            }, 500);
-          }, 1200);
+              snakeEngine.setIsRollingVisual(false);
+              setTimeout(() => {
+                snakeEngine.movePlayerByUserId(payload.userId, payload.value);
+              }, 500);
+            }, 1200);
+          }, glideDelay);
         } else {
-          engine.setIsDiceRolling(false);
-          if (isLudo && payload.value != null) {
+          if (!isLudo || payload.value == null) { setIsDiceRolling(false); return; }
+          // Ludo: fixed total animation from tap regardless of network latency
+          rollPendingRef.current = false;
+          engine.setState(prev => ({ ...prev, diceValue: payload.value }));
+          const elapsed = Date.now() - rollStartTimeRef.current;
+          const remaining = Math.max(600 - elapsed, 0);
+          setTimeout(() => {
+            setIsDiceRolling(false);
             if (localUser?.id && payload.userId === localUser.id) {
-              // Local roll response: clear pending guard, full engine processing
-              rollPendingRef.current = false;
               engine.rollDice(payload.value);
             } else {
-              // Remote roll: set visual dice value only
-              engine.setState(prev => ({ ...prev, diceValue: payload.value, hasRolled: true }));
+              engine.setState(prev => ({ ...prev, hasRolled: true }));
             }
-          }
+          }, remaining);
         }
       });
 
@@ -345,6 +356,13 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       // Ask server for a new roll (authoritative) — guard against double-tap
       if (rollPendingRef.current) return;
       rollPendingRef.current = true;
+      rollStartTimeRef.current = Date.now();
+      
+      // CLIENT-SIDE PREDICTION: Instantly start visual roll and sound effect!
+      if (isSnake) snakeEngine.setIsRollingVisual(true);
+      else engine.setIsDiceRolling(true);
+      playDiceRollSound();
+      
       sharedSocket.emit('request_roll', { roomId });
       // Safety timeout: clear pending after 10s if server never responds
       setTimeout(() => { rollPendingRef.current = false; }, 10000);
@@ -397,6 +415,9 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   };
 
   const wrappedTimeout = (color: BC, turnId: number) => {
+    // RACE CONDITION FIX: If we've already tapped roll and are waiting for the server, ignore local timeouts!
+    if (rollPendingRef.current && color === localColor) return;
+
     if (isSnake) {
       snakeEngine.handleTimeout(color);
     } else {
@@ -556,7 +577,10 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
         .filter(([, v]) => v <= 0)
         .map(([c]) => c as BC);
         
-      const survivors = (isLudo ? activeColors : snakeEngine.players.map(p => p.color))
+      const survivors = (isLudo ? activeColors : snakeEngine.players
+        .filter(p => p.lives > 0 && p.color !== winner)
+        .sort((a, b) => b.position - a.position)
+        .map(p => p.color))
         .filter(c => currentLives[c as BC] > 0 && c !== winner);
 
       const order = winner ? [winner, ...survivors, ...kicked.reverse()] : [];

@@ -426,7 +426,7 @@ export function ProfilePanel() {
           <Animated.View entering={FadeInDown.delay(800).duration(600)} style={s.section}>
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>Recent Matches</Text>
-              <Text style={s.sectionCaption}>Latest form and winnings</Text>
+              <Text style={s.sectionCaption}>{gamblingEnabled ? 'Latest form and winnings' : 'Latest form and rewards'}</Text>
             </View>
 
             {games.length === 0 ? (

@@ -210,7 +210,7 @@ export function HistoryPanel() {
     report += `Total Matches: ${totalMatches}\n`;
     report += `Win Rate: ${winRate}%\n`;
     report += `Net Earnings: ${gambling ? `₦${totalEarnings}` : `${totalEarnings} coins`}\n\n`;
-    report += `DATE | GAME | MODE | RESULT | STAKE | ${gambling ? 'WINNINGS' : 'PRIZE'}\n`;
+    report += `DATE | GAME | MODE | RESULT | ${gambling ? 'STAKE' : 'ENTRY'} | ${gambling ? 'WINNINGS' : 'REWARD'}\n`;
     
     allGames.forEach(g => {
       const date = new Date(g.created_at).toLocaleDateString();
@@ -295,7 +295,7 @@ export function HistoryPanel() {
                 <Text style={s.gridValue}>{totalWins}</Text>
               </View>
               <View style={s.gridItem}>
-                <Text style={s.gridLabel}>EARNINGS</Text>
+                <Text style={s.gridLabel}>{gambling ? 'EARNINGS' : 'REWARDS'}</Text>
                 <Text style={s.gridValue}>
                   {gambling
                     ? (totalEarnings >= 1000 ? `₦${(totalEarnings / 1000).toFixed(1)}k` : `₦${totalEarnings}`)

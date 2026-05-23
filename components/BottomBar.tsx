@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Animated,
   Easing,
@@ -8,7 +9,7 @@ import {
   View,
   DeviceEventEmitter,
 } from 'react-native';
-import { usePathname } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useFeatureActive } from '@/lib/FeatureContext';
 import { RewardModal } from './RewardModal';
@@ -72,6 +73,7 @@ const C = {
 };
 
 const BAR_HEIGHT = 76;
+const DAILY_BONUS_NEXT_CLAIM_KEY = 'daily_bonus.next_claim_at';
 
 // ─── Glow dot ─────────────────────────────────────────────────────────────────
 function GlowDot({ color, size = 4 }: { color: string; size?: number }) {
@@ -470,6 +472,7 @@ function BarItem({
 
 // ─── BottomBar ────────────────────────────────────────────────────────────────
 export function BottomBar({ forceHome = false, searching = false }: { forceHome?: boolean; searching?: boolean }) {
+  const router = useRouter();
   const pathname = usePathname();
   const isHome = forceHome !== undefined ? forceHome : (pathname === '/home' || pathname === '/');
   const [showReward, setShowReward] = React.useState(false);
@@ -477,6 +480,7 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   const [streak, setStreak] = React.useState(0);
   const [showStreakReward, setShowStreakReward] = React.useState(false);
   const [claimedXp, setClaimedXp] = React.useState(0);
+  const [isClaimingDaily, setIsClaimingDaily] = React.useState(false);
   const [searchAnim] = React.useState(new Animated.Value(0));
   const [announceUnread, setAnnounceUnread] = React.useState(0);
   const gamblingEnabled = useFeatureActive();
@@ -506,6 +510,26 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   useEffect(() => {
     let interval: any;
     const fetchData = async () => {
+      const storedNextClaimAt = await AsyncStorage.getItem(DAILY_BONUS_NEXT_CLAIM_KEY);
+      if (storedNextClaimAt) {
+        const storedMs = Number(storedNextClaimAt);
+        if (Number.isFinite(storedMs) && storedMs > Date.now()) {
+          const storedCountdown = Math.floor((storedMs - Date.now()) / 1000);
+          setCountdown(storedCountdown);
+          clearInterval(interval);
+          interval = setInterval(() => {
+            setCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(interval);
+                AsyncStorage.removeItem(DAILY_BONUS_NEXT_CLAIM_KEY).catch(() => {});
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -539,6 +563,9 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
         setMembershipTier(profile.membership_tier || null);
         setMembershipExpires(profile.membership_expires || null);
         setStreak(profile.streak || 0);
+        if (!storedNextClaimAt || Number(storedNextClaimAt) <= Date.now()) {
+          setCountdown(0);
+        }
 
         if (isHome && profile.last_daily_claim) {
           const lastClaim = new Date(profile.last_daily_claim).getTime();
@@ -582,13 +609,33 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
   }, [isHome]);
 
   const handleClaimDaily = async () => {
-    if (countdown > 0) return;
+    if (countdown > 0 || isClaimingDaily) return;
     try {
+      setIsClaimingDaily(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Re-read the latest claim state from the server so a quick navigation
+      // back to this UI cannot claim again from stale local countdown state.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('wallet_balance, last_daily_claim')
+        .eq('id', user.id)
+        .single();
+      if (!profile) return;
+
+      if (profile.last_daily_claim) {
+        const lastClaim = new Date(profile.last_daily_claim).getTime();
+        const now = Date.now();
+        const cooldown = 24 * 60 * 60;
+        const diff = Math.floor((now - lastClaim) / 1000);
+        if (diff < cooldown) {
+          setCountdown(cooldown - diff);
+          return;
+        }
+      }
+
       // 1. Update wallet balance and last claim time in Supabase
-      const { data: profile } = await supabase.from('profiles').select('wallet_balance').eq('id', user.id).single();
       const currentBalance = profile?.wallet_balance || 0;
       const newBalance = currentBalance + 10;
 
@@ -612,11 +659,15 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
       });
 
       // 3. Show animation & Notify UI
+      const nextClaimAt = Date.now() + (24 * 60 * 60 * 1000);
+      await AsyncStorage.setItem(DAILY_BONUS_NEXT_CLAIM_KEY, String(nextClaimAt));
       setShowReward(true);
       setCountdown(24 * 60 * 60); // Start 24h countdown
       DeviceEventEmitter.emit('wallet_updated');
     } catch (err) {
       console.error('Error claiming daily bonus:', err);
+    } finally {
+      setIsClaimingDaily(false);
     }
   };
 
@@ -654,18 +705,29 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
       <View style={styles.bar}>
 
         {/* ── MEMBER ── */}
-        <BarItem accentColor={C.gold} highlight isLast={!isHome} onPress={() => DeviceEventEmitter.emit('open_member')}>
+        <BarItem
+          accentColor={C.gold}
+          highlight
+          isLast={!isHome}
+          onPress={() => {
+            if (gamblingEnabled) {
+              DeviceEventEmitter.emit('open_member');
+              return;
+            }
+            router.push('/profile');
+          }}
+        >
           <View style={styles.iconWrap}>
             <CrownIcon />
           </View>
           <View style={styles.textBlock}>
             <View style={styles.labelRow}>
               <GlowDot color={C.gold} size={5} />
-              <Text style={[styles.label, { color: C.goldBright }]}>MEMBER</Text>
+              <Text style={[styles.label, { color: C.goldBright }]}>{gamblingEnabled ? 'MEMBER' : 'PROFILE'}</Text>
             </View>
-            <Text style={styles.sub}>Ludo Fusion Hub</Text>
+            <Text style={styles.sub}>{gamblingEnabled ? 'Ludo Fusion Hub' : 'View stats & progress'}</Text>
             <View style={[styles.pill, { borderColor: C.goldBorder, backgroundColor: C.goldSoft }]}>
-              <Text style={[styles.pillText, { color: C.gold }]}>{expiryString}</Text>
+              <Text style={[styles.pillText, { color: C.gold }]}>{gamblingEnabled ? expiryString : 'OPEN'}</Text>
             </View>
           </View>
           <Svg width={6} height={10} viewBox="0 0 6 10">
@@ -692,18 +754,27 @@ export function BottomBar({ forceHome = false, searching = false }: { forceHome?
         </BarItem>
 
         {/* ── REFER & EARN ── */}
-        <BarItem accentColor={C.red} onPress={() => DeviceEventEmitter.emit('open_referral')}>
+        <BarItem
+          accentColor={C.red}
+          onPress={() => {
+            if (gamblingEnabled) {
+              DeviceEventEmitter.emit('open_referral');
+              return;
+            }
+            DeviceEventEmitter.emit('open_inbox', { tab: 'announcement' });
+          }}
+        >
           <View style={styles.iconWrap}>
             <ReferIcon />
           </View>
           <View style={styles.textBlock}>
             <View style={styles.labelRow}>
               <GlowDot color={C.redBright} size={5} />
-              <Text style={[styles.label, { color: C.redBright }]}>REFER &amp; EARN</Text>
+              <Text style={[styles.label, { color: C.redBright }]}>{gamblingEnabled ? 'REFER &amp; EARN' : 'UPDATES'}</Text>
             </View>
-            <Text style={styles.sub}>Invite &amp; earn rewards</Text>
+            <Text style={styles.sub}>{gamblingEnabled ? 'Invite &amp; earn rewards' : 'See events &amp; announcements'}</Text>
             <View style={[styles.pill, { borderColor: C.redBorder, backgroundColor: C.redGlow }]}>
-              <Text style={[styles.pillText, { color: C.redBright }]}>INVITE NOW</Text>
+              <Text style={[styles.pillText, { color: C.redBright }]}>{gamblingEnabled ? 'INVITE NOW' : 'OPEN'}</Text>
             </View>
           </View>
         </BarItem>

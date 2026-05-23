@@ -30,6 +30,7 @@ interface MultiplayerProps {
   setTurnIndex: React.Dispatch<React.SetStateAction<number>>;
   setTurnStartedAt: (v: number | null) => void;
   setCurrentShape: (shape: WhotShape | null) => void;
+  setShapeAskerSeat: React.Dispatch<React.SetStateAction<Seat | null>>;
   setShowShapePicker: (v: boolean) => void;
   setGameStarted: (v: boolean) => void;
   setDealing: (v: boolean) => void;
@@ -61,6 +62,7 @@ export function useWhotMultiplayer({
   setTurnIndex,
   setTurnStartedAt,
   setCurrentShape,
+  setShapeAskerSeat,
   setShowShapePicker,
   setGameStarted,
   setDealing,
@@ -95,8 +97,9 @@ export function useWhotMultiplayer({
     cardIdx: number,
     card: Card,
     nextTurn: number,
-    specialMsg?: string,
+    _specialMsg?: string,
     _wantShape?: WhotShape | null,
+    _pendingPicks?: number
   ) => {
     const p = players[pi];
     if (!p) return;
@@ -106,15 +109,15 @@ export function useWhotMultiplayer({
 
     playWhotCardSound();
 
-    if (specialMsg) {
-      setActionMessage({ msg: specialMsg, seat: p.seat as Seat });
-      if (specialMsg === "Hold On!") playWhotHoldOnSound();
-      else if (specialMsg === "Suspension!") playWhotSuspendedSound();
-      else if (specialMsg === "General Market!") playWhotGeneralMarketSound();
-      else if (specialMsg === "Pick 2!") playWhotPick2Sound();
-      else if (specialMsg === "Pick 3!") playWhotPick3Sound();
-      else if (specialMsg === "DEFENDED!") playWhotDefendedSound();
-      else if (specialMsg === "CONTINUE") playWhotContinueSound();
+    if (_specialMsg) {
+      setActionMessage({ msg: _specialMsg, seat: p.seat as Seat });
+      if (_specialMsg === "Hold On!") playWhotHoldOnSound();
+      else if (_specialMsg === "Suspension!") playWhotSuspendedSound();
+      else if (_specialMsg === "General Market!") playWhotGeneralMarketSound();
+      else if (_specialMsg === "Pick 2!") playWhotPick2Sound();
+      else if (_specialMsg === "Pick 3!") playWhotPick3Sound();
+      else if (_specialMsg === "DEFENDED!") playWhotDefendedSound();
+      else if (_specialMsg === "CONTINUE") playWhotContinueSound();
     }
 
     // Snapshot the card count BEFORE splicing so winner detection is accurate.
@@ -150,12 +153,15 @@ export function useWhotMultiplayer({
         } else if (_wantShape) {
           // If the server already sent the shape choice along with the play event
           setCurrentShape(_wantShape);
+          setShapeAskerSeat(p.seat as Seat);
           playWhotGMSound(_wantShape);
           setActionMessage({ msg: `I want ${_wantShape.toUpperCase()}!`, seat: p.seat as Seat });
         }
         // else: wait for whot_shape_chosen / whot_state to set the real shape
 
         setActivePlay(null);
+
+        if (_pendingPicks !== undefined) setPendingPicks(_pendingPicks);
 
         // remainingAfterPlay already defined above
         if (remainingAfterPlay <= 0) {
@@ -184,6 +190,7 @@ export function useWhotMultiplayer({
     setCurrentShape,
     setTurnIndex,
     setTurnStartedAt,
+    setPendingPicks,
     onWinner,
     setShowScoring,
   ]);
@@ -309,6 +316,7 @@ export function useWhotMultiplayer({
       nextTurn: number;
       specialMsg?: string;
       wantShape?: WhotShape | null;
+      pendingPicks?: number;
     }) => {
       // We do NOT update topCard here anymore.
       // It is safely deferred until the card animation reaches the center in handleRemotePlay's onLand callback!
@@ -319,6 +327,7 @@ export function useWhotMultiplayer({
         data.nextTurn,
         data.specialMsg,
         data.wantShape,
+        data.pendingPicks
       );
     };
 
@@ -403,6 +412,7 @@ export function useWhotMultiplayer({
       setCurrentShape(shape);
       playWhotGMSound(shape);
       if (seat) {
+        setShapeAskerSeat(seat);
         setActionMessage({ msg: `I want ${shape.toUpperCase()}!`, seat });
       }
       setTurnIndex(nextTurn);

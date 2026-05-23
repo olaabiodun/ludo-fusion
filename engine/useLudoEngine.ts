@@ -24,7 +24,7 @@ export type GameState = {
   winner: BC | null;
 };
 
-export function useLudoEngine(playerCount: 2 | 4 = 4) {
+export function useLudoEngine(playerCount: 2 | 4 = 4, randomStart?: boolean) {
   // Setup 2-player vs 4-player colors
   const activeColors: BC[] = playerCount === 2 ? ['green', 'red'] : ['green', 'yellow', 'red', 'blue'];
 
@@ -50,7 +50,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
 
     return {
       activeColors,
-      turnIndex: 0,
+      turnIndex: randomStart ? Math.floor(Math.random() * activeColors.length) : 0,
       turnId: 1,
       diceValue: null,
       hasRolled: false,
@@ -527,7 +527,7 @@ export function useLudoEngine(playerCount: 2 | 4 = 4) {
 
     setState({
       activeColors,
-      turnIndex: 0,
+      turnIndex: randomStart ? Math.floor(Math.random() * activeColors.length) : 0,
       turnId: 1,
       diceValue: null,
       hasRolled: false,

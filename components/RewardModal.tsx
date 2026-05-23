@@ -12,6 +12,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFeatureActive } from '@/lib/FeatureContext';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -91,12 +92,17 @@ export function RewardModal({
   icon = 'wallet-giftcard',
   color = '#D4AF37',
 }: RewardModalProps) {
+  const gamblingEnabled = useFeatureActive();
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const rotation = useRef(new Animated.Value(0)).current;
   const tilt = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
   const [showContent, setShowContent] = useState(false);
+  const effectivePrefix = !gamblingEnabled && unit === 'coins' ? '' : prefix;
+  const effectiveSubtitle = !gamblingEnabled && subtitle === 'Daily login reward added to wallet'
+    ? 'Daily login bonus claimed'
+    : subtitle;
 
   useEffect(() => {
     if (visible) {
@@ -193,10 +199,10 @@ export function RewardModal({
           </Animated.View>
 
           <Animated.Text style={[styles.title, { opacity: pulse.interpolate({ inputRange: [1, 1.1], outputRange: [0.8, 1] }) }]}>{title}</Animated.Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={styles.subtitle}>{effectiveSubtitle}</Text>
           
           <Animated.View style={[styles.amountWrap, { transform: [{ scale: pulse }] }]}>
-            {prefix ? <Text style={styles.amountSign}>{prefix}</Text> : null}
+            {effectivePrefix ? <Text style={styles.amountSign}>{effectivePrefix}</Text> : null}
             <Text style={styles.amountText}>{amount}</Text>
             {unit ? <Text style={[styles.amountSign, { marginLeft: 6, fontSize: 18 }]}>{unit}</Text> : null}
           </Animated.View>

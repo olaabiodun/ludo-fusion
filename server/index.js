@@ -12,7 +12,73 @@ const { io: ioClient } = require('socket.io-client');
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 app.get('/', (_, res) => res.send('ok'));
+
+app.post('/delete-account', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      return res.status(401).json({ error: 'Missing authorization token' });
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    const user = authData?.user;
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid session token' });
+    }
+
+    const userId = user.id;
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('wallet_balance')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      return res.status(400).json({ error: 'Unable to load account profile' });
+    }
+
+    if ((profile?.wallet_balance || 0) > 0) {
+      return res.status(400).json({ error: 'Wallet balance must be zero before deleting your account' });
+    }
+
+    const cleanupOps = [
+      () => supabase.from('blocked_players').delete().eq('blocker_id', userId),
+      () => supabase.from('blocked_players').delete().eq('blocked_id', userId),
+      () => supabase.from('announcement_reads').delete().eq('user_id', userId),
+      () => supabase.from('inbox').delete().eq('user_id', userId),
+      () => supabase.from('transactions').delete().eq('player_id', userId),
+      () => supabase.from('games').delete().eq('player_id', userId),
+      () => supabase.from('user_daily_claims').delete().eq('user_id', userId),
+      () => supabase.from('user_missions').delete().eq('player_id', userId),
+      () => supabase.from('referrals').delete().eq('referrer_id', userId),
+      () => supabase.from('referrals').delete().eq('referred_id', userId),
+      () => supabase.from('support_messages').delete().eq('user_id', userId),
+      () => supabase.from('profile_stats').delete().eq('player_id', userId),
+      () => supabase.from('profiles').delete().eq('id', userId),
+    ];
+
+    for (const op of cleanupOps) {
+      try {
+        await op();
+      } catch (err) {
+        console.warn('[DELETE ACCOUNT] Cleanup warning:', err?.message || err);
+      }
+    }
+
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
+    if (deleteError) {
+      return res.status(500).json({ error: deleteError.message || 'Failed to delete auth account' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[DELETE ACCOUNT] Unexpected error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -237,6 +303,15 @@ function scheduleWhotTurnTimer(roomId) {
       }
 
       // If more than 1 player is still active, just skip their turn permanently
+      const drawnElim = drawWhotCards(freshGame, 1);
+      freshGame.hands[timedOutUserId] = [...(freshGame.hands[timedOutUserId] || []), ...drawnElim];
+      io.to(roomId).emit('whot_remote_pick', {
+        pi,
+        cards: drawnElim,
+        nextTurn: getWhotNextTurnIndex(freshGame, 1),
+        specialMsg: 'ELIMINATED!'
+      });
+
       freshGame.pendingPicks = 0;
       freshGame.wasHoldOn = false;
       freshGame.turnIndex = getWhotNextTurnIndex(freshGame, 1);
@@ -245,12 +320,19 @@ function scheduleWhotTurnTimer(roomId) {
       const updatedGame = whotDecks.get(roomId);
       if (!updatedGame) return;
       emitWhotState(roomId, updatedGame);
-      io.to(roomId).emit('whot_turn_update', { nextTurn: updatedGame.turnIndex, turnStartedAt: updatedGame.turnStartedAt });
       return;
     }
 
-    // Still has lives — show timeout, skip turn (no card drawn)
-    io.to(roomId).emit('whot_remote_action', { pi, msg: 'TIMEOUT!' });
+    // Still has lives — draw 1 penalty card and skip turn
+    const drawn = drawWhotCards(freshGame, 1);
+    freshGame.hands[timedOutUserId] = [...(freshGame.hands[timedOutUserId] || []), ...drawn];
+    io.to(roomId).emit('whot_remote_pick', {
+      pi,
+      cards: drawn,
+      nextTurn: getWhotNextTurnIndex(freshGame, 1),
+      specialMsg: 'TIMEOUT!'
+    });
+
     freshGame.pendingPicks = 0;
     freshGame.wasHoldOn = false;
     freshGame.turnIndex = getWhotNextTurnIndex(freshGame, 1);
@@ -259,7 +341,6 @@ function scheduleWhotTurnTimer(roomId) {
     const updatedGame = whotDecks.get(roomId);
     if (!updatedGame) return;
     emitWhotState(roomId, updatedGame);
-    io.to(roomId).emit('whot_turn_update', { nextTurn: updatedGame.turnIndex, turnStartedAt: updatedGame.turnStartedAt });
   }, 15000);
 
   whotTurnTimers.set(roomId, timer);
@@ -667,6 +748,19 @@ io.on('connection', (socket) => {
     const expectedCard = game.hands[player.userId]?.[cardIdx];
     if (!expectedCard || expectedCard.shape !== card.shape || expectedCard.value !== card.value) return;
 
+    // Server-side validation
+    if (game.pendingPicks > 0) {
+      if (![2, 5].includes(card.value) || card.value !== game.topCard.value) return;
+    } else {
+      if (card.value !== 20) {
+        if (game.topCard.value === 20 && game.currentShape) {
+          if (card.shape !== game.currentShape) return;
+        } else {
+          if (card.shape !== game.topCard.shape && card.value !== game.topCard.value) return;
+        }
+      }
+    }
+
     // Trigger 10-minute timer on first play
     if (!game.gameEndsAt) {
       game.gameEndsAt = Date.now() + (10 * 60 * 1000);
@@ -750,7 +844,8 @@ io.on('connection', (socket) => {
       cardIdx,
       nextTurn,
       specialMsg: outSpecialMsg,
-      wantShape
+      wantShape,
+      pendingPicks: game.pendingPicks
     });
 
     // --- WIN DETECTION ---
@@ -1233,7 +1328,7 @@ class EmbeddedBot {
           // Tell client engine to show the roll value and auto-advance
           this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
           this.triggerTurnAction();
-        }, 350 + Math.random() * 350);
+        }, 150 + Math.random() * 100);
         return;
       }
 
@@ -1245,7 +1340,7 @@ class EmbeddedBot {
         setTimeout(() => {
           this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
           this.applyPawnMove(bestPawnId, d.value);
-        }, 350 + Math.random() * 350);
+        }, 150 + Math.random() * 100);
       }
     });
 
@@ -1494,7 +1589,7 @@ class EmbeddedBot {
     const activeColor = this.activeColors[this.turnIndex];
     if (activeColor === this.color) {
       // It's the bot's turn! Wait a realistic delay (3.0 to 5.0 seconds) then request roll
-      const delay = 3000 + Math.random() * 2000;
+      const delay = 100 + Math.random() * 100;
       setTimeout(() => {
         if (this.activeColors[this.turnIndex] === this.color && !this.hasRolled && !this.gameOver) {
           this.log(`Bot turn: Requesting roll...`);
@@ -1507,7 +1602,7 @@ class EmbeddedBot {
   // ─── WHOT BOT ──────────────────────────────────────────────────────────────
   getPlayableCards(hand, topCard, currentShape, pendingPicks) {
     if (hand.length === 1) {
-      return hand.filter(c => ![1, 2, 5, 8, 14, 20].includes(c.value));
+      return hand.filter(c => ![1, 2, 5, 8, 14].includes(c.value));
     }
     
     if (pendingPicks > 0) {
@@ -1876,9 +1971,12 @@ class EmbeddedBot {
       if (this.gameOver) return;
       this.log(`Dice rolled: Player ${d.userId} rolled ${d.value}`);
       
-      // Calculate walking animation time:
-      // Walk time = Math.max(800, val * 200) + 100, plus 1100ms safety buffer
-      const walkTime = Math.max(800, d.value * 200) + 1100;
+      // Match the client-side baseline timeline before the next turn becomes
+      // visually available:
+      // 1200ms dice spin + 500ms buffer + walk animation + ~200ms settle.
+      // This avoids bots starting their next roll before the UI has shown the
+      // previous player's move finishing and the turn actually passing to them.
+      const walkTime = 1200 + 500 + Math.max(800, d.value * 200) + 100 + 200;
       
       this.hasRolled = false;
       this.diceValue = null;

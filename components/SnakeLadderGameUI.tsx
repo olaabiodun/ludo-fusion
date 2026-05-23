@@ -1,3 +1,4 @@
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import {
@@ -12,15 +13,12 @@ import {
   View
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { EMOJI_PACK } from '../lib/emojis';
+import { isSoundEnabled, loadSounds, playDiceRollSound, setSoundEnabled } from '../lib/sounds';
 import Dice3D from './Dice3D';
+import { GameQuitModal } from './GameQuitModal';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { getBotName, Seat } from './WhotUtils';
-import { GameQuitModal } from './GameQuitModal';
-import { ActionPopup } from './ActionPopup';
-import { useFeatureActive } from '@/lib/FeatureContext';
-import { getPlayerAvatar } from '@/lib/avatars';
-import { playButtonSound, loadSounds, playDiceRollSound } from '../lib/sounds';
-import { EMOJI_PACK } from '../lib/emojis';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -338,9 +336,11 @@ export function SnakeLadderGameUI({
   const [showQuitModal, setShowQuitModal] = React.useState(false);
   const [profileModalVisible, setProfileModalVisible] = React.useState(false);
   const [selectedProfileId, setSelectedProfileId] = React.useState<string | null>(null);
+  const [soundEnabled, setSoundEnabledState] = React.useState(true);
 
   React.useEffect(() => {
     loadSounds();
+    isSoundEnabled().then(setSoundEnabledState).catch(() => {});
   }, []);
 
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
@@ -351,6 +351,8 @@ export function SnakeLadderGameUI({
   const [activeEmojis, setActiveEmojis] = React.useState<Record<string, any>>({});
   const gamblingEnabled = useFeatureActive();
   
+  const activeColor = engine.players?.[engine.turnIndex]?.color;
+  
   const emojiAnim = React.useRef(new Animated.Value(0)).current;
   const quickSettingsAnim = React.useRef(new Animated.Value(0)).current;
   const reportMenuAnim = React.useRef(new Animated.Value(0)).current;
@@ -359,6 +361,12 @@ export function SnakeLadderGameUI({
     setReportSent(`Report sent for ${name}`);
     setShowReportMenu(false);
     setTimeout(() => setReportSent(null), 3000);
+  };
+
+  const handleToggleSound = async () => {
+    const next = !soundEnabled;
+    setSoundEnabledState(next);
+    await setSoundEnabled(next);
   };
 
   const sendEmoji = (emoji: any) => {
@@ -427,135 +435,69 @@ export function SnakeLadderGameUI({
     const lCol = localColor || 'green';
     const allowedColors = playerCount === 2 ? ['green', 'red'] : ['green', 'yellow', 'red', 'blue'];
 
-    return engine.players
+    return (engine?.players ?? [])
       .map((p: any) => {
         const realP = realPlayers?.find(rp => rp.color === p.color);
         const seat = getSeatForColor(p.color, lCol);
         const isBot = isAiEnabled ? p.color !== lCol : p.isBot;
         const name = realP?.username || (isBot ? getBotName(p.color, lCol) : (p.color === lCol ? 'You' : `Player ${p.color}`));
-        return {
-          ...p,
-          isBot,
-          name,
-          avatar: getPlayerAvatar({ avatar_url: realP?.avatar_url, name: realP?.username, color: p.color }),
-          coins: realP?.coins || 0,
-          seat: seat as Seat
-        };
-      });
-  }, [playerCount, localColor, realPlayers, engine.players]);
-
-  const activeColor = engine.players[engine.turnIndex]?.color;
-
-  // ── AI: Auto-roll for bot players ──────────────────────────────────────────
-  React.useEffect(() => {
-    if (engine.winner) return;            // game over
-    if (engine.hasRolled) return;         // already rolled this turn
-    if (engine.isMoving) return;          // piece is animating
-
-    const activeTurnPlayer = visiblePlayers.find((p: any) => p.color === activeColor);
-    if (!activeTurnPlayer) return;
-
-    const isBot = isAiEnabled
-      ? activeTurnPlayer.color !== (localColor || 'green')
-      : activeTurnPlayer.isBot;
-
-    if (!isBot) return; // human's turn — wait for them to tap
-
-    // Stagger the bot's "thinking" between 800ms and 1400ms so it feels alive
-    const delay = 800 + Math.random() * 600;
-    const timer = setTimeout(() => {
-      engine.rollDice();
-    }, delay);
-
-    return () => clearTimeout(timer);
-  }, [
-    engine.turnIndex,
-    engine.hasRolled,
-    engine.isMoving,
-    engine.winner,
-    activeColor,
-    isAiEnabled,
-    localColor,
-  ]);
+        return { ...p, ...realP, isBot, name, seat };
+      })
+      .filter(p => allowedColors.includes(p.color));
+  }, [engine?.players, localColor, playerCount, realPlayers, isAiEnabled]);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={st.root}>
+      {/* Top bar */}
       <View style={st.topRow} pointerEvents="box-none">
-        <TouchableOpacity onPress={() => { playButtonSound(); handleBackPress(); }} style={st.glassPill} activeOpacity={0.8}>
+        <TouchableOpacity onPress={handleBackPress} style={st.glassPill} activeOpacity={0.8}>
           <MaterialCommunityIcons name="chevron-left" size={20} color={C.gold} />
         </TouchableOpacity>
         <View style={st.glassPill}>
           <Text style={st.topLabel}>SNAKE & LADDER</Text>
           <Text style={st.topSub}> · {playerCount}P</Text>
         </View>
-
         {networkPing !== undefined && networkPing !== null && !isAiEnabled && (
           <View style={[st.glassPill, { marginLeft: 4 }]}>
             <MaterialCommunityIcons
-              name={networkPing < 100 ? "wifi" : networkPing < 200 ? "wifi-strength-2" : "wifi-strength-1"}
+              name={(networkPing / 2) < 100 ? "wifi" : (networkPing / 2) < 200 ? "wifi-strength-2" : "wifi-strength-1"}
               size={12}
-              color={networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42'}
+              color={(networkPing / 2) < 100 ? '#57D08B' : (networkPing / 2) < 200 ? '#FFD030' : '#FF4A42'}
             />
-            <Text style={[st.topSub, { marginLeft: 4, color: networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42' }]}>
-              {networkPing}ms
+            <Text style={[st.topSub, { marginLeft: 4, color: (networkPing / 2) < 100 ? '#57D08B' : (networkPing / 2) < 200 ? '#FFD030' : '#FF4A42' }]}>
+              {Math.max(12, Math.floor(networkPing / 2))}ms
             </Text>
           </View>
         )}
-
         <View style={{ flex: 1 }} />
-        
-        {/* Emoji Toggle (Before Prize) */}
-        <TouchableOpacity 
-          style={[st.glassPill, { paddingHorizontal: 8 }]}
-          onPress={() => { playButtonSound(); setShowEmojiPicker(!showEmojiPicker); }}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="emoticon-outline" size={16} color={C.muted} />
-        </TouchableOpacity>
-
-        {/* Prize Pill */}
-        <View style={[st.glassPill, { marginLeft: 4 }]}>
+        <View style={st.glassPill}>
           <MaterialCommunityIcons name="trophy-outline" size={12} color={C.gold} />
           <Text style={st.topSub}> PRIZE </Text>
           <Text style={st.topLabel}>{gamblingEnabled ? `₦${((stake || 0) * playerCount).toLocaleString()}` : `${((stake || 0) * playerCount).toLocaleString()} coins`}</Text>
         </View>
-
-        {/* Balance Pill */}
-        <View style={[st.glassPill, { marginLeft: 4 }]}>
+        <View style={[st.glassPill, { marginLeft: 2 }]}>
           <MaterialCommunityIcons name="wallet-outline" size={12} color={C.gold} />
           <Text style={st.topLabel}>
-            {` ${(visiblePlayers.find((p: any) => p.color === localColor)?.coins || 0).toLocaleString()}`}
+            {` ${(visiblePlayers.find(p => p.color === localColor)?.coins || 0).toLocaleString()}`}
           </Text>
         </View>
-
-        {/* Quick Settings (After Balance) */}
         <TouchableOpacity 
-          style={[st.glassPill, { marginLeft: 4, paddingHorizontal: 8 }]}
-          onPress={() => { playButtonSound(); setShowQuickSettings(!showQuickSettings); }}
+          style={[st.glassPill, { marginLeft: 2, paddingHorizontal: 8 }]}
+          onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="emoticon-outline" size={16} color={C.muted} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[st.glassPill, { marginLeft: 2, paddingHorizontal: 8 }]}
+          onPress={() => setShowQuickSettings(!showQuickSettings)}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons name="tune-vertical" size={16} color={C.muted} />
         </TouchableOpacity>
       </View>
 
-      {/* Report Success Toast */}
-      {reportSent && (
-        <View style={st.toastContainer}>
-          <MaterialCommunityIcons name="check-circle" size={16} color={C.green} />
-          <Text style={st.toastText}>{reportSent}</Text>
-        </View>
-      )}
-
-      {/* Action Popup overlay */}
-      {actionPopup && (
-        <ActionPopup 
-          message={actionPopup.message} 
-          seat={actionPopup.seat} 
-          onComplete={() => setActionPopup(null)} 
-        />
-      )}
-
-      {/* Emoji Picker Popup */}
+      {/* Emoji Picker */}
       {showEmojiPicker && (
         <Animated.View style={[st.emojiPicker, {
           opacity: emojiAnim,
@@ -592,22 +534,22 @@ export function SnakeLadderGameUI({
           <View style={st.qHeader}>
             <Text style={st.qTitle}>SETTINGS</Text>
           </View>
-          <TouchableOpacity style={st.quickSettingsItem} activeOpacity={0.7}>
+          <TouchableOpacity style={st.quickSettingsItem} activeOpacity={0.7} onPress={handleToggleSound}>
             <View style={[st.qIconBg, { backgroundColor: 'rgba(74, 230, 92, 0.15)' }]}>
-              <MaterialCommunityIcons name="volume-high" size={16} color={C.green} />
+              <MaterialCommunityIcons name={soundEnabled ? "volume-high" : "volume-off"} size={16} color={soundEnabled ? C.green : '#FF4A42'} />
             </View>
             <Text style={st.quickSettingsText}>SFX</Text>
-            <View style={[st.toggle, { backgroundColor: C.green }]}>
-              <View style={[st.toggleDot, { alignSelf: 'flex-end' }]} />
+            <View style={[st.toggle, { backgroundColor: soundEnabled ? C.green : 'rgba(255,255,255,0.15)' }]}>
+              <View style={[st.toggleDot, { alignSelf: soundEnabled ? 'flex-end' : 'flex-start' }]} />
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={st.quickSettingsItem} activeOpacity={0.7}>
+          <TouchableOpacity style={st.quickSettingsItem} activeOpacity={0.7} onPress={handleToggleSound}>
             <View style={[st.qIconBg, { backgroundColor: 'rgba(45, 168, 255, 0.15)' }]}>
-              <MaterialCommunityIcons name="music" size={16} color={C.blue} />
+              <MaterialCommunityIcons name={soundEnabled ? "music" : "music-off"} size={16} color={soundEnabled ? C.blue : '#FF4A42'} />
             </View>
             <Text style={st.quickSettingsText}>Music</Text>
-            <View style={st.toggle}>
-              <View style={st.toggleDot} />
+            <View style={[st.toggle, { backgroundColor: soundEnabled ? C.green : 'rgba(255,255,255,0.15)' }]}>
+              <View style={[st.toggleDot, { alignSelf: soundEnabled ? 'flex-end' : 'flex-start' }]} />
             </View>
           </TouchableOpacity>
           <View style={st.qDivider} />
@@ -674,6 +616,23 @@ export function SnakeLadderGameUI({
         />
       ))}
 
+      {/* Bottom row: report button */}
+      <View style={st.bottomRow} pointerEvents="box-none">
+        <View style={st.bottomSide}>
+          <View />
+        </View>
+        <View style={st.bottomCenter} />
+        <View style={[st.bottomSide, { justifyContent: 'flex-end' }]}>
+          <TouchableOpacity 
+            style={st.glassIcon} 
+            activeOpacity={0.8} 
+            onPress={() => setShowReportMenu(!showReportMenu)}
+          >
+            <MaterialCommunityIcons name="flag-outline" size={18} color="#FF4A42" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* 3D Dice - Glides to active player */}
       <DiceWrapper
         activeSeat={visiblePlayers.find((p: any) => p.color === activeColor)?.seat || 'TL'}
@@ -707,6 +666,9 @@ export function SnakeLadderGameUI({
     </View>
   );
 }
+        
+      
+
 
 function DiceWrapper({ activeSeat, diceValue, onRoll, disabled, isRolling, onPressDisabled }: { activeSeat: Seat, diceValue: number, onRoll: () => void, disabled?: boolean, isRolling?: boolean, onPressDisabled?: () => void }) {
   const transX = React.useRef(new Animated.Value(24)).current;
@@ -764,6 +726,9 @@ function DiceWrapper({ activeSeat, diceValue, onRoll, disabled, isRolling, onPre
 }
 
 const st = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   glassPill: {
     flexDirection: 'row',
     alignItems: 'center',

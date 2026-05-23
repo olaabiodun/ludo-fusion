@@ -203,18 +203,18 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
       <View style={s.balanceArc} pointerEvents="none" />
       <View style={s.balanceTop}>
         <View>
-          <Text style={s.balanceEyebrow}>TOTAL BALANCE</Text>
+          <Text style={s.balanceEyebrow}>{featureActive ? 'TOTAL BALANCE' : 'TOTAL COINS'}</Text>
           <View style={s.balanceAmountRow}>
             <Text style={s.balanceCurrency}>{featureActive ? '₦' : ''}</Text>
             <Text style={s.balanceAmount}>{displayVal}</Text>
           </View>
-          <Text style={s.balanceSub}>{featureActive ? '≈ Available to play or withdraw' : 'Available to play'}</Text>
+          <Text style={s.balanceSub}>{featureActive ? '≈ Available to play or withdraw' : 'Ready for matches and rewards'}</Text>
         </View>
 
         <View style={s.balanceChips}>
           <View style={s.balanceChip}>
             <MaterialCommunityIcons name="lock-outline" size={11} color={C.gold} />
-            <Text style={s.balanceChipText}>{featureActive ? '₦ 0 locked' : '0 locked'}</Text>
+            <Text style={s.balanceChipText}>{featureActive ? '₦ 0 locked' : '0 bonus locked'}</Text>
           </View>
           <View style={[s.balanceChip, { borderColor: C.successBorder, backgroundColor: C.successSoft }]}>
             <PulseDot color={C.success} />
@@ -228,7 +228,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
           <MaterialCommunityIcons name="arrow-down-circle-outline" size={14} color={C.success} />
           <View>
             <Text style={s.balanceStatVal}>{formatCurrency(stats.totalIn, featureActive)}</Text>
-            <Text style={s.balanceStatLabel}>Total In</Text>
+            <Text style={s.balanceStatLabel}>{featureActive ? 'Total In' : 'Coins Earned'}</Text>
           </View>
         </View>
         <View style={s.balanceStatDiv} />
@@ -236,7 +236,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
           <MaterialCommunityIcons name="arrow-up-circle-outline" size={14} color={C.danger} />
           <View>
             <Text style={s.balanceStatVal}>{formatCurrency(stats.totalOut, featureActive)}</Text>
-            <Text style={s.balanceStatLabel}>Total Out</Text>
+            <Text style={s.balanceStatLabel}>{featureActive ? 'Total Out' : 'Coins Spent'}</Text>
           </View>
         </View>
         <View style={s.balanceStatDiv} />
@@ -244,7 +244,7 @@ function BalanceCard({ balance, stats }: { balance: number; stats: WalletStats }
           <MaterialCommunityIcons name="trophy-outline" size={14} color={C.gold} />
           <View>
             <Text style={s.balanceStatVal}>{formatCurrency(stats.totalWinnings, featureActive)}</Text>
-            <Text style={s.balanceStatLabel}>Winnings</Text>
+            <Text style={s.balanceStatLabel}>{featureActive ? 'Winnings' : 'Match Wins'}</Text>
           </View>
         </View>
       </View>
@@ -763,7 +763,7 @@ export function AchievementHubContent({ initialAction }: { initialAction?: 'depo
           id: g.id,
           label: isWin ? `${gameName} Victory` : `${gameName} Match`,
           sub: g.table_name || 'Global Arena',
-          extra: isWin ? `Won ${featureActive ? '₦' : ''}${Math.abs(g.win_amount).toLocaleString()}${featureActive ? ' from prize pool' : ' coins'}` : `Match participation fee`,
+          extra: isWin ? `Won ${featureActive ? '₦' : ''}${Math.abs(g.win_amount).toLocaleString()}${featureActive ? ' from prize pool' : ' coins'}` : featureActive ? 'Match participation fee' : 'Match entry used',
           amountRaw: Math.abs(Number(g.win_amount ?? 0)),
           positive: isWin,
           icon: gameIcon,
@@ -788,10 +788,10 @@ export function AchievementHubContent({ initialAction }: { initialAction?: 'depo
           label = 'Refund';
           icon = 'refresh';
         } else if (t.type === 'deposit') {
-          label = featureActive ? 'Gems Earned' : 'Coins Earned';
+          label = featureActive ? 'Deposit' : 'Coins Earned';
           icon = 'plus-circle';
         } else if (t.type === 'withdrawal') {
-          label = featureActive ? 'Gems Spent' : 'Coins Spent';
+          label = featureActive ? 'Withdrawal' : 'Coins Spent';
           icon = 'minus-circle';
         } else {
           label = featureActive ? 'Transfer' : 'Transfer';
@@ -807,7 +807,7 @@ export function AchievementHubContent({ initialAction }: { initialAction?: 'depo
           label = 'Refund';
           icon = 'refresh';
         } else if (wordMatch('entry fee')) {
-          label = 'Entry Fee';
+          label = featureActive ? 'Entry Fee' : 'Match Entry';
           icon = 'dice-multiple';
         } else if (wordMatch('referral')) {
           label = 'Referral Bonus';

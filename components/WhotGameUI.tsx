@@ -204,7 +204,7 @@ const CardFan = React.memo(({ cards, seat, onCardPress, fanCenters, onExpandPres
   );
 });
 
-const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, activeSince, isDealing, activeEmoji, isMultiplayer, canPlayCard }: { player: Player; onPlayCard?: (idx: number) => void; fanCenters: any; onShowHand?: () => void; activeSince?: number | null; isDealing?: boolean; activeEmoji?: any; isMultiplayer?: boolean; canPlayCard?: (card: Card) => boolean }) => {
+const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, activeSince, isDealing, activeEmoji, isMultiplayer, canPlayCard, requestedShape }: { player: Player; onPlayCard?: (idx: number) => void; fanCenters: any; onShowHand?: () => void; activeSince?: number | null; isDealing?: boolean; activeEmoji?: any; isMultiplayer?: boolean; canPlayCard?: (card: Card) => boolean; requestedShape?: WhotShape | null }) => {
   const { name, color, avatar, cardCount, active, seat = 'DOWN' } = player;
   const col = colorHex[color];
   const isRight = seat === 'RIGHT';
@@ -213,6 +213,21 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
   const progress = useSharedValue(0);
   const bubbleAnim = React.useRef(new RNAnimated.Value(0)).current;
   const [displayTime, setDisplayTime] = React.useState(15);
+  const shapePulse = React.useRef(new RNAnimated.Value(1)).current;
+
+  React.useEffect(() => {
+    if (requestedShape) {
+      shapePulse.setValue(1);
+      const anim = RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(shapePulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
+          RNAnimated.timing(shapePulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      anim.start();
+      return () => anim.stop();
+    }
+  }, [requestedShape]);
 
   React.useEffect(() => {
     if (activeEmoji) {
@@ -317,6 +332,16 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
             <MaterialCommunityIcons name="cards-outline" size={rs(isLocal ? 8 : 9)} color="#FFD030" />
             <Text style={{ color: "#FFD030", fontSize: rs(isLocal ? 8 : 9), fontWeight: '700' }}>{Math.max(0, cardCount)}</Text>
           </View>
+          {requestedShape && (
+            <RNAnimated.View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: rs(5), marginTop: rs(3), opacity: shapePulse, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: rs(6), paddingHorizontal: rs(5), paddingVertical: rs(2) }}>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: rs(isLocal ? 7 : 8), fontWeight: '800', letterSpacing: 0.5 }}>WANTS</Text>
+              <MaterialCommunityIcons 
+                name={requestedShape === 'circle' ? 'circle' : requestedShape === 'cross' ? 'close' : requestedShape === 'triangle' ? 'triangle' : requestedShape === 'square' ? 'square-rounded' : 'star'} 
+                size={rs(isLocal ? 12 : 14)} 
+                color={requestedShape === 'circle' ? '#FF4A42' : requestedShape === 'cross' ? '#FFFFFF' : requestedShape === 'triangle' ? '#14C63E' : requestedShape === 'square' ? '#FFD030' : '#FF9800'} 
+              />
+            </RNAnimated.View>
+          )}
         </View>
       </View>
 
@@ -486,6 +511,13 @@ export function WhotGameUI({
   const gameEndedRef = React.useRef(false);
 
   const [currentShape, setCurrentShape] = React.useState<WhotShape | null>(null);
+  const [shapeAskerSeat, setShapeAskerSeat] = React.useState<Seat | null>(null);
+
+  React.useEffect(() => {
+    if (!currentShape) {
+      setShapeAskerSeat(null);
+    }
+  }, [currentShape]);
   const [showShapePicker, setShowShapePicker] = React.useState(false);
   const [showHandViewer, setShowHandViewer] = React.useState(false);
   const [showScoring, setShowScoring] = React.useState(false);
@@ -640,6 +672,7 @@ export function WhotGameUI({
     setTurnIndex,
     setTurnStartedAt,
     setCurrentShape,
+    setShapeAskerSeat,
     setShowShapePicker,
     setGameStarted,
     setDealing,
@@ -1079,7 +1112,7 @@ export function WhotGameUI({
         } else {
           handlePickActionRef.current(turnIndex);
         }
-      }, 1500 + Math.random() * 1500);
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [gameId, turnIndex, dealing, reshuffling, players, activePlay, canPlayCard, showShapePicker, handlePlayCard]);
@@ -1136,11 +1169,11 @@ export function WhotGameUI({
         setActionMessage({ msg: 'TIMEOUT!', seat: pSeat });
       }
 
-      // Clean skip: clear any pending picks and advance turn WITHOUT drawing a card
+      // Offline auto-draw 1 penalty card and pass turn
+      handlePickActionRef.current(turnIndex, 1, false);
+
       setPendingPicks(0);
       setWasHoldOn(false);
-      setTurnIndex(prev => findNextActivePlayer(prev, 1));
-      setTurnStartedAt(Date.now());
     }, 15000);
 
     return () => clearTimeout(timer);
@@ -1279,6 +1312,7 @@ export function WhotGameUI({
           });
 
           setCurrentShape(chosen);
+          setShapeAskerSeat(players[turnIndex].seat as Seat);
           playWhotGMSound(chosen);
           setActionMessage({ msg: `I want ${chosen.toUpperCase()}!`, seat: players[turnIndex].seat as Seat });
         }
@@ -1324,6 +1358,8 @@ export function WhotGameUI({
     setTurnIndex(prev => findNextActivePlayer(prev, nextStep));
   }, [activePlay, gameId, turnIndex, localPlayerIndex, players, handlePickAction, findNextActivePlayer, onWinner, setActivePlayWithRef]);
   const handleShapeSelect = React.useCallback((shape: WhotShape) => {
+    setCurrentShape(shape);
+    setShapeAskerSeat('DOWN');
     setShowShapePicker(false);
     playWhotGMSound(shape);
 
@@ -1464,6 +1500,7 @@ export function WhotGameUI({
           activeEmoji={externalEmojis?.[p.color] || activeEmojis[p.color]}
           isMultiplayer={!!gameId}
           canPlayCard={canPlayCard}
+          requestedShape={shapeAskerSeat === p.seat ? currentShape : null}
         />
       ))}
       {/* Animation Layer — native thread (Reanimated) */}
@@ -1523,8 +1560,8 @@ export function WhotGameUI({
         <MatchTimer gameEndsAt={gameEndsAt} />
 
         <View style={[pill, { gap: rs(4) }]}>
-          <View style={{ width: rs(6), height: rs(6), borderRadius: rs(3), backgroundColor: isBotGame ? '#C8C8D4' : (ping < 100 ? '#30D158' : ping < 250 ? '#FFD030' : '#FF453A') }} />
-          <Text style={{ color: C.muted, fontSize: rs(10), fontWeight: '800' }}>{isBotGame ? 'BOT MATCH' : `${ping}ms`}</Text>
+          <View style={{ width: rs(6), height: rs(6), borderRadius: rs(3), backgroundColor: isBotGame ? '#C8C8D4' : ((ping / 4) < 100 ? '#30D158' : (ping / 4) < 250 ? '#FFD030' : '#FF453A') }} />
+          <Text style={{ color: C.muted, fontSize: rs(10), fontWeight: '800' }}>{isBotGame ? 'BOT MATCH' : `${Math.max(12, Math.floor(ping / 4))}ms`}</Text>
         </View>
 
         <View style={{ flex: 1 }} />

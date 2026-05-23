@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useFeatureActive } from '@/lib/FeatureContext';
+import { playVictorySound, playLoseSound } from '@/lib/sounds';
 
 // ─── Landscape dimensions ─────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -401,19 +402,6 @@ function PlayerRow({
               <Text style={[st.youTagTxt, { color: col }]}>YOU</Text>
             </View>
           )}
-          {p.isBot && (
-            <View
-              style={[
-                st.youTag,
-                {
-                  borderColor: `rgba(255,255,255,0.3)`,
-                  backgroundColor: `rgba(255,255,255,0.08)`,
-                },
-              ]}
-            >
-              <Text style={[st.youTagTxt, { color: 'rgba(255,255,255,0.5)' }]}>AI</Text>
-            </View>
-          )}
           {isEliminated && (
             <View style={[st.youTag, { borderColor: 'rgba(232,96,106,0.5)', backgroundColor: 'rgba(232,96,106,0.15)' }]}>
               <Text style={[st.youTagTxt, { color: '#E8606A', fontSize: 5.5 }]}>ELIMINATED</Text>
@@ -582,6 +570,13 @@ export function GameResultScreen({
   const bgRot = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Play sound based on result!
+    if (isWin) {
+      playVictorySound();
+    } else {
+      playLoseSound();
+    }
+
     const intro = Animated.parallel([
       Animated.timing(fadeIn, { toValue: 1, duration: 450, useNativeDriver: true }),
       Animated.timing(slideY, {
@@ -833,7 +828,9 @@ export function GameResultScreen({
               )}
               {isWin && totalPrize > 0 && (
                 <Text style={st.earnedLabel}>
-                  earned ({gamblingEnabled ? '₦' : ''}{totalPrize} pot - {gamblingEnabled ? '₦' : ''}{calculatedFee} platform fee ({platformFeePercent}%))
+                  {gamblingEnabled
+                    ? `earned (₦${totalPrize} pot - ₦${calculatedFee} platform fee (${platformFeePercent}%))`
+                    : `earned (${totalPrize} coin pool - ${calculatedFee} service fee (${platformFeePercent}%))`}
                 </Text>
               )}
             </View>

@@ -235,10 +235,6 @@ const Dice3D = React.forwardRef(({
 
   useEffect(() => {
     setDisplayValue(value);
-    if (controlled && rollingIntervalRef.current && !rolling) {
-      clearInterval(rollingIntervalRef.current);
-      rollingIntervalRef.current = null;
-    }
   }, [value]);
 
   // Sync internal display value with rapid randoms if rolling
@@ -249,36 +245,25 @@ const Dice3D = React.forwardRef(({
       if (!controlled) {
         setLastResult(null);
       }
-      rollingIntervalRef.current = setInterval(() => {
-        setDisplayValue(Math.floor(Math.random() * 6) + 1);
-      }, 60);
     } else {
       if (controlled) {
         const elapsed = Date.now() - rollStartRef.current;
-        // Roll animation: 700ms total from start
         const remaining = Math.max(700 - elapsed, 0);
-
-        rollingIntervalRef.current = setInterval(() => {
-          setDisplayValue(Math.floor(Math.random() * 6) + 1);
-        }, 60);
-
-        minDurationTimer.current = setTimeout(() => {
-          if (rollingIntervalRef.current) {
-            clearInterval(rollingIntervalRef.current);
-            rollingIntervalRef.current = null;
-          }
+        if (remaining > 0) {
+          // Continue tumbling via useFrame until minimum duration is met
+          // then snap to final value
+          minDurationTimer.current = setTimeout(() => {
+            setDisplayValue(valueRef.current);
+          }, remaining);
+        } else {
           setDisplayValue(valueRef.current);
-        }, remaining);
+        }
       }
       if (!controlled) {
         setDisplayValue(lastResult || value);
       }
     }
     return () => {
-      if (rollingIntervalRef.current) {
-        clearInterval(rollingIntervalRef.current);
-        rollingIntervalRef.current = null;
-      }
       if (minDurationTimer.current) clearTimeout(minDurationTimer.current);
     };
   }, [rolling, lastResult, controlled]);
@@ -300,7 +285,7 @@ const Dice3D = React.forwardRef(({
     setInternalRolling(true);
     onRollStart?.();
 
-    const dynamicDuration = 700 + Math.random() * 500;
+    const dynamicDuration = 300 + Math.random() * 200;
     setTimeout(() => {
       let result = Math.floor(Math.random() * 6) + 1;
       if (needsSixBoost && result !== 6 && Math.random() < 0.30) {

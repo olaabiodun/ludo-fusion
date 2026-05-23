@@ -15,6 +15,7 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { useLudoEngine } from '../engine/useLudoEngine';
 import { useFeatureActive } from '@/lib/FeatureContext';
+import { isSoundEnabled, setSoundEnabled } from '@/lib/sounds';
 import { GameQuitModal } from './GameQuitModal';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { getPlayerAvatar } from '@/lib/avatars';
@@ -409,10 +410,8 @@ export function LudoGameUI({
 }: {
   playerCount: PlayerCount;
   onExit?: () => void;
-  engine: ReturnType<typeof useLudoEngine>;
+  engine: any;
   localColor?: string;
-  diceReady: boolean;
-  isDiceRolling?: boolean;
   realPlayers?: any[];
   stake?: number;
   isAiEnabled?: boolean;
@@ -425,6 +424,7 @@ export function LudoGameUI({
   const [profileModalVisible, setProfileModalVisible] = React.useState(false);
   const [selectedProfileId, setSelectedProfileId] = React.useState<string | null>(null);
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
+  const [soundEnabled, setSoundEnabledState] = React.useState(true);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
   const [reportSent, setReportSent] = React.useState<string | null>(null);
@@ -467,6 +467,10 @@ export function LudoGameUI({
       quickSettingsAnim.setValue(0);
     }
   }, [showQuickSettings]);
+
+  React.useEffect(() => {
+    isSoundEnabled().then(setSoundEnabledState).catch(() => {});
+  }, []);
 
   React.useEffect(() => {
     if (showEmojiPicker) {
@@ -522,6 +526,12 @@ export function LudoGameUI({
     setShowQuitModal(true);
   };
 
+  const handleToggleSound = async () => {
+    const next = !soundEnabled;
+    setSoundEnabledState(next);
+    await setSoundEnabled(next);
+  };
+
   const visiblePlayers = React.useMemo(() => {
     const lCol = localColor || 'blue';
     let sourceList: any[] = [];
@@ -571,12 +581,12 @@ export function LudoGameUI({
         {networkPing !== undefined && networkPing !== null && !isAiEnabled && (
           <View style={[st.glassPill, { marginLeft: 4 }]}>
             <MaterialCommunityIcons
-              name={networkPing < 100 ? "wifi" : networkPing < 200 ? "wifi-strength-2" : "wifi-strength-1"}
+              name={(networkPing / 2) < 100 ? "wifi" : (networkPing / 2) < 200 ? "wifi-strength-2" : "wifi-strength-1"}
               size={12}
-              color={networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42'}
+              color={(networkPing / 2) < 100 ? '#57D08B' : (networkPing / 2) < 200 ? '#FFD030' : '#FF4A42'}
             />
-            <Text style={[st.topSub, { marginLeft: 4, color: networkPing < 100 ? '#57D08B' : networkPing < 200 ? '#FFD030' : '#FF4A42' }]}>
-              {networkPing}ms
+            <Text style={[st.topSub, { marginLeft: 4, color: (networkPing / 2) < 100 ? '#57D08B' : (networkPing / 2) < 200 ? '#FFD030' : '#FF4A42' }]}>
+              {Math.max(12, Math.floor(networkPing / 2))}ms
             </Text>
           </View>
         )}
@@ -616,27 +626,29 @@ export function LudoGameUI({
 
           <TouchableOpacity 
             style={st.quickSettingsItem} 
+            onPress={handleToggleSound}
             activeOpacity={0.7}
           >
             <View style={[st.qIconBg, { backgroundColor: 'rgba(74, 230, 92, 0.15)' }]}>
-              <MaterialCommunityIcons name="volume-high" size={16} color={C.green} />
+              <MaterialCommunityIcons name={soundEnabled ? "volume-high" : "volume-off"} size={16} color={soundEnabled ? C.green : C.red} />
             </View>
             <Text style={st.quickSettingsText}>SFX</Text>
-            <View style={[st.toggle, { backgroundColor: C.green }]}>
-              <View style={[st.toggleDot, { alignSelf: 'flex-end' }]} />
+            <View style={[st.toggle, { backgroundColor: soundEnabled ? C.green : 'rgba(255,255,255,0.15)' }]}>
+              <View style={[st.toggleDot, { alignSelf: soundEnabled ? 'flex-end' : 'flex-start' }]} />
             </View>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={st.quickSettingsItem}
+            onPress={handleToggleSound}
             activeOpacity={0.7}
           >
             <View style={[st.qIconBg, { backgroundColor: 'rgba(45, 168, 255, 0.15)' }]}>
-              <MaterialCommunityIcons name="music" size={16} color={C.blue} />
+              <MaterialCommunityIcons name={soundEnabled ? "music" : "music-off"} size={16} color={soundEnabled ? C.blue : C.red} />
             </View>
             <Text style={st.quickSettingsText}>Music</Text>
-            <View style={st.toggle}>
-              <View style={st.toggleDot} />
+            <View style={[st.toggle, { backgroundColor: soundEnabled ? C.green : 'rgba(255,255,255,0.15)' }]}>
+              <View style={[st.toggleDot, { alignSelf: soundEnabled ? 'flex-end' : 'flex-start' }]} />
             </View>
           </TouchableOpacity>
 

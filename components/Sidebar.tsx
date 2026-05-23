@@ -72,6 +72,19 @@ const VaultIcon = ({ active }: { active?: boolean }) => (
   </Svg>
 );
 
+const EarnIcon = ({ active }: { active?: boolean }) => (
+  <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+    <Circle cx={9} cy={9} r={6.8} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.5} />
+    <Path
+      d="M9 4.5V13.5M6.2 7.3C6.2 6.2 7.3 5.4 9 5.4C10.6 5.4 11.8 6.1 11.8 7.2C11.8 8.2 10.9 8.6 9 9C7.1 9.4 6.2 9.8 6.2 10.9C6.2 12 7.4 12.6 9 12.6C10.7 12.6 11.8 11.8 11.8 10.8"
+      stroke={active ? C.gold : "rgba(255,255,255,0.7)"}
+      strokeWidth={1.3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 const HistoryIcon = ({ active }: { active?: boolean }) => (
   <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
     <Circle cx={9} cy={9} r={7} stroke={active ? C.gold : "rgba(255,255,255,0.7)"} strokeWidth={1.5} />
@@ -113,6 +126,7 @@ export const NAV_ITEMS = [
   { label: 'VAULT', Icon: VaultIcon },
   { label: 'LUCKY_SPIN', Icon: SpinIcon },
   { label: 'HISTORY', Icon: HistoryIcon },
+  { label: 'EARN', Icon: EarnIcon },
   { label: 'SETTINGS', Icon: SettingsIcon },
 ] as const;
 
@@ -185,7 +199,7 @@ function AnimatedNavItem({ label, Icon, active, index, onPress }: AnimatedNavIte
         activeOpacity={1}
       >
         <Icon active={active} />
-        <Text style={[s.navText, active && s.navTextActive]}>{label.replace('_', ' ')}</Text>
+        <Text style={[s.navText, active && s.navTextActive]}>{label === 'EARN' ? 'EARN COINS' : label.replace('_', ' ')}</Text>
         {active && <View style={s.navActiveDot} />}
       </TouchableOpacity>
     </Animated.View>
@@ -199,7 +213,9 @@ type SidebarProps = {
 
 export function Sidebar({ activeNav, onNavChange }: SidebarProps) {
   const featureActive = useFeatureActive();
-  const items = (featureActive ? NAV_ITEMS : NAV_ITEMS.filter(i => i.label !== 'VAULT')).filter(i => i.label !== 'LUCKY_SPIN');
+  const items = featureActive
+    ? NAV_ITEMS.filter(i => i.label !== 'EARN' && i.label !== 'LUCKY_SPIN')
+    : NAV_ITEMS.filter(i => i.label !== 'VAULT' && i.label !== 'LUCKY_SPIN');
   return (
     <View style={s.sidebar}>
       {items.map(({ label, Icon }, index) => (

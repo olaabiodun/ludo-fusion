@@ -1,4 +1,5 @@
 import { BottomBar } from '@/components/BottomBar';
+import { EarnCoinsPanel } from '@/components/EarnCoinsPanel';
 import { FriendsPanel } from '@/components/FriendsPanel';
 import { GameLobbyScreen } from '@/components/Gamelobby';
 import { HistoryPanel } from '@/components/HistoryPanel';
@@ -12,6 +13,7 @@ import { Sidebar, type SidebarNav } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { AchievementHub } from '@/components/AchievementHub';
 import { LuckySpinPanel } from '@/components/LuckySpinPanel';
+import { useFeatureActive } from '@/lib/FeatureContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { playButtonSound } from '@/lib/sounds';
@@ -291,6 +293,7 @@ function PlaceholderScreen({ activeNav }: { activeNav: Exclude<SidebarNav, 'HOME
 }
 
 export default function LudoFusionHome() {
+  const gamblingEnabled = useFeatureActive();
   const [activeNav, setActiveNav] = useState<AppNav>('HOME');
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [walletAction, setWalletAction] = useState<'deposit' | 'withdrawal' | undefined>(undefined);
@@ -334,6 +337,7 @@ export default function LudoFusionHome() {
     ).start();
 
     const refSub = DeviceEventEmitter.addListener('open_referral', () => {
+      if (!gamblingEnabled) return;
       setActiveNav('REFERRAL');
     });
 
@@ -343,6 +347,7 @@ export default function LudoFusionHome() {
     });
 
     const memberSub = DeviceEventEmitter.addListener('open_member', () => {
+      if (!gamblingEnabled) return;
       setActiveNav('MEMBER');
     });
 
@@ -351,7 +356,7 @@ export default function LudoFusionHome() {
       inboxSub.remove();
       memberSub.remove();
     };
-  }, [floatAnim, screenFade, titleGlow]);
+  }, [floatAnim, screenFade, titleGlow, gamblingEnabled]);
 
   const titleOpacity = titleGlow.interpolate({
     inputRange: [0, 1],
@@ -360,6 +365,25 @@ export default function LudoFusionHome() {
 
   const panelTitle = activeNav === 'HOME' ? 'CHOOSE YOUR GAME' : activeNav === 'INBOX' ? 'YOUR INBOX' : ``;
   const showPanelTitle = activeNav === 'HOME' && !selectedGame;
+  const visibleGameCards = React.useMemo(
+    () => GAME_CARDS.map(card => {
+      if (gamblingEnabled || card.id !== 'tournaments') return card;
+      return {
+        ...card,
+        title: 'DAILY EVENTS',
+        desc: 'See featured drops\n& earn coin rewards',
+        btnText: 'EXPLORE',
+      };
+    }),
+    [gamblingEnabled]
+  );
+
+  useEffect(() => {
+    if (!gamblingEnabled && (activeNav === 'VAULT' || activeNav === 'MEMBER' || activeNav === 'REFERRAL')) {
+      setActiveNav('HOME');
+      setWalletAction(undefined);
+    }
+  }, [gamblingEnabled, activeNav]);
 
   return (
     <Animated.View style={[s.screen, { opacity: screenFade }]}>
@@ -373,10 +397,12 @@ export default function LudoFusionHome() {
           setActiveNav('INBOX');
         }}
         onAddFundsPress={() => {
+          if (!gamblingEnabled) return;
           setWalletAction('deposit');
           setActiveNav('VAULT');
         }}
         onWithdrawPress={() => {
+          if (!gamblingEnabled) return;
           setWalletAction('withdrawal');
           setActiveNav('VAULT');
         }}
@@ -423,13 +449,18 @@ export default function LudoFusionHome() {
               </View>
             ) : (
               <View style={s.cardsRow}>
-                {GAME_CARDS.map((card, index) => (
+                {visibleGameCards.map((card, index) => (
                   <AnimatedGameCard
                     key={card.id}
                     {...card}
                     index={index}
                     onPress={() => {
                       playButtonSound();
+                      if (!gamblingEnabled && card.id === 'tournaments') {
+                        setInboxTab('announcement');
+                        setActiveNav('INBOX');
+                        return;
+                      }
                       setSelectedGame(card.id === 'fusion' ? 'ludo' : card.id === 'tournaments' ? 'ludo_t' : card.id as any);
                     }}
                   />
@@ -438,9 +469,22 @@ export default function LudoFusionHome() {
             )
           ) : activeNav === 'PROFILE' ? (
             <ProfilePanel />
+          ) : activeNav === 'EARN' && !gamblingEnabled ? (
+            <EarnCoinsPanel
+              onBrowseGames={() => {
+                setSelectedGame(null);
+                setActiveNav('HOME');
+              }}
+              onOpenAnnouncements={() => {
+                setInboxTab('announcement');
+                setActiveNav('INBOX');
+              }}
+              onOpenProfile={() => setActiveNav('PROFILE')}
+              onOpenLeaderboard={() => setActiveNav('LEADERBOARD')}
+            />
           ) : activeNav === 'LEADERBOARD' ? (
             <LeaderboardPanel visible={true} onClose={() => setActiveNav('HOME')} />
-          ) : activeNav === 'VAULT' ? (
+          ) : activeNav === 'VAULT' && gamblingEnabled ? (
             <AchievementHub initialAction={walletAction} />
           ) : activeNav === 'LUCKY_SPIN' ? (
             <LuckySpinPanel />
@@ -452,9 +496,9 @@ export default function LudoFusionHome() {
             <SettingsPanel />
           ) : activeNav === 'INBOX' ? (
             <InboxPanel visible={true} onClose={() => setActiveNav('HOME')} initialTab={inboxTab} />
-          ) : activeNav === 'MEMBER' ? (
+          ) : activeNav === 'MEMBER' && gamblingEnabled ? (
             <MemberPanel visible={true} onClose={() => setActiveNav('HOME')} />
-          ) : activeNav === 'REFERRAL' ? (
+          ) : activeNav === 'REFERRAL' && gamblingEnabled ? (
             <ReferralPanel visible={true} onClose={() => setActiveNav('HOME')} />
           ) : (
             <PlaceholderScreen activeNav={activeNav as any} />

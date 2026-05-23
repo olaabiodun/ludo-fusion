@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { useFeatureActive } from '@/lib/FeatureContext';
+import { isSoundEnabled, setSoundEnabled } from '@/lib/sounds';
+import { SOCKET_URL } from '@/lib/socket';
 import { AVATAR_PRESETS } from '@/lib/avatars';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -298,6 +300,17 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
       },
       {
         kind: 'nav',
+        id: 'delete-account',
+        icon: 'delete-forever-outline',
+        iconColor: C.danger,
+        iconBg: C.dangerSoft,
+        iconBorder: C.dangerBorder,
+        label: 'Delete Account',
+        sub: 'Permanently remove your account',
+        danger: true,
+      },
+      {
+        kind: 'nav',
         id: 'logout',
         icon: 'logout-variant',
         iconColor: C.danger,
@@ -480,9 +493,9 @@ function HelpContent({ onClose }: { onClose: () => void }) {
       icon: 'rocket-launch-outline',
       items: [
         { q: 'How do I create an account?', a: 'Enter your email address on the login screen, tap SIGN IN, check your inbox for a 6-digit verification code, enter it, then pick a username and full name to claim your signup bonus.' },
-        { q: 'How do I play a game?', a: 'From the home screen, tap any game card — Ludo, Whot, Snake & Ladder, or Tournaments. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' },
-        { q: 'What games are available?', a: 'Ludo (classic board game), Whot (Nigerian card game), Snake & Ladder (board game with snakes & ladders), and Tournaments — competitive events across all games with prize pools.' },
-        { q: 'Is the app free to play?', a: 'Yes, you can play free games. Some modes and tournaments require an entry fee from your wallet balance. Free practice rooms are available for every game.' },
+        { q: 'How do I play a game?', a: gambling ? 'From the home screen, tap any game card — Ludo, Whot, Snake & Ladder, or Tournaments. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' : 'From the home screen, tap any game card — Ludo, Whot, or Snake & Ladder. In the lobby, choose Quick Match to find an opponent or create a Private Room to invite friends via a code.' },
+        { q: 'What games are available?', a: gambling ? 'Ludo (classic board game), Whot (Nigerian card game), Snake & Ladder (board game with snakes & ladders), and Tournaments — competitive events across all games with prize pools.' : 'Ludo (classic board game), Whot (Nigerian card game), and Snake & Ladder (board game with snakes & ladders).' },
+        { q: 'Is the app free to play?', a: gambling ? 'Yes, you can play free games. Some modes and tournaments require an entry fee from your wallet balance. Free practice rooms are available for every game.' : 'Yes. The Play Store version uses coins and free practice rooms so you can play without wallet funding.' },
       ],
     },
     ...(gambling ? PAYSTACK_DEPOSIT_CAT : []),
@@ -494,7 +507,7 @@ function HelpContent({ onClose }: { onClose: () => void }) {
         { q: 'What are the rules of Whot?', a: 'Players take turns matching the discard pile by suit, number, or special card. Special cards (Star, Circle, Cross, Triangle, Square, Whot!) force opponents to draw or skip. Last player holding cards loses.' },
         { q: 'How does Snake & Ladder work?', a: 'Roll the dice to move your piece from 1 to 100. Ladders boost you up. Snakes send you back down. First to reach exactly 100 wins. Landing on a ladder or snake triggers an automatic move.' },
         { q: 'What happens if I disconnect mid-game?', a: 'You have 30 seconds to reconnect before the game forfeits. If you rejoin in time, play resumes from where you left off. Your opponent is notified of the disconnect.' },
-        { q: 'How does scoring work in tournaments?', a: 'Tournaments use a points system. Wins earn 3 points, draws earn 1 point, losses earn 0. Top players advance to the next round. Prizes are distributed based on final rank.' },
+        ...(gambling ? [{ q: 'How does scoring work in tournaments?', a: 'Tournaments use a points system. Wins earn 3 points, draws earn 1 point, losses earn 0. Top players advance to the next round. Prizes are distributed based on final rank.' }] : []),
       ],
     },
     {
@@ -503,7 +516,7 @@ function HelpContent({ onClose }: { onClose: () => void }) {
       items: [
         { q: 'How do I change my username?', a: 'Open Settings, tap Edit Profile. You can change your username here. Choose wisely — changes are limited to once every 30 days. Your full name cannot be changed after verification.' },
         { q: 'How do I protect my account?', a: 'Use a strong email account password. Never share your OTP codes. Enable "Show Online Status" controls in Settings > Privacy & Security. Report suspicious activity immediately.' },
-        { q: 'Can I delete my account?', a: 'Contact live support via Settings > Live Support to request account deletion. Your wallet balance must be zero. Deletion is permanent and cannot be reversed.' },
+        { q: 'Can I delete my account?', a: gambling ? 'Open Settings > Delete Account to permanently remove your account. Your wallet balance must be zero before deletion. Deletion is permanent and cannot be reversed.' : 'Open Settings > Delete Account to permanently remove your account. Deletion is permanent and cannot be reversed.' },
         { q: 'How do I block a player?', a: 'Go to Settings > Privacy & Security > Blocked Players, or tap the player\'s profile during a match and select Block. Blocked players cannot send you invites or messages.' },
       ],
     },
@@ -1241,12 +1254,14 @@ export function SettingsPanel() {
   const [editUsername, setEditUsername] = useState('');
   const [editAvatar, setEditAvatar] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const localSoundEnabled = await isSoundEnabled();
 
     const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
     if (prof) {
@@ -1261,11 +1276,12 @@ export function SettingsPanel() {
       setEditAvatar(prof.avatar_url ?? null);
       setSettings({
         push: prof.push_notifications,
-        sounds: prof.sound_effects,
+        sounds: localSoundEnabled,
         vibrate: prof.vibration,
         online: prof.show_online_status,
         autoaccept: prof.auto_accept_rematch,
       });
+      await setSoundEnabled(localSoundEnabled);
     }
 
     const { count: blockedCount } = await supabase.from('blocked_players').select('*', { count: 'exact', head: true }).eq('blocker_id', user.id);
@@ -1276,6 +1292,9 @@ export function SettingsPanel() {
 
   const handleToggle = async (id: string, val: boolean) => {
     setSettings(prev => ({ ...prev, [id]: val }));
+    if (id === 'sounds') {
+      await setSoundEnabled(val);
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -1293,6 +1312,53 @@ export function SettingsPanel() {
   const handleNav = (id: string) => {
     if (id === 'profile') {
       setEditOpen(true);
+      return;
+    }
+    if (id === 'delete-account') {
+      Alert.alert(
+        'Delete Account',
+        gambling
+          ? 'This permanently deletes your account and cannot be reversed. Your wallet balance must be zero before deletion.'
+          : 'This permanently deletes your account and cannot be reversed.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: deletingAccount ? 'Deleting...' : 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              if (deletingAccount) return;
+              setDeletingAccount(true);
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) {
+                  throw new Error('Your session has expired. Please sign in again.');
+                }
+
+                const response = await fetch(`${SOCKET_URL.replace(/\/$/, '')}/delete-account`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({}),
+                });
+
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                  throw new Error(result?.error || 'Failed to delete account');
+                }
+
+                await supabase.auth.signOut();
+                router.replace('/');
+              } catch (error: any) {
+                Alert.alert('Delete Failed', error?.message || 'Unable to delete your account right now.');
+              } finally {
+                setDeletingAccount(false);
+              }
+            }
+          },
+        ]
+      );
       return;
     }
     if (id === 'logout') {
@@ -1511,11 +1577,11 @@ export function SettingsPanel() {
                       <Text style={{ color: C.textPrimary, fontWeight: '800' }}>3. Account Registration</Text>{'\n'}
                       You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Each user may maintain only one account. Duplicate accounts may be suspended or terminated.
                       {'\n\n'}
-                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>4. Virtual Currency & Wallet</Text>{'\n'}
+                      <Text style={{ color: C.textPrimary, fontWeight: '800' }}>{gambling ? '4. Virtual Currency & Wallet' : '4. Virtual Currency & Balance'}</Text>{'\n'}
                       The App uses a virtual currency system for gameplay. Virtual currency has no real-world value and cannot be exchanged for real money, goods, or services outside the App. All purchases of virtual currency are final and non-refundable. We reserve the right to modify, suspend, or terminate the virtual currency system at any time.
                       {'\n\n'}
                       <Text style={{ color: C.textPrimary, fontWeight: '800' }}>5. Game Rules & Fair Play</Text>{'\n'}
-                      All games are governed by their respective rules as displayed within the App. We employ anti-cheat measures to detect bots, collusion, and other unfair practices. Violations may result in forfeiture of winnings, suspension, or permanent account ban.
+                      All games are governed by their respective rules as displayed within the App. We employ anti-cheat measures to detect bots, collusion, and other unfair practices. Violations may result in forfeiture of rewards, suspension, or permanent account ban.
                       {'\n\n'}
                       <Text style={{ color: C.textPrimary, fontWeight: '800' }}>6. Prohibited Conduct</Text>{'\n'}
                       You agree not to: (a) exploit bugs or glitches; (b) use automated scripts or bots; (c) harass other players; (d) create multiple accounts; (e) engage in money laundering; (f) reverse-engineer the App; or (g) use the App for any illegal purpose.

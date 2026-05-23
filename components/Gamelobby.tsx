@@ -224,6 +224,10 @@ function PulseDot({ color = C.gold }: { color?: string }) {
 const HeroBanner = React.memo(({ config, onBack }: { config: GameConfig; onBack: () => void }) => {
   const anim = useFadeSlide(0, -10);
   const shimmer = useRef(new Animated.Value(0)).current;
+  const gamblingEnabled = useFeatureActive();
+  const heroDescription = !gamblingEnabled && config.isTournament
+    ? 'Competitive multi-round play with knockout progression and coin-based rewards.'
+    : config.description;
 
   useEffect(() => {
     Animated.loop(
@@ -270,11 +274,11 @@ const HeroBanner = React.memo(({ config, onBack }: { config: GameConfig; onBack:
               {config.isTournament && (
                 <View style={sl.tourneyBadge}>
                   <MaterialCommunityIcons name="trophy" size={s(8)} color={C.gold} />
-                  <Text style={sl.tourneyBadgeText}>TOURNAMENT</Text>
+                  <Text style={sl.tourneyBadgeText}>{gamblingEnabled ? 'TOURNAMENT' : 'EVENT'}</Text>
                 </View>
               )}
               <Text style={sl.heroTitle}>{config.title}</Text>
-              <Text style={sl.heroSub} numberOfLines={2}>{config.description}</Text>
+              <Text style={sl.heroSub} numberOfLines={2}>{heroDescription}</Text>
             </View>
           </View>
         </LinearGradient>
@@ -470,7 +474,11 @@ function StakeSelector({
 
       <View style={sl.feeNote}>
         <MaterialCommunityIcons name="information-outline" size={s(10)} color={C.textFaint} />
-        <Text style={sl.feeNoteText}>{platformFeePercent}% platform fee deducted from winnings</Text>
+        <Text style={sl.feeNoteText}>
+          {gamblingEnabled
+            ? `${platformFeePercent}% platform fee deducted from winnings`
+            : `${platformFeePercent}% service fee deducted from rewards`}
+        </Text>
       </View>
     </Animated.View>
   );
@@ -1620,6 +1628,12 @@ export function GameLobbyScreen({
   }, []);
 
   async function startMatchmaking() {
+    setRoomId(null);
+    setSearchingPlayers([]);
+    setReadyCount(1);
+    setCountdown(5);
+    setGameState('lobby');
+
     if (isAiEnabled) {
       setSearching(true);
       return;
@@ -1640,7 +1654,12 @@ export function GameLobbyScreen({
 
     // Client-side balance check (server does it too for security)
     if (currentUser && currentUser.wallet_balance < stake) {
-      Alert.alert('Insufficient Balance', `You need ${gamblingEnabled ? '₦' : ''}${stake} to join this match. Please top up your wallet.`);
+      Alert.alert(
+        'Insufficient Balance',
+        gamblingEnabled
+          ? `You need ₦${stake} to join this match. Please top up your wallet.`
+          : `You need ${stake} coins to join this match. Play more games or earn more coins first.`
+      );
       setSearching(false);
       return;
     }
@@ -1922,6 +1941,10 @@ export function GameLobbyScreen({
             socket={socket}
             stake={stake}
             onExit={(params?: { autoSearch?: boolean }) => {
+              setRoomId(null);
+              setSearchingPlayers([]);
+              setReadyCount(1);
+              setCountdown(5);
               setGameState('lobby');
               if (params?.autoSearch) {
                 startMatchmaking();

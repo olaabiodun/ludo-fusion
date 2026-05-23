@@ -418,7 +418,9 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
                   Unlock the Ultimate Gaming Circle
                 </Text>
                 <Text style={{ color: C.textMuted, fontSize: 10, textAlign: 'center', lineHeight: 14 }}>
-                  Become a Royale Pass member today. Step into the elite player network, pocket maximum wins with reduced match commissions, and receive monthly cash deposits.
+                  {gamblingEnabled
+                    ? 'Become a Royale Pass member today. Step into the elite player network, pocket maximum wins with reduced match commissions, and receive monthly cash deposits.'
+                    : 'Become a Royale Pass member today. Join the elite player network, unlock premium boosts, and collect monthly coin rewards.'}
                 </Text>
               </View>
               
@@ -426,7 +428,7 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
               <View style={ms.joinPriceCard}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={ms.joinPriceLabel}>SUBSCRIPTION FEE</Text>
+                    <Text style={ms.joinPriceLabel}>{gamblingEnabled ? 'SUBSCRIPTION FEE' : 'PASS COST'}</Text>
                     {gamblingEnabled && (
                       <View style={ms.saveBadge}>
                         <Text style={ms.saveBadgeText}>SAVE 40%</Text>
@@ -565,7 +567,11 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
               <View style={ms.upgradeCard}>
                 <MaterialCommunityIcons name="lock-outline" size={15} color={C.purple} />
                 <Text style={ms.upgradeTitle}>Unlock All Perks</Text>
-                <Text style={ms.upgradeSub}>Upgrade to Royale+ to unlock Double XP weekends and exclusive tournament access.</Text>
+                <Text style={ms.upgradeSub}>
+                  {gamblingEnabled
+                    ? 'Upgrade to Royale+ to unlock Double XP weekends and exclusive tournament access.'
+                    : 'Upgrade to Royale+ to unlock Double XP weekends and extra premium match perks.'}
+                </Text>
                 <Pressable style={ms.upgradeBtn}>
                   <Text style={ms.upgradeBtnText}>UPGRADE →</Text>
                 </Pressable>
@@ -577,7 +583,7 @@ export function MemberPanel({ visible, onClose }: { visible: boolean; onClose: (
                 {[
                   { label: 'Priority match',   time: '2h ago',  icon: 'shield-star'    },
                   { label: gamblingEnabled ? 'Monthly ₦500' : 'Monthly 500 coins',     time: '4d ago',  icon: 'gift'           },
-                  { label: gamblingEnabled ? 'Reduced fee saved ₦45' : 'Reduced fee saved 45 coins', time: '1d ago', icon: 'ticket-percent' },
+                  { label: gamblingEnabled ? 'Reduced fee saved ₦45' : 'Match perk saved 45 coins', time: '1d ago', icon: 'ticket-percent' },
                 ].map(h => (
                   <View key={h.label} style={ms.historyRow}>
                     <View style={ms.historyIcon}>
