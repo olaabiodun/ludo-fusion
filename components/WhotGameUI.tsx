@@ -36,13 +36,13 @@ import { ActionPopup } from './ActionPopup';
 import { GameQuitModal } from './GameQuitModal';
 import { ShapeSelectionOverlay } from './ShapeSelectionOverlay';
 import { createPracticePlayers, getBotDecision } from './WhotBotEngine';
-import { WhotFrontCard, WhotShape } from './WhotFrontCard';
+import { MiniShape, WhotFrontCard, WhotShape } from './WhotFrontCard';
 import { socket, useWhotMultiplayer } from './WhotMultiplayer';
 import { WhotScoringSystem } from './WhotScoringSystem';
 import { C, CARD_H, CARD_W, Card, Color, Player, SH, SW, Seat, calculateScore, canPlayCard as checkPlayable, findNextActivePlayer as getNextPlayer, getCardInFanPos, getRandomCard, rs } from './WhotUtils';
 import { runWhotTests } from './WhotTestEngine';
 
-import Animated, { Easing as ReanimatedEasing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing as ReanimatedEasing, useAnimatedProps, useSharedValue, withTiming, FadeIn, FadeOut, useAnimatedStyle, withRepeat, withSequence, ZoomIn, runOnJS, cancelAnimation } from 'react-native-reanimated';
 import { Circle as SvgCircle } from 'react-native-svg';
 
 const AnimatedCircle = Animated.createAnimatedComponent(SvgCircle);
@@ -66,7 +66,7 @@ const colorHex: Record<Color, string> = {
 // ─── Sizes ────────────────────────────────────────────────────────────────────
 const CHIP_H: number = rs(40);
 const AVATAR: number = rs(32);
-const FAN_MAX: number = 12;
+const FAN_MAX: number = 7;
 
 // ─── Seat positions (Relative for UI) ─────────────────────────────────────────
 const SEAT_POS: Record<Seat, any> = {
@@ -129,7 +129,7 @@ function BubblingEmoji({ img, onPress, index }: { img: any; onPress: () => void;
   );
 }
 
-const CardFan = React.memo(({ cards, seat, onCardPress, fanCenters, onExpandPress, canPlayCard }: { cards: Card[]; seat: Seat; onCardPress?: (idx: number) => void; fanCenters: any; onExpandPress?: () => void; canPlayCard?: (card: Card) => boolean }) => {
+const CardFan = React.memo(({ cards, seat, onCardPress, fanCenters, onExpandPress, canPlayCard }: { cards: Card[]; seat: Seat; onCardPress?: (idx: number) => void; fanCenters: any; onExpandPress?: () => void; canPlayCard?: (card: Card, handLength: number) => boolean }) => {
   const n = Math.min(cards.length, FAN_MAX);
   // Ensure we render at least an empty container so it can be measured 
   // for the distribution animation targets.
@@ -174,7 +174,7 @@ const CardFan = React.memo(({ cards, seat, onCardPress, fanCenters, onExpandPres
             position: 'absolute', zIndex: i + 1, transform: [{ translateX: tx }, { translateY: ty }, { rotate: `${rot}deg` }],
           }}>
             {seat === 'DOWN' ? (
-              <WhotFrontCard shape={cards[i].shape} value={cards[i].value} width={CARD_W} height={CARD_H} isPlayable={canPlayCard?.(cards[i])} />
+              <WhotFrontCard shape={cards[i].shape} value={cards[i].value} width={CARD_W} height={CARD_H} isPlayable={canPlayCard?.(cards[i], cards.length)} />
             ) : (
               <Image
                 source={require('../assets/images/whot/backcard.png')}
@@ -204,7 +204,7 @@ const CardFan = React.memo(({ cards, seat, onCardPress, fanCenters, onExpandPres
   );
 });
 
-const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, activeSince, isDealing, activeEmoji, isMultiplayer, canPlayCard, requestedShape }: { player: Player; onPlayCard?: (idx: number) => void; fanCenters: any; onShowHand?: () => void; activeSince?: number | null; isDealing?: boolean; activeEmoji?: any; isMultiplayer?: boolean; canPlayCard?: (card: Card) => boolean; requestedShape?: WhotShape | null }) => {
+const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, activeSince, isDealing, activeEmoji, isMultiplayer, canPlayCard }: { player: Player; onPlayCard?: (idx: number) => void; fanCenters: any; onShowHand?: () => void; activeSince?: number | null; isDealing?: boolean; activeEmoji?: any; isMultiplayer?: boolean; canPlayCard?: (card: Card, handLength: number) => boolean }) => {
   const { name, color, avatar, cardCount, active, seat = 'DOWN' } = player;
   const col = colorHex[color];
   const isRight = seat === 'RIGHT';
@@ -213,21 +213,6 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
   const progress = useSharedValue(0);
   const bubbleAnim = React.useRef(new RNAnimated.Value(0)).current;
   const [displayTime, setDisplayTime] = React.useState(15);
-  const shapePulse = React.useRef(new RNAnimated.Value(1)).current;
-
-  React.useEffect(() => {
-    if (requestedShape) {
-      shapePulse.setValue(1);
-      const anim = RNAnimated.loop(
-        RNAnimated.sequence([
-          RNAnimated.timing(shapePulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
-          RNAnimated.timing(shapePulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-        ])
-      );
-      anim.start();
-      return () => anim.stop();
-    }
-  }, [requestedShape]);
 
   React.useEffect(() => {
     if (activeEmoji) {
@@ -332,16 +317,7 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
             <MaterialCommunityIcons name="cards-outline" size={rs(isLocal ? 8 : 9)} color="#FFD030" />
             <Text style={{ color: "#FFD030", fontSize: rs(isLocal ? 8 : 9), fontWeight: '700' }}>{Math.max(0, cardCount)}</Text>
           </View>
-          {requestedShape && (
-            <RNAnimated.View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: rs(5), marginTop: rs(3), opacity: shapePulse, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: rs(6), paddingHorizontal: rs(5), paddingVertical: rs(2) }}>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: rs(isLocal ? 7 : 8), fontWeight: '800', letterSpacing: 0.5 }}>WANTS</Text>
-              <MaterialCommunityIcons 
-                name={requestedShape === 'circle' ? 'circle' : requestedShape === 'cross' ? 'close' : requestedShape === 'triangle' ? 'triangle' : requestedShape === 'square' ? 'square-rounded' : 'star'} 
-                size={rs(isLocal ? 12 : 14)} 
-                color={requestedShape === 'circle' ? '#FF4A42' : requestedShape === 'cross' ? '#FFFFFF' : requestedShape === 'triangle' ? '#14C63E' : requestedShape === 'square' ? '#FFD030' : '#FF9800'} 
-              />
-            </RNAnimated.View>
-          )}
+
         </View>
       </View>
 
@@ -379,9 +355,81 @@ const PlayerChip = React.memo(({ player, onPlayCard, fanCenters, onShowHand, act
   );
 });
 
-const CentralPiles = React.memo(({ count, topCard, onPick }: { count: number; topCard: Card | null; onPick?: () => void }) => {
+const SHAPE_LABELS: Record<string, string> = {
+  circle: 'Circle',
+  triangle: 'Triangle',
+  cross: 'Cross',
+  square: 'Square',
+  star: 'Star',
+  whot: 'Whot!',
+};
+
+const CentralPiles = React.memo(({ count, topCard, onPick, wantedShape, askerName }: { count: number; topCard: Card | null; onPick?: () => void; wantedShape?: WhotShape | null; askerName?: string }) => {
+  const activeProgress = useSharedValue(0);
+  const pulseValue = useSharedValue(0);
+  const [displayShape, setDisplayShape] = React.useState<WhotShape | null>(wantedShape);
+
+  React.useEffect(() => {
+    if (wantedShape) {
+      setDisplayShape(wantedShape);
+      // Playful pop in
+      activeProgress.value = withTiming(1, { duration: 400 });
+      
+      // Continuous playful pulse wave
+      pulseValue.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 900 }),
+          withTiming(0, { duration: 900 })
+        ),
+        -1,
+        true
+      );
+    } else if (displayShape) {
+      // Playful shrink & fade out
+      activeProgress.value = withTiming(0, { duration: 300 }, (finished) => {
+        if (finished) {
+          runOnJS(setDisplayShape)(null);
+        }
+      });
+      cancelAnimation(pulseValue);
+      pulseValue.value = 0;
+    }
+  }, [wantedShape]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const scale = activeProgress.value * (0.96 + pulseValue.value * 0.08);
+    const rotate = `${(1 - activeProgress.value) * -12}deg`;
+    
+    return {
+      opacity: activeProgress.value,
+      transform: [
+        { scale: scale },
+        { rotate: rotate }
+      ],
+    };
+  });
+
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(32), paddingBottom: rs(16) }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(24), paddingBottom: rs(16) }}>
+      {/* Permanent space reservation for wanted card to completely prevent shifting */}
+      <View style={{ width: CARD_W, height: CARD_H }}>
+        {displayShape ? (
+          <Animated.View
+            style={[StyleSheet.absoluteFillObject, animatedStyle]}
+          >
+            <WhotFrontCard
+              shape={displayShape}
+              value=""
+              width={CARD_W}
+              height={CARD_H}
+              hideValue
+              shapeColor="#43D17B"
+              innerFrameColor="#43D17B"
+            />
+          </Animated.View>
+        ) : null}
+      </View>
+
       <TouchableOpacity activeOpacity={0.8} onPress={onPick} style={{ width: CARD_W, height: CARD_H, alignItems: 'center', justifyContent: 'center' }}>
         {[...Array(5)].map((_, i) => (
           <Image key={i} source={require('../assets/images/whot/backcard.png')} style={{ position: 'absolute', width: CARD_W, height: CARD_H, borderRadius: rs(6), bottom: i * rs(2), right: i * rs(1), zIndex: 10 - i }} />
@@ -390,6 +438,7 @@ const CentralPiles = React.memo(({ count, topCard, onPick }: { count: number; to
           <Text style={{ color: '#FFD030', fontSize: rs(11), fontWeight: '900' }}>{count}</Text>
         </View>
       </TouchableOpacity>
+
       <View style={{ width: CARD_W, height: CARD_H }}>
         {topCard && <WhotFrontCard shape={topCard?.shape} value={topCard?.value} width={CARD_W} height={CARD_H} />}
       </View>
@@ -435,12 +484,14 @@ export function WhotGameUI({
   localColor = 'green',
   localUserId,
   onWinner,
+  onLastMove,
   onShowResult,
   gameId,
   realPlayers,
   externalEmojis,
   onSendEmoji,
   isCountdownActive = false,
+  platformFeePercent = 10,
 }: {
   onExit: () => void;
   playerCount?: number;
@@ -448,12 +499,14 @@ export function WhotGameUI({
   localColor?: Color;
   localUserId?: string;
   onWinner?: (winnerColor: string, scores?: Record<string, number>) => void;
+  onLastMove?: (card: { shape: string; value: number | string }, player: { name: string; color: Color }) => void;
   onShowResult?: () => void;
   gameId?: string;
   realPlayers?: any[];
   externalEmojis?: Record<string, any>;
   onSendEmoji?: (emoji: any) => void;
   isCountdownActive?: boolean;
+  platformFeePercent?: number;
 }) {
   const rootRef = React.useRef<View>(null);
 
@@ -487,6 +540,7 @@ export function WhotGameUI({
   const [reshuffling, setReshuffling] = React.useState(false);
   const [turnIndex, setTurnIndex] = React.useState(0);
   const [dealing, setDealing] = React.useState(false);
+  const [wantsDealing, setWantsDealing] = React.useState(false);
   const [topCard, setTopCard] = React.useState<Card | null>(() => {
     let card = getRandomCard();
     while (card && [2, 5, 20].includes(card.value as number)) {
@@ -521,6 +575,7 @@ export function WhotGameUI({
   const [showShapePicker, setShowShapePicker] = React.useState(false);
   const [showHandViewer, setShowHandViewer] = React.useState(false);
   const [showScoring, setShowScoring] = React.useState(false);
+  const [showTiebreakTest] = React.useState(false);
   const [savedWinnerInfo, setSavedWinnerInfo] = React.useState<{ color: string; scores: Record<string, number> } | null>(null);
   const [wasHoldOn, setWasHoldOn] = React.useState(false);
   const [realBalance, setRealBalance] = React.useState(0);
@@ -531,14 +586,33 @@ export function WhotGameUI({
   const [turnStartedAt, setTurnStartedAt] = React.useState<number | null>(null);
   const [gameEndsAt, setGameEndsAt] = React.useState<number | null>(null);
   const [playerLives, setPlayerLives] = React.useState<Record<string, number>>({});
-  const [prize, setPrize] = React.useState(stake > 0 ? Math.floor(stake * playerCount * 0.9) : 0);
+  const [prize, setPrize] = React.useState(stake > 0 ? Math.floor(stake + stake * (playerCount - 1) * (1.0 - platformFeePercent / 100.0)) : 0);
   const gamblingEnabled = useFeatureActive();
+
+  const [isTimeUp, setIsTimeUp] = React.useState(false);
+  const [remainingSeconds, setRemainingSeconds] = React.useState<number | null>(null);
+  const prevTurnRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     if (stake > 0) {
-      setPrize(Math.floor(stake * playerCount * 0.9));
+      setPrize(Math.floor(stake + stake * (playerCount - 1) * (1.0 - platformFeePercent / 100.0)));
     }
-  }, [stake, playerCount]);
+  }, [stake, playerCount, platformFeePercent]);
+
+  React.useEffect(() => {
+    if (!gameEndsAt || !gameStarted || gameEndedRef.current) return;
+    const interval = setInterval(() => {
+      const diff = gameEndsAt - Date.now();
+      const secs = Math.max(0, Math.floor(diff / 1000));
+      setRemainingSeconds(secs);
+      if (diff <= 0) {
+        setIsTimeUp(true);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [gameEndsAt, gameStarted]);
+
+
   const [showQuickSettings, setShowQuickSettings] = React.useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showReportMenu, setShowReportMenu] = React.useState(false);
@@ -675,7 +749,7 @@ export function WhotGameUI({
     setShapeAskerSeat,
     setShowShapePicker,
     setGameStarted,
-    setDealing,
+    setDealing: setWantsDealing,
     setPing,
     setActionMessage,
     setMarketCount,
@@ -691,9 +765,17 @@ export function WhotGameUI({
     pendingHandsRef,
     hasJoinedRoom,
     activePlayRef,
+    setSavedWinnerInfo,
   });
 
   const [gameDuration, setGameDuration] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (wantsDealing && !isCountdownActive) {
+      setDealing(true);
+      setWantsDealing(false);
+    }
+  }, [wantsDealing, isCountdownActive]);
 
   React.useEffect(() => {
     // CRITICAL: We only sync if the game hasn't started yet. 
@@ -703,10 +785,10 @@ export function WhotGameUI({
     if (!gameId) {
       setPlayers(visiblePlayers);
       // Auto-deal for practice mode
-      if (stake > 0) setPrize(Math.floor(stake * playerCount * 0.9));
+      if (stake > 0) setPrize(Math.floor(stake + stake * (playerCount - 1) * (1.0 - platformFeePercent / 100.0)));
       const timer = setTimeout(() => {
         setTopCard(null);
-        setDealing(true);
+        setWantsDealing(true);
         setGameStarted(true);
         setGameEndsAt(Date.now() + 600000); // 10 minutes timeout
       }, 800);
@@ -730,18 +812,13 @@ export function WhotGameUI({
     return scores;
   }, [players]);
 
-  // Handle Game Timeout (Safety trigger for bot and multiplayer)
   React.useEffect(() => {
-    if (!gameEndsAt || !gameStarted || showScoring || gameEndedRef.current) return;
-
-    const checkTimer = setInterval(() => {
-      if (gameEndedRef.current) {
-        clearInterval(checkTimer);
-        return;
-      }
-      if (gameEndsAt && Date.now() >= gameEndsAt) {
-        console.log('[WhotGameUI] Game timer expired. Ending game...');
-        clearInterval(checkTimer);
+    if (!gameStarted || gameEndedRef.current || gameId) return;
+    if (isTimeUp) {
+      const currentTurn = turnIndex;
+      const prevTurn = prevTurnRef.current;
+      if (currentTurn < prevTurn) {
+        console.log(`[WhotGameUI] Final round round-trip complete. Wrap-around detected (${prevTurn} -> ${currentTurn}). Ending game...`);
         gameEndedRef.current = true;
 
         // Find winner based on score (lowest score wins)
@@ -761,20 +838,35 @@ export function WhotGameUI({
           freezeTimer();
           const finalScores = getFinalScores();
           setActionMessage({ msg: "TIME'S UP!", seat: 'TOP' });
-          if (playerCount === 2) {
-            setTimeout(() => {
-              if (onWinner) onWinner(winner.color, finalScores);
-            }, 2200);
-          } else {
-            setTimeout(() => setShowScoring(true), 2500);
-            setSavedWinnerInfo({ color: winner.color, scores: finalScores });
-          }
+          setTimeout(() => setShowScoring(true), 2500);
+          setSavedWinnerInfo({ color: winner.color, scores: finalScores });
+        }
+        return;
+      }
+    }
+    prevTurnRef.current = turnIndex;
+  }, [turnIndex, isTimeUp, gameStarted, players, getFinalScores, freezeTimer, setActionMessage, setSavedWinnerInfo, setShowScoring, gameId]);
+
+  // Handle Game Timeout (Safety trigger for bot and multiplayer)
+  React.useEffect(() => {
+    if (!gameEndsAt || !gameStarted || showScoring || gameEndedRef.current) return;
+
+    const checkTimer = setInterval(() => {
+      if (gameEndedRef.current) {
+        clearInterval(checkTimer);
+        return;
+      }
+      if (gameEndsAt && Date.now() >= gameEndsAt) {
+        clearInterval(checkTimer);
+        if (!gameId) {
+          console.log('[WhotGameUI] Game timer expired. Entering final round...');
+          setIsTimeUp(true);
         }
       }
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(checkTimer);
-  }, [gameEndsAt, gameStarted, players, showScoring, playerCount, setSavedWinnerInfo, getFinalScores, freezeTimer, setActionMessage]);
+  }, [gameEndsAt, gameStarted, showScoring, gameId]);
 
   React.useEffect(() => {
     async function fetchUser() {
@@ -795,8 +887,9 @@ export function WhotGameUI({
   }, []);
 
   const canPlayCard = React.useCallback((card: Card, handLength: number = 0) => {
+    if (activePlay || activeMarketPicks.length > 0 || reshuffling || dealing) return false;
     return checkPlayable(card, topCard, currentShape, pendingPicks, handLength);
-  }, [topCard, currentShape, pendingPicks]);
+  }, [topCard, currentShape, pendingPicks, activePlay, activeMarketPicks.length, reshuffling, dealing]);
 
   React.useEffect(() => {
     return () => { /* cleanup if needed */ };
@@ -970,14 +1063,9 @@ export function WhotGameUI({
           setActionMessage({ msg: 'winner', seat: p.seat as Seat });
           if (!gameId) {
             playWhotCheckupSound();
-          }
-          if (playerCount === 2) {
             setTimeout(() => {
               if (onWinner) onWinner(p.color, finalScores);
             }, 2200);
-          } else {
-            setTimeout(() => setShowScoring(true), 2500);
-            setSavedWinnerInfo({ color: p.color, scores: finalScores });
           }
         } else if (remainingAfterPlay === 1 && card.value !== 20) {
           // Only show 'last card' for normal cards.
@@ -987,7 +1075,7 @@ export function WhotGameUI({
         }
 
         // Apply any deferred turn advancement from whot_state / whot_turn_update
-        if (pendingTurnRef.current !== null) {
+        if (pendingTurnRef.current !== null && remainingAfterPlay > 0) {
           const { turn, startedAt } = pendingTurnRef.current;
           pendingTurnRef.current = null;
           // Only advance turn if we're NOT waiting for shape selection
@@ -1096,26 +1184,41 @@ export function WhotGameUI({
   const handlePickActionRef = React.useRef(handlePickAction);
   React.useEffect(() => { handlePickActionRef.current = handlePickAction; });
 
+  // Refs for guard conditions so the AI timer can re-check them
+  const dealingRef = React.useRef(dealing);
+  const reshufflingRef = React.useRef(reshuffling);
+  const showShapePickerRef = React.useRef(showShapePicker);
+  const showScoringRef = React.useRef(showScoring);
+  React.useEffect(() => { dealingRef.current = dealing; }, [dealing]);
+  React.useEffect(() => { reshufflingRef.current = reshuffling; }, [reshuffling]);
+  React.useEffect(() => { showShapePickerRef.current = showShapePicker; }, [showShapePicker]);
+  React.useEffect(() => { showScoringRef.current = showScoring; }, [showScoring]);
+
   // AI Turn Logic - ONLY for bots in practice mode
   React.useEffect(() => {
-    if (gameId || gameEndedRef.current) return; // Disable local AI in multiplayer
-    const hasWinner = players.some(p => p.cardCount === 0);
-    if (dealing || reshuffling || activePlay || showShapePicker || activeMarketPicks.length > 0 || showScoring || hasWinner) return;
+    if (gameId || gameEndedRef.current) return;
+    if (dealing || reshuffling || activePlay || showShapePicker || activeMarketPicks.length > 0 || showScoring) return;
 
     const currentPlayer = players[turnIndex];
-    if (currentPlayer && currentPlayer.lives > 0 && currentPlayer.isBot) {
-      const timer = setTimeout(() => {
-        const decision = getBotDecision(currentPlayer.cards, canPlayCard);
+    if (!currentPlayer || currentPlayer.lives <= 0 || !currentPlayer.isBot) return;
 
-        if (decision.type === 'PLAY') {
-          handlePlayCard(turnIndex, decision.cardIndex!);
-        } else {
-          handlePickActionRef.current(turnIndex);
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [gameId, turnIndex, dealing, reshuffling, players, activePlay, canPlayCard, showShapePicker, handlePlayCard]);
+    const timer = setTimeout(() => {
+      if (gameEndedRef.current) return;
+      // Re-check guards in case they changed while timer was pending
+      if (dealingRef.current || reshufflingRef.current || activePlayRef.current || showShapePickerRef.current || showScoringRef.current) return;
+      const p = playersRef.current[turnIndex];
+      if (!p || !p.isBot || p.lives <= 0) return;
+
+      const decision = getBotDecision(p.cards, canPlayCard);
+
+      if (decision.type === 'PLAY') {
+        handlePlayCard(turnIndex, decision.cardIndex!);
+      } else {
+        handlePickActionRef.current(turnIndex);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [gameId, turnIndex, dealing, reshuffling, players, activePlay, canPlayCard, showShapePicker, activeMarketPicks.length, showScoring, handlePlayCard]);
 
 
   React.useEffect(() => {
@@ -1154,12 +1257,7 @@ export function WhotGameUI({
             const finalScores = getFinalScores();
             freezeTimer();
             setTimeout(() => {
-              if (playerCount === 2) {
-                if (onWinner) onWinner(winner.color, finalScores);
-              } else {
-                setShowScoring(true);
-                setSavedWinnerInfo({ color: winner.color, scores: finalScores });
-              }
+              if (onWinner) onWinner(winner.color, finalScores);
             }, 2500);
             return;
           }
@@ -1169,8 +1267,9 @@ export function WhotGameUI({
         setActionMessage({ msg: 'TIMEOUT!', seat: pSeat });
       }
 
-      // Offline auto-draw 1 penalty card and pass turn
-      handlePickActionRef.current(turnIndex, 1, false);
+      // Offline auto-draw pending picks penalty card(s) and pass turn
+      const penaltyCount = pendingPicks > 0 ? pendingPicks : 1;
+      handlePickActionRef.current(turnIndex, penaltyCount, false);
 
       setPendingPicks(0);
       setWasHoldOn(false);
@@ -1228,11 +1327,24 @@ export function WhotGameUI({
       lastLandedWasPenalty.current = false;
 
       if (gameId) {
-        if (activePicksCountRef && activePicksCountRef.current === 0 && pendingTurnRef && pendingTurnRef.current !== null) {
-          const { turn, startedAt } = pendingTurnRef.current;
-          pendingTurnRef.current = null;
-          setTurnIndex(turn);
-          setTurnStartedAt(startedAt);
+        if (activePicksCountRef && activePicksCountRef.current === 0) {
+          if (pendingTurnRef && pendingTurnRef.current !== null) {
+            const { turn, startedAt } = pendingTurnRef.current;
+            pendingTurnRef.current = null;
+            setTurnIndex(turn);
+            setTurnStartedAt(startedAt);
+          }
+          
+          if (pendingHandsRef.current) {
+            setPlayers(prev => prev.map(pl => {
+              const myHand = pendingHandsRef.current[pl.id] || pl.cards;
+              return {
+                ...pl,
+                cards: myHand,
+                cardCount: myHand.length
+              };
+            }));
+          }
         }
       } else {
         // Only advance turn if it wasn't a penalty draw and it's the current player's turn
@@ -1335,23 +1447,18 @@ export function WhotGameUI({
         playWhotCheckupSound();
       }
 
-      if (playerCount === 2) {
-        // For 2 players, skip scoring and go straight to result screen after the "winner" bubble
-        setTimeout(() => {
-          if (onWinner) onWinner(winnerColor, finalScores);
-        }, 2200);
-      } else {
-        // For 4 players, wait for the bubble, then show the internal scoring (counting) screen
-        // Note: we'll call onWinner ONLY after they finish the scoring screen to avoid overlapping
-        setTimeout(() => {
-          setShowScoring(true);
-        }, 2500);
-
-        // Save these for when onNext is called
-        setSavedWinnerInfo({ color: winnerColor, scores: finalScores });
-      }
-
-      setTurnIndex(prev => findNextActivePlayer(prev, nextStep));
+      // Clean card-play win — go straight to result screen, do not show card counting screen
+      const winningCard = activePlay;
+      const winningPlayer = players[turnIndex];
+      setTimeout(() => {
+        if (onLastMove && winningCard) {
+          onLastMove(
+            { shape: winningCard.shape, value: winningCard.value },
+            { name: winningPlayer.name, color: winningPlayer.color }
+          );
+        }
+        if (onWinner) onWinner(winnerColor, finalScores);
+      }, 2200);
       return;
     }
 
@@ -1400,7 +1507,13 @@ export function WhotGameUI({
         style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center', zIndex: 1, opacity: showScoring ? 0 : 1 }]}
         pointerEvents={showScoring ? 'none' : "box-none"}
       >
-        <CentralPiles count={marketCount} topCard={topCard} onPick={handlePickLocal} />
+        <CentralPiles
+          count={marketCount}
+          topCard={topCard}
+          onPick={handlePickLocal}
+          wantedShape={currentShape}
+          askerName={shapeAskerSeat ? players.find(p => p.seat === shapeAskerSeat)?.name : undefined}
+        />
       </View>
       {/* Report Success Toast */}
       {reportSent && (
@@ -1489,19 +1602,20 @@ export function WhotGameUI({
       )}
 
       {players.map((p, i) => (
-        <PlayerChip
-          key={p.id || p.name}
-          player={{ ...p, active: i === turnIndex } as any}
-          onPlayCard={i === localPlayerIndex ? handlePlayLocal : undefined}
-          fanCenters={fanCenters}
-          onShowHand={() => setShowHandViewer(true)}
-          activeSince={i === turnIndex && !isCountdownActive ? turnStartedAt : null}
-          isDealing={dealing}
-          activeEmoji={externalEmojis?.[p.color] || activeEmojis[p.color]}
-          isMultiplayer={!!gameId}
-          canPlayCard={canPlayCard}
-          requestedShape={shapeAskerSeat === p.seat ? currentShape : null}
-        />
+        <React.Fragment key={p.id || p.name}>
+          <PlayerChip
+            player={{ ...p, active: i === turnIndex } as any}
+            onPlayCard={i === localPlayerIndex ? handlePlayLocal : undefined}
+            fanCenters={fanCenters}
+            onShowHand={() => setShowHandViewer(true)}
+            activeSince={i === turnIndex && !isCountdownActive ? turnStartedAt : null}
+            isDealing={dealing}
+            activeEmoji={externalEmojis?.[p.color] || activeEmojis[p.color]}
+            isMultiplayer={!!gameId}
+            canPlayCard={canPlayCard}
+          />
+
+        </React.Fragment>
       ))}
       {/* Animation Layer — native thread (Reanimated) */}
       {dealing && (
@@ -1595,6 +1709,46 @@ export function WhotGameUI({
         </TouchableOpacity>
       </View>
 
+      {/* Floating Final Round Banner */}
+      {remainingSeconds !== null && remainingSeconds <= 30 && players && players.length > 0 && (
+        <View style={{
+          position: 'absolute',
+          top: rs(54),
+          alignSelf: 'center',
+          backgroundColor: 'rgba(255, 74, 66, 0.16)',
+          borderColor: 'rgba(255, 74, 66, 0.6)',
+          borderWidth: 1.2,
+          borderRadius: rs(20),
+          paddingHorizontal: rs(14),
+          paddingVertical: rs(6),
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: rs(6),
+          shadowColor: '#FF4A42',
+          shadowOpacity: 0.35,
+          shadowRadius: rs(8),
+          elevation: 4,
+          zIndex: 9999,
+        }}>
+          <MaterialCommunityIcons name="alert-decagram" size={rs(12)} color="#FF4A42" />
+          <Text style={{
+            color: '#FFA19E',
+            fontSize: rs(9.5),
+            fontWeight: '900',
+            letterSpacing: 0.8,
+          }}>
+            {isTimeUp ? 'FINAL ROUND: ' : 'FINAL ROUND APPROACHING: '}
+            <Text style={{ color: '#FFF' }}>
+              {(() => {
+                const lastActivePlayer = [...players].reverse().find(p => p.lives > 0 && p.cardCount > 0);
+                const lastPlayerName = lastActivePlayer ? lastActivePlayer.name : (players[playerCount - 1]?.name || 'Last Player');
+                return `${lastPlayerName} plays last!`;
+              })()}
+            </Text>
+          </Text>
+        </View>
+      )}
+
       <View style={{ position: 'absolute', bottom: rs(12), left: rs(14), right: rs(14), flexDirection: 'row', alignItems: 'center', zIndex: 10000 }}>
         <TouchableOpacity
           style={iconBtn}
@@ -1676,7 +1830,7 @@ export function WhotGameUI({
         visible={showQuitModal}
         onCancel={() => setShowQuitModal(false)}
         onConfirm={onExit}
-        stake={isBotGame ? 0 : (prize / playerCount)}
+        stake={isBotGame ? 0 : stake}
       />
     </View>
   );

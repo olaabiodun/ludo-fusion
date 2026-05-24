@@ -59,6 +59,13 @@ const colorHex: Record<string, string> = {
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+export interface LastMoveData {
+  shape: string;
+  value: number | string;
+  playerName: string;
+  playerColor: string;
+}
+
 export interface ResultPlayer {
   name: string;
   color: string;
@@ -89,6 +96,7 @@ export interface GameResultScreenProps {
   onPlayAgain: () => void;
   onExit: () => void;
   onShare?: () => void;
+  lastMoveData?: LastMoveData;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -550,6 +558,7 @@ export function GameResultScreen({
   isSnake = false,
   platformFeePercent = 10.0,
   onShare,
+  lastMoveData,
 }: GameResultScreenProps) {
   const sorted = useMemo(() => [...players].sort((a, b) => a.rank - b.rank), [players]);
   const gamblingEnabled = useFeatureActive();
@@ -563,6 +572,8 @@ export function GameResultScreen({
   const hCol = isWin ? C.win : C.lose;
   const hSoft = isWin ? C.winSoft : C.loseSoft;
   const hBorder = isWin ? C.winBorder : C.loseBorder;
+
+  const [showLastMoveModal, setShowLastMoveModal] = useState(false);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideY = useRef(new Animated.Value(24)).current;
@@ -649,6 +660,10 @@ export function GameResultScreen({
   const localCaptures = local?.captures ?? 0;
   const localTokensOut = local ? 4 - (local.tokensHome ?? 4) : 0;
   const localScore = local?.score ?? 0;
+
+  if (showLastMoveModal && lastMoveData) {
+    return <LastMoveReplay data={lastMoveData} onBack={() => setShowLastMoveModal(false)} />;
+  }
 
   return (
     <Animated.View style={[st.screen, { opacity: fadeIn }]}>
@@ -826,13 +841,7 @@ export function GameResultScreen({
                   />
                 </View>
               )}
-              {isWin && totalPrize > 0 && (
-                <Text style={st.earnedLabel}>
-                  {gamblingEnabled
-                    ? `earned (₦${totalPrize} pot - ₦${calculatedFee} platform fee (${platformFeePercent}%))`
-                    : `earned (${totalPrize} coin pool - ${calculatedFee} service fee (${platformFeePercent}%))`}
-                </Text>
-              )}
+
             </View>
           </Animated.View>
 
@@ -867,7 +876,7 @@ export function GameResultScreen({
               <StatCell
                 icon="trophy-variant-outline"
                 label={totalPrize === 0 ? 'Match' : 'Pot'}
-                value={totalPrize === 0 ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${totalPrize}`}
+                value={totalPrize === 0 ? 'Practice' : `${gamblingEnabled ? '₦' : ''}${totalPrize - calculatedFee}`}
                 accent={totalPrize === 0 ? C.faint : C.gold}
                 delay={1200}
               />
@@ -893,18 +902,125 @@ export function GameResultScreen({
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => (onShare ? onShare() : onExit())}
-              style={st.ghostBtn}
-              activeOpacity={0.75}
-            >
-              <MaterialCommunityIcons name="share-variant-outline" size={13} color={C.muted} />
-              <Text style={st.ghostBtnTxt}>Share</Text>
-            </TouchableOpacity>
+            {lastMoveData ? (
+              <TouchableOpacity
+                onPress={() => setShowLastMoveModal(true)}
+                style={st.ghostBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name="play-circle-outline" size={13} color={C.gold} />
+                <Text style={{ color: C.gold, fontSize: 7.5, fontWeight: '800', letterSpacing: 1.5, marginLeft: 4 }}>
+                  Replay Last Move
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => (onShare ? onShare() : onExit())}
+                style={st.ghostBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name="share-variant-outline" size={13} color={C.muted} />
+                <Text style={st.ghostBtnTxt}>Share</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
     </Animated.View>
+  );
+}
+
+// ─── Last Move Replay inline panel ────────────────────────────────────────────
+function LastMoveReplay({ data, onBack }: { data: LastMoveData; onBack: () => void }) {
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideY = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideY, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <View style={{
+      flex: 1, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 30, paddingTop: 60, paddingBottom: 30,
+    }}>
+      <Animated.View style={{ alignItems: 'center', gap: 12, opacity: fadeIn, transform: [{ translateY: slideY }] }}>
+        <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: '800', letterSpacing: 3 }}>
+          WINNING MOVE
+        </Text>
+
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 8,
+          backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 10,
+        }}>
+          <View style={{
+            width: 32, height: 32, borderRadius: 16,
+            backgroundColor: data.playerColor,
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <MaterialCommunityIcons name="account" size={18} color="#FFF" />
+          </View>
+          <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '900' }}>
+            {data.playerName}
+          </Text>
+          <MaterialCommunityIcons name="arrow-right-bold" size={14} color={C.gold} />
+          <View style={{
+            backgroundColor: 'rgba(67,209,123,0.15)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+          }}>
+            <Text style={{ color: '#43D17B', fontSize: 8, fontWeight: '900' }}>
+              WINNER
+            </Text>
+          </View>
+        </View>
+
+        <View style={{
+          marginVertical: 8, padding: 8,
+          backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14,
+          borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.3)',
+        }}>
+          <View style={{
+            width: 80, height: 112,
+            backgroundColor: '#FFF', borderRadius: 10,
+            borderWidth: 1.5, borderColor: '#C8000A',
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#D4AF37', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+            elevation: 12,
+          }}>
+            <Text style={{
+              color: '#C8000A', fontSize: 28, fontWeight: '900',
+              fontFamily: 'Kanit_900Black', letterSpacing: 1, marginBottom: 4,
+            }}>
+              {data.value}
+            </Text>
+            <Text style={{ color: '#C8000A', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>
+              {data.shape}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8, fontWeight: '600', textAlign: 'center', maxWidth: 220 }}>
+          This card cleared {data.playerName}'s hand, winning the game!
+        </Text>
+
+        <TouchableOpacity
+          onPress={onBack}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
+            backgroundColor: C.gold, paddingHorizontal: 28, paddingVertical: 10,
+            borderRadius: 50,
+          }}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={12} color="#000" />
+          <Text style={{ color: '#000', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }}>
+            BACK TO RESULTS
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
 

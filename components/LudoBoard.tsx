@@ -600,7 +600,10 @@ export function LudoBoard({
   const diceScale = useRef(new Animated.Value(1)).current;
   const diceRef = useRef<any>(null);
   const [actionMessage, setActionMessage] = React.useState<{ msg: string; seat: Seat; key: number } | null>(null);
-  const [lastResult, setLastResult] = React.useState(1);
+  const lastResultRef = useRef(1);
+  if (state.diceValue) {
+    lastResultRef.current = state.diceValue;
+  }
   const turnIdRef = useRef(state.turnId);
   const hasRolledRef = useRef(state.hasRolled);
   const getBestMoveRef = useRef(getBestMove);
@@ -621,13 +624,6 @@ export function LudoBoard({
     resolveCapturesRef.current = resolveCaptures;
   }, [state, getBestMove, movePawn, nextTurn, resolveCaptures]);
 
-  // Remember last result for display
-  useEffect(() => {
-    if (state.diceValue) {
-      setLastResult(state.diceValue);
-    }
-  }, [state.diceValue]);
-
   // Sync animations with server-side rolling state
   useEffect(() => {
     if (isAiEnabled) return; // Dice3D handles its own local animation in AI mode
@@ -637,20 +633,33 @@ export function LudoBoard({
         rollStartedRef.current = true;
         handleRollStart();
       }
-    } else if (!isDiceRolling && state.diceValue && diceAnimatedTurnRef.current !== state.turnId) {
-      // Only animate back to center once per turn (prevents double animation
-      // when pawn_moved/turn_passed arrives later and sets diceValue again)
-      diceAnimatedTurnRef.current = state.turnId;
+    } else if (!isDiceRolling && rollStartedRef.current) {
+      // The roll has finished! Stop any in-flight throw animation first,
+      // then animate back to center cleanly.
       rollStartedRef.current = false;
+      diceAnimatedTurnRef.current = state.turnId;
       diceRef.current?.stopSpinning();
-      Animated.timing(dicePan, {
-        toValue: { x: 0, y: 0 },
-        duration: 450,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      }).start();
+
+      // Stop competing animations before starting return
+      dicePan.stopAnimation();
+      diceScale.stopAnimation();
+
+      Animated.parallel([
+        Animated.timing(dicePan, {
+          toValue: { x: 0, y: 0 },
+          duration: 350,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(diceScale, {
+          toValue: 1,
+          duration: 250,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [isDiceRolling, state.diceValue, state.turnId, isAiEnabled]);
+  }, [isDiceRolling, state.turnId, isAiEnabled]);
 
   const handleDiceTapDisabled = () => {
     const activeColor = state.activeColors[state.turnIndex];
@@ -761,7 +770,7 @@ export function LudoBoard({
   // ── Dice throw animation ───────────────────────────────────────────────────
   const handleRollStart = () => {
     playDiceRollSound();
-    const maxOffset = U * 3.5;
+    const maxOffset = U * 2.8; // slightly smaller bounds for comfortable board visibility
     const randomX = (Math.random() - 0.5) * maxOffset * 2;
     const randomY = (Math.random() - 0.5) * maxOffset * 2;
     
@@ -770,15 +779,28 @@ export function LudoBoard({
     diceScale.setValue(1);
 
     Animated.parallel([
+      // 1. Translation: Smoothly throw the dice to the target offset position.
+      // Spanned over 750ms for a realistic, floaty jump.
       Animated.timing(dicePan, {
         toValue: { x: randomX, y: randomY },
-        duration: 400, // Speed up translation
+        duration: 750,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
+      // 2. Scale: Mimic a parabolic jump arc (scales up in the air, then falls down).
       Animated.sequence([
-        Animated.timing(diceScale, { toValue: 1.4, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(diceScale, { toValue: 1, duration: 250, easing: Easing.bounce, useNativeDriver: true }),
+        Animated.timing(diceScale, { 
+          toValue: 1.5, 
+          duration: 350, 
+          easing: Easing.out(Easing.quad), 
+          useNativeDriver: true 
+        }),
+        Animated.timing(diceScale, { 
+          toValue: 1.1, 
+          duration: 400, 
+          easing: Easing.out(Easing.bounce), 
+          useNativeDriver: true 
+        }),
       ]),
     ]).start();
   };
@@ -786,14 +808,22 @@ export function LudoBoard({
   const handleRollEnd = (result: number) => {
     setTimeout(() => {
       diceRef.current?.stopSpinning();
-      Animated.timing(dicePan, {
-        toValue: { x: 0, y: 0 },
-        duration: 250, // Snappy return
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(dicePan, {
+          toValue: { x: 0, y: 0 },
+          duration: 400, // Smooth, direct return with zero stagger
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(diceScale, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
       rollDice(result);
-    }, 400); // Wait only 400ms instead of 800ms
+    }, 750); // Matches the new 750ms throw duration perfectly!
   };
 
   const handleDiceTap = () => {
@@ -985,7 +1015,7 @@ export function LudoBoard({
       >
         <Dice3D
           ref={diceRef}
-          value={lastResult}
+          value={lastResultRef.current}
           size={CTR * 0.8}
           disabled={state.hasRolled || state.activeColors[state.turnIndex] !== localColor}
           needsSixBoost={needsSixBoost}

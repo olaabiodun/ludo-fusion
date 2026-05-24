@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 // all events arrive on — and are emitted from — the same connection.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const SOCKET_URL = 'http://52.31.114.212/';
+export const SOCKET_URL = 'http://192.168.1.103:3001';
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,

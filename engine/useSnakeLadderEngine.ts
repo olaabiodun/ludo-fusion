@@ -88,7 +88,7 @@ export function useSnakeLadderEngine(playerCount: number, initialPlayers?: Snake
     });
 
     // 2. Wait for walking animation, then check for teleport (ladder/snake)
-    const walkTime = Math.max(800, val * 200) + 100;
+    const walkTime = (val * 200) + 600;
     setTimeout(() => {
       let fPos = 0;
       let isTele = false;
@@ -201,7 +201,7 @@ export function useSnakeLadderEngine(playerCount: number, initialPlayers?: Snake
     });
 
     // 2. Wait for walking animation, then check for teleport (ladder/snake)
-    const walkTime = Math.max(800, val * 200) + 100;
+    const walkTime = (val * 200) + 600;
     setTimeout(() => {
       let fPos = 0;
       let isTele = false;

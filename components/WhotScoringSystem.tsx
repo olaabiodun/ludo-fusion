@@ -12,7 +12,7 @@ import { animated, useSpring, config } from '@react-spring/native';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WhotFrontCard } from './WhotFrontCard';
-import { rs, calculateScore } from './WhotUtils';
+import { rs, calculateScore, getRandomCard } from './WhotUtils';
 
 interface Card {
   shape: 'circle' | 'triangle' | 'cross' | 'square' | 'star' | 'whot';
@@ -170,6 +170,86 @@ const ScoreTag = ({ card, isVisible }: { card: Card, isVisible: boolean }) => {
   );
 };
 
+const TiebreakCard = ({ player, card, isWinner, isLoser, faceDown }: { player: Player; card: Card; isWinner: boolean; isLoser: boolean; faceDown: boolean }) => {
+  const pop = useSpring({
+    from: { scale: 0.5, opacity: 0 },
+    to: { scale: 1, opacity: 1 },
+    config: { tension: 280, friction: 16 },
+  });
+
+  const wobble = useSpring({
+    from: { rotate: '-3deg' },
+    to: faceDown ? { rotate: '3deg' } : { rotate: '0deg' },
+    loop: faceDown ? { reverse: true } : false,
+    config: faceDown ? { tension: 60, friction: 4 } : { tension: 120, friction: 10 },
+  });
+
+  return (
+    <animated.View style={{
+      alignItems: 'center', gap: rs(4),
+      padding: rs(7), borderRadius: rs(10),
+      backgroundColor: isWinner
+        ? 'rgba(67,209,123,0.12)'
+        : faceDown
+          ? 'rgba(200,0,10,0.08)'
+          : 'rgba(255,255,255,0.04)',
+      borderWidth: 2,
+      borderColor: isWinner
+        ? '#43D17B'
+        : isLoser
+          ? 'rgba(255,255,255,0.10)'
+          : faceDown
+            ? 'rgba(200,0,10,0.20)'
+            : 'rgba(255,255,255,0.06)',
+      transform: [{ scale: pop.scale }, { rotate: wobble.rotate as any }],
+      opacity: pop.opacity,
+    }}>
+      <Image source={player.avatar} style={{
+        width: rs(18), height: rs(18), borderRadius: rs(9),
+        borderWidth: 1.5,
+        borderColor: isWinner ? '#43D17B' : faceDown ? 'rgba(200,0,10,0.3)' : 'rgba(255,255,255,0.15)',
+      }} />
+      <Text style={{
+        color: isWinner ? '#43D17B' : faceDown ? '#FF6B7A' : '#FFF',
+        fontSize: rs(8.5), fontWeight: '900',
+      }}>
+        {player.name}
+      </Text>
+      {faceDown ? (
+        <>
+          <WhotFrontCard shape="circle" value={0} width={rs(44)} height={rs(62)} faceDown />
+          <Text style={{
+            color: 'rgba(255,255,255,0.3)', fontSize: rs(6.5), fontWeight: '700',
+          }}>
+            Shuffling...
+          </Text>
+        </>
+      ) : (
+        <>
+          <WhotFrontCard shape={card.shape} value={card.value} width={rs(44)} height={rs(62)} />
+          <Text style={{
+            color: 'rgba(255,255,255,0.4)', fontSize: rs(7), fontWeight: '700',
+          }}>
+            Value: {calculateCardValue(card)}
+          </Text>
+        </>
+      )}
+      {isWinner && (
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: rs(3),
+          backgroundColor: '#43D17B', paddingHorizontal: rs(8), paddingVertical: rs(2),
+          borderRadius: rs(20),
+        }}>
+          <MaterialCommunityIcons name="crown" size={rs(8)} color="#0A0A0A" />
+          <Text style={{ color: '#0A0A0A', fontSize: rs(7), fontWeight: '900' }}>
+            WINNER
+          </Text>
+        </View>
+      )}
+    </animated.View>
+  );
+};
+
 export const WhotScoringSystem = React.memo(
   ({ visible, players, onRestart, onNext }: ScoringSystemProps) => {
     
@@ -181,6 +261,13 @@ export const WhotScoringSystem = React.memo(
     const [progressMap, setProgressMap] = React.useState<number[]>([]);
     const [countingFinished, setCountingFinished] = React.useState(false);
     const [runningScores, setRunningScores] = React.useState<number[]>([]);
+
+    // Tiebreaker state
+    const [tiebreakCards, setTiebreakCards] = React.useState<(Card | null)[]>([]);
+    const [showTiebreak, setShowTiebreak] = React.useState(false);
+    const [tiebreakMessage, setTiebreakMessage] = React.useState('');
+    const [tiebreakWinner, setTiebreakWinner] = React.useState<string | null>(null);
+    const [tiebreakStage, setTiebreakStage] = React.useState<'idle' | 'announce' | 'shuffling' | 'reveal_1' | 'reveal_2' | 'winner'>('idle');
 
     const overlay = useSpring({
       opacity: visible ? 1 : 0,
@@ -272,25 +359,74 @@ export const WhotScoringSystem = React.memo(
         }, 220);
       };
 
-      if (!isCountingRef.current) {
-        isCountingRef.current = true;
-        startCountingPlayer();
-      }
+      isCountingRef.current = true;
+      startCountingPlayer();
 
       return () => {
         if (cardIntervalRef.current) clearInterval(cardIntervalRef.current);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
       };
-    }, [visible, countingFinished, players, sortedIndices]);
+    }, [visible, countingFinished]);
 
     React.useEffect(() => {
-      if (countingFinished && visible) {
+      if (!countingFinished || !visible) return;
+
+      // Sort by card count ascending to find 1st/2nd place
+      const sorted = players
+        .map((p, i) => ({ idx: i, count: p.cards.length }))
+        .sort((a, b) => a.count - b.count);
+
+      const first = sorted[0];
+      const second = sorted[1];
+
+      if (first && second && first.count === second.count) {
+        // Tiebreaker between 1st and 2nd place only
+        const usedCards = new Set<string>();
+        const cards: (Card | null)[] = new Array(players.length).fill(null);
+
+        const tiePlayers = [first.idx, second.idx];
+        for (const pIdx of tiePlayers) {
+          let card: Card;
+          let key: string;
+          do {
+            card = getRandomCard();
+            key = `${card.shape}-${card.value}`;
+          } while (usedCards.has(key));
+          usedCards.add(key);
+          cards[pIdx] = card;
+        }
+
+        setTiebreakCards(cards);
+
+        const val0 = calculateCardValue(cards[first.idx]!);
+        const val1 = calculateCardValue(cards[second.idx]!);
+        const winnerIdx = val0 <= val1 ? first.idx : second.idx;
+
+        setTiebreakWinner(players[winnerIdx]?.name || 'Unknown');
+        setTiebreakMessage(`Tiebreaker! ${players[first.idx]?.name} & ${players[second.idx]?.name} tied for 1st — drew random cards, ${players[winnerIdx]?.name} wins!`);
+        setShowTiebreak(true);
+        setTiebreakStage('announce');
+
+        // Staged reveal: announce → shuffling → reveal_1 → reveal_2 → winner
+        const t1 = setTimeout(() => setTiebreakStage('shuffling'), 1000);
+        const t2 = setTimeout(() => setTiebreakStage('reveal_1'), 2800);
+        const t3 = setTimeout(() => setTiebreakStage('reveal_2'), 4300);
+        const t4 = setTimeout(() => setTiebreakStage('winner'), 5400);
+
+        return () => {
+          clearTimeout(t1);
+          clearTimeout(t2);
+          clearTimeout(t3);
+          clearTimeout(t4);
+        };
+      } else {
+        // No ties — auto-advance
         const timer = setTimeout(() => {
           if (onNext) onNext();
-        }, 3000); 
+        }, 3000);
         return () => clearTimeout(timer);
       }
-    }, [countingFinished, visible, onNext]);
+    }, [countingFinished, visible, players, onNext]);
 
     React.useEffect(() => {
       if (visible) {
@@ -299,13 +435,20 @@ export const WhotScoringSystem = React.memo(
         setProgressMap(new Array(players.length).fill(0));
         setRunningScores(new Array(players.length).fill(0));
         setSelectedIdx(0);
+        setTiebreakStage('idle');
+        setShowTiebreak(false);
+        setTiebreakCards([]);
       }
     }, [visible, players.length]);
 
     if (!visible) return null;
 
     const winner = players.find(p => p.cards.length === 0);
-    const titleText = winner ? "WINNER FOUND! COUNTING OTHERS..." : "TIMEOUT! COUNTING ALL...";
+    const titleText = showTiebreak
+      ? "TIEBREAKER!"
+      : winner
+        ? "WINNER FOUND! COUNTING OTHERS..."
+        : "TIMEOUT! COUNTING ALL...";
 
     const sorted = React.useMemo(() =>
       players
@@ -438,9 +581,11 @@ export const WhotScoringSystem = React.memo(
                         {active.name.toUpperCase()}
                       </Text>
                       <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: rs(7.5), fontWeight: '600' }}>
-                        {active.cards.length === 0
-                          ? 'Cleared all cards'
-                          : `Counting ${active.cards.length} cards...`}
+                        {showTiebreak && tiebreakCards[selectedIdx]
+                          ? `Drew: ${tiebreakCards[selectedIdx]?.shape} ${tiebreakCards[selectedIdx]?.value}`
+                          : active.cards.length === 0
+                            ? 'Cleared all cards'
+                            : `Counting ${active.cards.length} cards...`}
                       </Text>
                     </View>
                     <View style={{
@@ -475,12 +620,18 @@ export const WhotScoringSystem = React.memo(
                         {active.cards.map((card, i) => (
                           <CardChip key={i} card={card} isVisible={i < activeCounted} />
                         ))}
+                        {showTiebreak && tiebreakCards[selectedIdx] && (
+                          <CardChip card={tiebreakCards[selectedIdx]!} isVisible={true} />
+                        )}
                       </View>
                       <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: rs(5) }} />
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                         {active.cards.map((card, i) => (
                           <ScoreTag key={i} card={card} isVisible={i < activeCounted} />
                         ))}
+                        {showTiebreak && tiebreakCards[selectedIdx] && (
+                          <ScoreTag card={tiebreakCards[selectedIdx]!} isVisible={true} />
+                        )}
                       </View>
                     </ScrollView>
                   )}
@@ -488,35 +639,118 @@ export const WhotScoringSystem = React.memo(
               </View>
             </View>
 
-            <View style={{ alignItems: 'center', marginTop: rs(12) }}>
+            {showTiebreak && (() => {
+              const tiedIdx = tiebreakCards.reduce<number[]>((acc, c, i) => {
+                if (c !== null) acc.push(i);
+                return acc;
+              }, []);
+              const p1 = tiedIdx[0] !== undefined ? players[tiedIdx[0]] : null;
+              const p2 = tiedIdx[1] !== undefined ? players[tiedIdx[1]] : null;
+              const c1 = tiedIdx[0] !== undefined ? tiebreakCards[tiedIdx[0]] : null;
+              const c2 = tiedIdx[1] !== undefined ? tiebreakCards[tiedIdx[1]] : null;
+              const showCards = tiebreakStage !== 'idle' && tiebreakStage !== 'announce';
+              const shuffling = tiebreakStage === 'shuffling';
+              const revealP1 = tiebreakStage === 'reveal_1' || tiebreakStage === 'reveal_2' || tiebreakStage === 'winner';
+              const revealP2 = tiebreakStage === 'reveal_2' || tiebreakStage === 'winner';
+
+              return (
+                <View style={{
+                  alignItems: 'center', marginTop: rs(12), marginBottom: rs(6),
+                  paddingHorizontal: rs(6),
+                }}>
+                  {/* Announcement phase */}
+                  {tiebreakStage === 'announce' && (
+                    <animated.View style={{
+                      alignItems: 'center', paddingVertical: rs(12), paddingHorizontal: rs(16),
+                      backgroundColor: 'rgba(255,69,58,0.10)',
+                      borderRadius: rs(12), borderWidth: 1.5, borderColor: 'rgba(255,69,58,0.30)',
+                      marginBottom: rs(4),
+                    }}>
+                      <MaterialCommunityIcons name="sword-cross" size={rs(18)} color="#FF453A" />
+                      <Text style={{
+                        color: '#FF453A', fontSize: rs(14), fontWeight: '900',
+                        letterSpacing: 2.5, marginTop: rs(4),
+                        textShadowColor: 'rgba(255,69,58,0.3)', textShadowRadius: 8,
+                      }}>
+                        ⚔️ TIEBREAKER ⚔️
+                      </Text>
+                      <Text style={{
+                        color: 'rgba(255,255,255,0.6)', fontSize: rs(8), fontWeight: '600',
+                        marginTop: rs(4), letterSpacing: 0.5,
+                      }}>
+                        Random card draw to break the tie!
+                      </Text>
+                    </animated.View>
+                  )}
+
+                  {/* Side-by-side card comparison */}
+                  {showCards && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(8), marginTop: rs(6) }}>
+                      {p1 && c1 && (
+                        <TiebreakCard
+                          player={p1}
+                          card={c1}
+                          faceDown={shuffling || (tiebreakStage === 'reveal_1' && !revealP2)}
+                          isWinner={tiebreakStage === 'winner' && tiebreakWinner === p1?.name}
+                          isLoser={tiebreakStage === 'winner' && tiebreakWinner !== p1?.name}
+                        />
+                      )}
+                      {revealP1 && revealP2 && (
+                        <MaterialCommunityIcons name="sword-cross" size={rs(14)} color="#FFD030" style={{ opacity: 0.5 }} />
+                      )}
+                      {p2 && c2 && (
+                        <TiebreakCard
+                          player={p2}
+                          card={c2}
+                          faceDown={shuffling}
+                          isWinner={tiebreakStage === 'winner' && tiebreakWinner === p2?.name}
+                          isLoser={tiebreakStage === 'winner' && tiebreakWinner !== p2?.name}
+                        />
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
+            <View style={{ alignItems: 'center', marginTop: rs(8) }}>
               <animated.View style={{ transform: [{ scale: btnScale.scale }] }}>
                 <TouchableOpacity
                   activeOpacity={1}
                   onPressIn={() => setBtnPressed(true)}
                   onPressOut={() => setBtnPressed(false)}
-                  onPress={countingFinished ? onNext : onRestart}
+                  onPress={() => {
+                    if (showTiebreak) {
+                      setShowTiebreak(false);
+                      if (onNext) onNext();
+                    } else if (countingFinished) {
+                      if (onNext) onNext();
+                    } else {
+                      onRestart();
+                    }
+                  }}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: rs(6),
-                    backgroundColor: '#FFD030',
+                    backgroundColor: showTiebreak ? '#43D17B' : '#FFD030',
                     paddingHorizontal: rs(26),
                     paddingVertical: rs(9),
                     borderRadius: rs(50),
-                    shadowColor: '#FFD030',
+                    shadowColor: showTiebreak ? '#43D17B' : '#FFD030',
                     shadowOpacity: 0.28,
                     shadowRadius: rs(10),
                     shadowOffset: { width: 0, height: rs(3) },
                   }}
                 >
-                  <MaterialCommunityIcons name={countingFinished ? "chevron-right" : "reload"} size={rs(12)} color="#0A0A0A" />
+                  <MaterialCommunityIcons name={showTiebreak ? "check" : countingFinished ? "chevron-right" : "reload"} size={rs(12)} color="#0A0A0A" />
                   <Text style={{
                     color: '#0A0A0A',
                     fontSize: rs(11.5),
                     fontWeight: '900',
                     letterSpacing: 1.8,
                   }}>
-                    {countingFinished ? "CONTINUE" : "PLAY AGAIN"}
+                    {showTiebreak ? "GOT IT" : countingFinished ? "CONTINUE" : "PLAY AGAIN"}
                   </Text>
                 </TouchableOpacity>
               </animated.View>

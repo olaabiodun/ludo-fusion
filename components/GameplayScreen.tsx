@@ -1,6 +1,7 @@
 import { calculateXpGained, LevelUpdate, updatePlayerLevel } from '@/lib/leveling';
 import { playPlayerFoundSound, playDiceRollSound } from '@/lib/sounds';
 import { socket as sharedSocket } from '@/lib/socket';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import React from 'react';
 import {
@@ -83,6 +84,8 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
   const [whotWinner, setWhotWinner] = React.useState<BC | null>(null);
   const [whotScores, setWhotScores] = React.useState<Record<string, number>>({});
   const [platformFeePercent, setPlatformFeePercent] = React.useState<number>(10);
+  const [lastMove, setLastMove] = React.useState<{ shape: string; value: number | string; playerName: string; playerColor: string } | null>(null);
+  const [showLastMove, setShowLastMove] = React.useState(false);
 
   // Fetch dynamic platform percentage configuration from database
   React.useEffect(() => {
@@ -274,9 +277,10 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       // Opponent moved a pawn: just move — dice value already set from dice_rolled
       sharedSocket.on('pawn_moved', (payload: { color: string, pawnId: string, diceValue: number }) => {
         if (isLudo && payload.color !== localColor) {
-          // Sync state and move pawn, ensuring we wait for the dice spin animation to finish
+          // Sync state and move pawn, ensuring we wait for the dice spin animation to finish completely
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(1000 - elapsed, 0);
+          // Use a guaranteed 1500ms timing so the dice finishes spinning (1000ms) and starts returning to center before walk starts
+          const remaining = Math.max(1500 - elapsed, 0);
 
           setTimeout(() => {
             engine.setState(prev => ({ ...prev, diceValue: payload.diceValue, hasRolled: true }));
@@ -291,7 +295,8 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           rollPendingRef.current = false; // Clear pending in case local double-tap caused stale state
           
           const elapsed = Date.now() - rollStartTimeRef.current;
-          const remaining = Math.max(1000 - elapsed, 0);
+          // Use a guaranteed 1500ms timing so the dice finishes spinning (1000ms) and starts returning to center before pass settles
+          const remaining = Math.max(1500 - elapsed, 0);
 
           setTimeout(() => {
             engine.setState(prev => ({
@@ -494,7 +499,47 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
       setPayoutProcessed(true);
 
       const processPayout = async () => {
-        if (isAiEnabled) return; // Skip DB updates for practice mode
+        if (isAiEnabled) {
+          // This is an offline / AI / Practice game! Save offline stats locally in AsyncStorage
+          try {
+            const results = buildResults();
+            const localPlayer = results.find(p => p.isLocal);
+            if (localPlayer) {
+              const myRank = localPlayer.rank;
+              const isWin = myRank === 1;
+              const gameType = isLudo ? 'ludo' : isWhot ? 'whot' : 'snake_ladder';
+              const key = `offline_stats_${gameType}`;
+              
+              const stored = await AsyncStorage.getItem(key);
+              const statsObj = stored ? JSON.parse(stored) : { wins: 0, losses: 0, highscore: 0 };
+              
+              if (isWin) {
+                statsObj.wins += 1;
+              } else {
+                statsObj.losses += 1;
+              }
+              
+              let currentScore = 0;
+              if (isLudo) {
+                currentScore = localPlayer.captures || 0;
+                statsObj.highscore = Math.max(statsObj.highscore || 0, currentScore);
+              } else if (isWhot) {
+                currentScore = localPlayer.score || 0;
+                // Best score in Whot is lower points. Only set if best score is lower
+                if (statsObj.highscore === undefined || statsObj.highscore === 0 || currentScore < statsObj.highscore) {
+                  statsObj.highscore = currentScore;
+                }
+              } else if (isSnake) {
+                statsObj.highscore = Math.max(statsObj.highscore || 0, statsObj.wins);
+              }
+              
+              await AsyncStorage.setItem(key, JSON.stringify(statsObj));
+            }
+          } catch (e) {
+            console.error('Error saving offline stats:', e);
+          }
+          return;
+        }
         
         const results = buildResults();
         const localPlayer = results.find(p => p.isLocal);
@@ -773,9 +818,13 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
               setWhotScores(colorScores);
             }
           }}
+          onLastMove={(card, player) => {
+            setLastMove({ shape: card.shape, value: card.value, playerName: player.name, playerColor: player.color });
+          }}
           externalEmojis={activeEmojis}
           onSendEmoji={wrappedSendEmoji}
           isCountdownActive={countdownActive}
+          platformFeePercent={platformFeePercent}
         />
       ) : !winner && isSnake ? (
         <>
@@ -833,6 +882,7 @@ export function GameplayScreen({ mode, playerCount, isAiEnabled, roomId, onExit,
           isWhot={isWhot}
           isSnake={isSnake}
           platformFeePercent={platformFeePercent}
+          lastMoveData={lastMove || undefined}
         />
       )}
 

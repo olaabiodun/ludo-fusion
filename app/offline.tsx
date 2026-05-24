@@ -2,13 +2,14 @@ import { GameplayScreen } from '@/components/GameplayScreen';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { playButtonSound } from '@/lib/sounds';
+import { playButtonSound, playSwipeSound } from '@/lib/sounds';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   Easing,
   Image,
+  PanResponder,
   StatusBar,
   StyleSheet,
   Text,
@@ -77,9 +78,40 @@ export default function OfflineScreen() {
   const pulse = useRef(new Animated.Value(1)).current;
   // Header slide down
   const headerSlide = useRef(new Animated.Value(-40)).current;
+  // Title block slide & fade transitions for swipe
+  const titleTranslateX = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(1)).current;
 
-  const prevIdx = useRef(0);
   const [displayIdx, setDisplayIdx] = useState(0);
+
+  const [offlineStats, setOfflineStats] = useState<Record<string, { wins: number; losses: number; highscore: number }>>({
+    ludo: { wins: 0, losses: 0, highscore: 0 },
+    whot: { wins: 0, losses: 0, highscore: 0 },
+    snake_ladder: { wins: 0, losses: 0, highscore: 0 },
+  });
+
+  useEffect(() => {
+    async function loadOfflineStats() {
+      try {
+        const [ludoData, whotData, snakeData] = await Promise.all([
+          AsyncStorage.getItem('offline_stats_ludo'),
+          AsyncStorage.getItem('offline_stats_whot'),
+          AsyncStorage.getItem('offline_stats_snake_ladder'),
+        ]);
+        
+        setOfflineStats({
+          ludo: ludoData ? JSON.parse(ludoData) : { wins: 0, losses: 0, highscore: 0 },
+          whot: whotData ? JSON.parse(whotData) : { wins: 0, losses: 0, highscore: 0 },
+          snake_ladder: snakeData ? JSON.parse(snakeData) : { wins: 0, losses: 0, highscore: 0 },
+        });
+      } catch (e) {
+        console.log('Failed to load offline stats:', e);
+      }
+    }
+    if (!isPlaying) {
+      loadOfflineStats();
+    }
+  }, [isPlaying]);
 
   useEffect(() => {
     Animated.parallel([
@@ -100,32 +132,115 @@ export default function OfflineScreen() {
         Animated.timing(pulse, { toValue: 1.0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [barSlide, headerSlide, pulse, screenFade]);
 
-  const switchGame = (idx: number) => {
+  const switchGame = (idx: number, swipeDirection?: 'left' | 'right') => {
     if (idx === activeIdx) return;
-    try { playButtonSound(); } catch (_) {}
+    try {
+      if (swipeDirection) {
+        playSwipeSound();
+      } else {
+        playButtonSound();
+      }
+    } catch {}
 
-    // Cross-fade hero image
-    Animated.timing(heroOpacity, {
-      toValue: 0, duration: 200, useNativeDriver: true,
-    }).start(() => {
+    // Determine slide direction if not provided (for direct tab clicks)
+    const dir = swipeDirection || (idx > activeIdx ? 'left' : 'right');
+    const exitValue = dir === 'left' ? -60 : 60;
+    const enterValue = dir === 'left' ? 60 : -60;
+
+    Animated.parallel([
+      // Cross-fade background hero image
+      Animated.timing(heroOpacity, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      // Slide and fade out the title block
+      Animated.timing(titleTranslateX, {
+        toValue: exitValue,
+        duration: 200,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(titleOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
       setActiveIdx(idx);
       setDisplayIdx(idx);
-      Animated.timing(heroOpacity, {
-        toValue: 1, duration: 300, useNativeDriver: true,
-      }).start();
+
+      // Reset title to enter position
+      titleTranslateX.setValue(enterValue);
+
+      Animated.parallel([
+        // Cross-fade background in
+        Animated.timing(heroOpacity, {
+          toValue: 1,
+          duration: 280,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        // Slide and fade in the title block
+        Animated.spring(titleTranslateX, {
+          toValue: 0,
+          tension: 65,
+          friction: 9,
+          useNativeDriver: true,
+        }),
+        Animated.timing(titleOpacity, {
+          toValue: 1,
+          duration: 250,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
     });
   };
 
+  // Keep references to avoid stale closures in the PanResponder
+  const activeIdxRef = useRef(activeIdx);
+  activeIdxRef.current = activeIdx;
+
+  const switchGameRef = useRef(switchGame);
+  switchGameRef.current = switchGame;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Intercept gesture only if it's a clear horizontal swipe
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState;
+        const threshold = 50;
+        if (dx < -threshold) {
+          // Swipe left -> Next game
+          const nextIdx = (activeIdxRef.current + 1) % GAMES.length;
+          switchGameRef.current(nextIdx, 'left');
+        } else if (dx > threshold) {
+          // Swipe right -> Previous game
+          const prevIdx = (activeIdxRef.current - 1 + GAMES.length) % GAMES.length;
+          switchGameRef.current(prevIdx, 'right');
+        }
+      },
+    })
+  ).current;
+
   const handlePlay = () => {
-    try { playButtonSound(); } catch (_) {}
+    try { playButtonSound(); } catch {}
     setIsPlaying(true);
   };
 
   const togglePlayers = (n: 2 | 4) => {
     if (n === playerCount) return;
-    try { playButtonSound(); } catch (_) {}
+    try { playButtonSound(); } catch {}
     setPlayerCount(n);
   };
 
@@ -147,10 +262,9 @@ export default function OfflineScreen() {
   }
 
   const game = GAMES[displayIdx];
-  const { width: W, height: H } = Dimensions.get('window');
 
   return (
-    <Animated.View style={[styles.root, { opacity: screenFade }]}>
+    <Animated.View style={[styles.root, { opacity: screenFade }]} {...panResponder.panHandlers}>
       <StatusBar hidden />
 
       {/* ── FULL-SCREEN HERO BACKGROUND ── */}
@@ -217,10 +331,29 @@ export default function OfflineScreen() {
       </View>
 
       {/* ── HERO TITLE BLOCK ── */}
-      <View style={styles.heroBlock}>
+      <Animated.View style={[styles.heroBlock, { opacity: titleOpacity, transform: [{ translateX: titleTranslateX }] }]}>
+        {/* Pill-styled Offline Statistics Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statPill}>
+            <Ionicons name="trophy" size={11} color="#FFD700" />
+            <Text style={styles.statLabel}>WINS: <Text style={styles.statVal}>{offlineStats[game.id]?.wins || 0}</Text></Text>
+          </View>
+          <View style={styles.statPill}>
+            <Ionicons name="close-circle" size={11} color="#FF6B6B" />
+            <Text style={styles.statLabel}>LOSSES: <Text style={styles.statVal}>{offlineStats[game.id]?.losses || 0}</Text></Text>
+          </View>
+          <View style={styles.statPill}>
+            <MaterialCommunityIcons name="crown" size={11} color={game.accent} />
+            <Text style={styles.statLabel}>
+              {game.id === 'ludo' ? 'MAX CAPTURES' : game.id === 'whot' ? 'BEST SCORE' : 'HIGH SCORE'}:{' '}
+              <Text style={styles.statVal}>{offlineStats[game.id]?.highscore || 0}</Text>
+            </Text>
+          </View>
+        </View>
+
         <Text style={[styles.heroTitle, { color: game.accent }]}>{game.title}</Text>
         <Text style={styles.heroTagline}>{game.tagline}</Text>
-      </View>
+      </Animated.View>
 
       {/* ── BOTTOM CONTROL BAR ── */}
       <Animated.View style={[styles.bottomBar, { transform: [{ translateY: barSlide }] }]}>
@@ -397,6 +530,33 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 32,
     zIndex: 30,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  statLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.65)',
+    letterSpacing: 0.3,
+  },
+  statVal: {
+    color: '#fff',
+    fontWeight: '900',
   },
   heroTitle: {
     fontSize: 38,

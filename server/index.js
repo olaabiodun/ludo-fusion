@@ -139,6 +139,7 @@ const queue = [];          // { userId, socketId, gameType, stake, maxPlayers }
 const whotDecks = new Map(); // roomId -> { deck, topCard, hands }
 const whotTurnTimers = new Map(); // roomId -> timeout id
 const botMatchmakerTimers = new Map(); // socket.id -> timeout id
+const botUserIds = new Set(); // userIds of embedded bots (no timeout for them)
 
 const WHOT_SHAPES = ['circle', 'triangle', 'cross', 'square', 'star'];
 const WHOT_VALUES = [1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14];
@@ -220,7 +221,8 @@ function buildWhotState(game) {
     wasHoldOn: game.wasHoldOn,
     turnStartedAt: game.turnStartedAt,
     gameEndsAt: game.gameEndsAt,
-    playerLives: game.playerLives
+    playerLives: game.playerLives,
+    hands: game.hands // Authoritative hands map!
   };
 }
 
@@ -243,6 +245,10 @@ function scheduleWhotTurnTimer(roomId) {
   if (!game || !game.playerOrder.length) return;
   game.turnStartedAt = Date.now();
 
+  // If the current player is a bot, skip the timeout — the bot manages its own turn timer
+  const currentUserId = game.playerOrder[game.turnIndex];
+  if (currentUserId && botUserIds.has(currentUserId)) return;
+
   const timer = setTimeout(() => {
     const freshGame = whotDecks.get(roomId);
     if (!freshGame || !freshGame.playerOrder.length) return;
@@ -250,17 +256,20 @@ function scheduleWhotTurnTimer(roomId) {
     const timedOutUserId = freshGame.playerOrder[freshGame.turnIndex];
     const pi = freshGame.turnIndex;
 
-    // Check for Global Game End first
-    if (freshGame.gameEndsAt && Date.now() >= freshGame.gameEndsAt) {
-      handleWhotGameOver(roomId, freshGame, 'TIME_UP');
-      return;
-    }
-
     if (freshGame.topCard?.value === 20 && !freshGame.currentShape) {
       // Auto-choose shape on timeout
       freshGame.currentShape = WHOT_SHAPES[Math.floor(Math.random() * WHOT_SHAPES.length)];
-      freshGame.turnIndex = getWhotNextTurnIndex(freshGame, 1);
+      const nextTurn = getWhotNextTurnIndex(freshGame, 1);
+      freshGame.turnIndex = nextTurn;
       freshGame.wasHoldOn = false;
+
+      if (freshGame.gameEndsAt && Date.now() >= freshGame.gameEndsAt) {
+        if (nextTurn < pi) {
+          console.log(`[WHOT Server] Timer expired & round completed on timeout shape choose (${pi} -> ${nextTurn}). Ending game...`);
+          handleWhotGameOver(roomId, freshGame, 'TIME_UP');
+          return;
+        }
+      }
 
       scheduleWhotTurnTimer(roomId);
       const updatedGame = whotDecks.get(roomId);
@@ -303,18 +312,29 @@ function scheduleWhotTurnTimer(roomId) {
       }
 
       // If more than 1 player is still active, just skip their turn permanently
-      const drawnElim = drawWhotCards(freshGame, 1);
+      const penaltyCount = freshGame.pendingPicks > 0 ? freshGame.pendingPicks : 1;
+      const drawnElim = drawWhotCards(freshGame, penaltyCount);
       freshGame.hands[timedOutUserId] = [...(freshGame.hands[timedOutUserId] || []), ...drawnElim];
+      const nextTurn = getWhotNextTurnIndex(freshGame, 1);
+
       io.to(roomId).emit('whot_remote_pick', {
         pi,
         cards: drawnElim,
-        nextTurn: getWhotNextTurnIndex(freshGame, 1),
+        nextTurn,
         specialMsg: 'ELIMINATED!'
       });
 
       freshGame.pendingPicks = 0;
       freshGame.wasHoldOn = false;
-      freshGame.turnIndex = getWhotNextTurnIndex(freshGame, 1);
+      freshGame.turnIndex = nextTurn;
+
+      if (freshGame.gameEndsAt && Date.now() >= freshGame.gameEndsAt) {
+        if (nextTurn < pi) {
+          console.log(`[WHOT Server] Timer expired & round completed on elimination skip (${pi} -> ${nextTurn}). Ending game...`);
+          handleWhotGameOver(roomId, freshGame, 'TIME_UP');
+          return;
+        }
+      }
       
       scheduleWhotTurnTimer(roomId);
       const updatedGame = whotDecks.get(roomId);
@@ -323,19 +343,30 @@ function scheduleWhotTurnTimer(roomId) {
       return;
     }
 
-    // Still has lives — draw 1 penalty card and skip turn
-    const drawn = drawWhotCards(freshGame, 1);
+    // Still has lives — draw pending picks penalty card(s) and skip turn
+    const penaltyCount = freshGame.pendingPicks > 0 ? freshGame.pendingPicks : 1;
+    const drawn = drawWhotCards(freshGame, penaltyCount);
     freshGame.hands[timedOutUserId] = [...(freshGame.hands[timedOutUserId] || []), ...drawn];
+    const nextTurn = getWhotNextTurnIndex(freshGame, 1);
+
     io.to(roomId).emit('whot_remote_pick', {
       pi,
       cards: drawn,
-      nextTurn: getWhotNextTurnIndex(freshGame, 1),
+      nextTurn,
       specialMsg: 'TIMEOUT!'
     });
 
     freshGame.pendingPicks = 0;
     freshGame.wasHoldOn = false;
-    freshGame.turnIndex = getWhotNextTurnIndex(freshGame, 1);
+    freshGame.turnIndex = nextTurn;
+
+    if (freshGame.gameEndsAt && Date.now() >= freshGame.gameEndsAt) {
+      if (nextTurn < pi) {
+        console.log(`[WHOT Server] Timer expired & round completed on timeout skip (${pi} -> ${nextTurn}). Ending game...`);
+        handleWhotGameOver(roomId, freshGame, 'TIME_UP');
+        return;
+      }
+    }
 
     scheduleWhotTurnTimer(roomId);
     const updatedGame = whotDecks.get(roomId);
@@ -858,6 +889,14 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (game.gameEndsAt && Date.now() >= game.gameEndsAt) {
+      if (nextTurn < pi) {
+        console.log(`[WHOT Server] Timer expired & round completed on play (${pi} -> ${nextTurn}). Ending game...`);
+        handleWhotGameOver(player.roomId, game, 'TIME_UP');
+        return;
+      }
+    }
+
     scheduleWhotTurnTimer(player.roomId);
     const updatedGame = whotDecks.get(player.roomId);
     if (!updatedGame) return;
@@ -884,14 +923,24 @@ io.on('connection', (socket) => {
     // Do NOT clear currentShape here — the called shape must persist until
     // a card matching it is actually played. Clearing it here was the bug
     // that made the caller's own matching cards fail the canPlayCard check.
-    game.turnIndex = getWhotNextTurnIndex(game, 1);
+    const nextTurn = getWhotNextTurnIndex(game, 1);
+    game.turnIndex = nextTurn;
 
     io.to(player.roomId).emit('whot_remote_pick', {
       pi,
       cards: drawn,
-      nextTurn: game.turnIndex,
+      nextTurn,
       specialMsg: data.specialMsg || pickMsg
     });
+
+    if (game.gameEndsAt && Date.now() >= game.gameEndsAt) {
+      if (nextTurn < pi) {
+        console.log(`[WHOT Server] Timer expired & round completed on pick (${pi} -> ${nextTurn}). Ending game...`);
+        handleWhotGameOver(player.roomId, game, 'TIME_UP');
+        return;
+      }
+    }
+
     scheduleWhotTurnTimer(player.roomId);
     const updatedGame = whotDecks.get(player.roomId);
     if (!updatedGame) return;
@@ -912,7 +961,17 @@ io.on('connection', (socket) => {
     if (!WHOT_SHAPES.includes(shape)) return;
 
     game.currentShape = shape;
-    game.turnIndex = getWhotNextTurnIndex(game, 1);
+    const nextTurn = getWhotNextTurnIndex(game, 1);
+    game.turnIndex = nextTurn;
+
+    if (game.gameEndsAt && Date.now() >= game.gameEndsAt) {
+      if (nextTurn < pi) {
+        console.log(`[WHOT Server] Timer expired & round completed on shape choose (${pi} -> ${nextTurn}). Ending game...`);
+        handleWhotGameOver(player.roomId, game, 'TIME_UP');
+        return;
+      }
+    }
+
     scheduleWhotTurnTimer(player.roomId);
     const updatedGame = whotDecks.get(player.roomId);
     if (!updatedGame) return;
@@ -920,10 +979,10 @@ io.on('connection', (socket) => {
     io.to(player.roomId).emit('whot_shape_chosen', {
       pi,
       shape,
-      nextTurn: updatedGame.turnIndex,
+      nextTurn,
       turnStartedAt: updatedGame.turnStartedAt
     });
-    io.to(player.roomId).emit('whot_turn_update', { nextTurn: updatedGame.turnIndex, turnStartedAt: updatedGame.turnStartedAt });
+    io.to(player.roomId).emit('whot_turn_update', { nextTurn, turnStartedAt: updatedGame.turnStartedAt });
   });
 
   socket.on('whot_action', (data) => {
@@ -1159,6 +1218,8 @@ class EmbeddedBot {
     this.gameOver = false;
     this._whotTurnPending = false;
     this._whotTurnTimer = null;
+    this._whotSafetyTimer = null;
+    this._currentTurnIndex = -1;
     this.logPrefix = `[EmbeddedBot]`;
   }
 
@@ -1187,6 +1248,7 @@ class EmbeddedBot {
     }
     this.userId = data.user.id;
     this.username = this.displayName || data.user.email?.split('@')[0] || `bot_${this.userId.slice(0, 6)}`;
+    botUserIds.add(this.userId);
     this.log(`Logged in as ${this.username}`);
     return true;
   }
@@ -1247,11 +1309,15 @@ class EmbeddedBot {
       return;
     }
 
+    const COLOR_ORDER = ['green', 'yellow', 'red', 'blue'];
     this.playersList = roomInfo.players;
-    this.activeColors = roomInfo.players.map(p => p.color);
+    this.activeColors = roomInfo.players
+      .map(p => p.color)
+      .sort((a, b) => COLOR_ORDER.indexOf(a) - COLOR_ORDER.indexOf(b));
     this.turnIndex = 0;
     this.diceValue = null;
     this.hasRolled = false;
+    this._ludoTurnTimer = null;
 
     // Initialize pawn state locally to mirror Ludo rules
     this.pawns = [];
@@ -1269,6 +1335,10 @@ class EmbeddedBot {
     this.socket.on('room_sync', (room) => {
       if (['finished', 'cancelled'].includes(room.status) && !this.gameOver) {
         this.gameOver = true;
+        if (this._ludoTurnTimer) {
+          clearTimeout(this._ludoTurnTimer);
+          this._ludoTurnTimer = null;
+        }
         const result = room.winner_id === this.userId ? 'WON' : 'LOST';
         this.log(`Game ${result} in ${moves} moves`);
       }
@@ -1289,13 +1359,15 @@ class EmbeddedBot {
       }
     });
 
-    // Human timed out — advance to bot's turn
+    // Player timed out — advance to next turn
     this.socket.on('player_timeout', (d) => {
       if (this.gameOver) return;
-      if (d.targetColor && d.targetColor !== this.color) {
-        this.log(`Human timed out (${d.targetColor})`);
+      // Always advance turn when client signals a timeout, even if it's against this bot.
+      // The client has already advanced its state; the bot must follow to avoid desync.
+      if (d.targetColor) {
+        this.log(`Timed out (${d.targetColor}) — advancing`);
         this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
-        this.triggerTurnAction();
+        this.triggerTurnAction(1000);
       }
     });
 
@@ -1304,7 +1376,6 @@ class EmbeddedBot {
       if (this.gameOver) return;
       if (d.color && d.color !== this.color) {
         // Guard: only advance if turn hasn't already advanced
-        // (dice_rolled handler may have fast-tracked this)
         if (this.activeColors[this.turnIndex] !== d.color) {
           this.log(`Human passed (turn already advanced, skipping)`);
           return;
@@ -1314,32 +1385,17 @@ class EmbeddedBot {
           this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
         }
         this.log(`→ Bot's turn now (index ${this.turnIndex})`);
-        this.triggerTurnAction();
+        this.triggerTurnAction(1000); // 1.0s delay after human passes
       }
     });
 
-    // Dice handler — handle ALL rolls (own + human) for fast turn advancement.
+    // Dice handler — handle own rolls (human rolls are processed via client event relays)
     this.socket.on('dice_rolled', (d) => {
       if (this.gameOver) return;
 
       if (d.userId !== this.userId) {
         // ── Human (or other player) rolled ──
         this.log(`Human rolled ${d.value}`);
-
-        // Fast-track: if human has NO valid moves, immediately advance turn
-        // instead of waiting ~2s for client animation + turn_passed relay.
-        const rollingPlayer = this.playersList.find(p => p.id === d.userId);
-        const rollingColor = rollingPlayer?.color;
-        const currentColor = this.activeColors[this.turnIndex];
-
-        if (rollingColor && rollingColor === currentColor) {
-          const validPawns = this.getPossibleMoves(rollingColor, d.value);
-          if (validPawns.length === 0 && d.value !== 6) {
-            this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
-            this.log(`Human no moves → advancing turn to ${this.activeColors[this.turnIndex]}`);
-            setTimeout(() => this.triggerTurnAction(), 80);
-          }
-        }
         return;
       }
 
@@ -1348,28 +1404,33 @@ class EmbeddedBot {
       this.hasRolled = true;
       this.log(`Bot rolled ${d.value}`);
 
-      const validPawns = this.getPossibleMoves(this.color, d.value);
+      // Wait 1100ms for the client's dice spin animation to finish before deciding
+      setTimeout(() => {
+        if (this.gameOver) return;
 
-      if (validPawns.length === 0) {
-        this.hasRolled = false;
-        this.diceValue = null;
-        if (d.value !== 6) {
-          this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
+        const validPawns = this.getPossibleMoves(this.color, d.value);
+
+        if (validPawns.length === 0) {
+          this.hasRolled = false;
+          this.diceValue = null;
+          if (d.value !== 6) {
+            this.turnIndex = (this.turnIndex + 1) % this.activeColors.length;
+          }
+          this.log(`Bot: no moves → turn is now ${this.activeColors[this.turnIndex]}`);
+          this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
+          this.triggerTurnAction(800); // 800ms delay to let the turn pass settle visually
+          return;
         }
-        this.log(`Bot: no moves → turn is now ${this.activeColors[this.turnIndex]}`);
-        this.socket.emit('turn_passed', { color: this.color, diceValue: d.value });
-        this.triggerTurnAction();
-        return;
-      }
 
-      // Valid moves exist — pick the best pawn
-      moves++;
-      const bestPawnId = this.getBestMove(this.color, d.value);
-      if (bestPawnId) {
-        this.log(`Bot moves pawn: ${bestPawnId}`);
-        this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
-        this.applyPawnMove(bestPawnId, d.value);
-      }
+        // Valid moves exist — pick the best pawn
+        moves++;
+        const bestPawnId = this.getBestMove(this.color, d.value);
+        if (bestPawnId) {
+          this.log(`Bot moves pawn: ${bestPawnId}`);
+          this.socket.emit('pawn_moved', { color: this.color, pawnId: bestPawnId, diceValue: d.value });
+          this.applyPawnMove(bestPawnId, d.value);
+        }
+      }, 1100);
     });
 
     // Trigger first turn check
@@ -1608,16 +1669,30 @@ class EmbeddedBot {
     }
 
     this.log(`Turn is now: ${this.activeColors[this.turnIndex]}`);
-    this.triggerTurnAction();
+    
+    // Delay the next roll request to allow the pawn to finish its walk animation.
+    // Pawn movement takes ~200ms per step plus a 800ms settle cushion.
+    const walkDelay = (steps * 200) + 800;
+    this.triggerTurnAction(walkDelay);
   }
 
-  triggerTurnAction() {
+  triggerTurnAction(delayMs = 0) {
     if (this.gameOver) return;
 
     const activeColor = this.activeColors[this.turnIndex];
     if (activeColor === this.color) {
-      this.log(`Bot turn: Requesting roll...`);
-      this.socket.emit('request_roll', { roomId: this.roomId });
+      if (this._ludoTurnTimer) {
+        clearTimeout(this._ludoTurnTimer);
+        this._ludoTurnTimer = null;
+      }
+      this._ludoTurnTimer = setTimeout(() => {
+        if (this.gameOver) return;
+        const currentActiveColor = this.activeColors[this.turnIndex];
+        if (currentActiveColor === this.color) {
+          this.log(`Bot turn: Requesting roll...`);
+          this.socket.emit('request_roll', { roomId: this.roomId });
+        }
+      }, delayMs);
     }
   }
 
@@ -1769,6 +1844,7 @@ class EmbeddedBot {
           opponentHandSizes,
         };
         this.log(`Whot init — hand: ${hand.length} cards, myIdx: ${myIdx}, top: ${data.topCard.shape} ${data.topCard.value}`);
+        this.triggerWhotTurn(); // Trigger first turn if it is the bot's turn!
         resolve();
       });
 
@@ -1778,6 +1854,10 @@ class EmbeddedBot {
         this.log(`Whot turn update: index ${d.nextTurn}`);
         this.whotState.turnIndex = d.nextTurn;
         if (d.turnStartedAt) this.whotState.turnStartedAt = d.turnStartedAt;
+        if (this._whotSafetyTimer) {
+          clearTimeout(this._whotSafetyTimer);
+          this._whotSafetyTimer = null;
+        }
         this.triggerWhotTurn();
       });
 
@@ -1785,11 +1865,8 @@ class EmbeddedBot {
         if (this.gameOver || !this.whotState) return;
         this.whotState.topCard = d.card;
         if (d.card.value !== 20) this.whotState.currentShape = null;
-        if (d.specialMsg === 'Pick 2!') this.whotState.pendingPicks += 2;
-        if (d.specialMsg === 'Pick 3!') this.whotState.pendingPicks += 3;
-        if (d.specialMsg === 'Defence!') this.whotState.pendingPicks = 0;
-        if (this.whotState.pendingPicks > 0 && (d.card.value === 2 || d.card.value === 5)) {
-          this.whotState.pendingPicks = 0;
+        if (d.pendingPicks !== undefined) {
+          this.whotState.pendingPicks = d.pendingPicks;
         }
 
         // Update opponent hand size
@@ -1835,7 +1912,6 @@ class EmbeddedBot {
 
       this.socket.on('whot_state', (d) => {
         if (this.gameOver || !this.whotState) return;
-        this.log(`Whot state sync: turnIndex=${d.currentTurn}, pendingPicks=${d.pendingPicks}, shape=${d.currentShape}`);
         
         if (d.topCard) this.whotState.topCard = d.topCard;
         if (d.currentTurn !== undefined) this.whotState.turnIndex = d.currentTurn;
@@ -1843,6 +1919,11 @@ class EmbeddedBot {
         if (d.pendingPicks !== undefined) this.whotState.pendingPicks = d.pendingPicks;
         if (d.wasHoldOn !== undefined) this.whotState.wasHoldOn = d.wasHoldOn;
         if (d.playerLives !== undefined) this.whotState.playerLives = d.playerLives;
+        
+        // Authoritative hand sync to prevent card desync timeout loops!
+        if (d.hands && d.hands[this.userId]) {
+          this.whotState.hand = d.hands[this.userId];
+        }
         
         this.triggerWhotTurn();
       });
@@ -1863,6 +1944,10 @@ class EmbeddedBot {
         if (this._whotTurnTimer) {
           clearTimeout(this._whotTurnTimer);
           this._whotTurnTimer = null;
+        }
+        if (this._whotSafetyTimer) {
+          clearTimeout(this._whotSafetyTimer);
+          this._whotSafetyTimer = null;
         }
         this.log(`Whot game over received — winner: ${d.winner}`);
       });
@@ -1889,12 +1974,17 @@ class EmbeddedBot {
         clearTimeout(this._whotTurnTimer);
         this._whotTurnTimer = null;
       }
+      if (this._whotSafetyTimer) {
+        clearTimeout(this._whotSafetyTimer);
+        this._whotSafetyTimer = null;
+      }
       this._whotTurnPending = false;
       return;
     }
 
     if (this._whotTurnPending) return; // prevent duplicate triggers for same turn
     this._whotTurnPending = true;
+    this._currentTurnIndex = turnIndex;
     if (this._whotTurnTimer) clearTimeout(this._whotTurnTimer);
     this._whotTurnTimer = setTimeout(() => {
       this._whotTurnPending = false;
@@ -1903,20 +1993,36 @@ class EmbeddedBot {
 
       this.log(`Bot Whot turn! Hand: ${this.whotState.hand.length} cards, pending picks: ${this.whotState.pendingPicks}`);
 
+      // Helper: schedule a safety check in case the server silently rejects the action
+      const scheduleSafety = () => {
+        if (this._whotSafetyTimer) clearTimeout(this._whotSafetyTimer);
+        this._whotSafetyTimer = setTimeout(() => {
+          this._whotSafetyTimer = null;
+          // If still our turn after 6s, the action was rejected — force a pick
+          if (this.gameOver || !this.whotState) return;
+          if (this.whotState.myIdx === this.whotState.turnIndex) {
+            this.log(`Whot safety: action was rejected, forcing pick`);
+            this.socket.emit('whot_pick', {});
+          }
+        }, 6000);
+      };
+
       // Handle pending picks
       if (this.whotState.pendingPicks > 0) {
-        const defenseCard = this.whotState.hand.find(c => c.value === 2 || c.value === 5);
+        const defenseCard = this.whotState.hand.find(c => (c.value === 2 || c.value === 5) && c.value === this.whotState.topCard.value);
         if (defenseCard) {
           const idx = this.whotState.hand.indexOf(defenseCard);
           this.log(`Whot defense! Playing ${defenseCard.shape} ${defenseCard.value}`);
           this.socket.emit('whot_play', { card: defenseCard, cardIdx: idx });
           this.whotState.hand.splice(idx, 1);
           this.whotState.pendingPicks = 0;
+          scheduleSafety();
           return;
         }
         // No defense — must pick
         this.log(`Whot: picking ${this.whotState.pendingPicks} cards (no defense)`);
         this.socket.emit('whot_pick', {});
+        scheduleSafety();
         return;
       }
 
@@ -1925,6 +2031,7 @@ class EmbeddedBot {
         const bestShape = this.mostCardsInHand()[0] || 'circle';
         this.log(`Whot: choosing shape ${bestShape}`);
         this.socket.emit('whot_choose_shape', { shape: bestShape });
+        scheduleSafety();
         return;
       }
 
@@ -1933,6 +2040,7 @@ class EmbeddedBot {
       if (valid.length === 0) {
         this.log(`Whot: no valid cards, picking 1`);
         this.socket.emit('whot_pick', {});
+        scheduleSafety();
         return;
       }
 
@@ -1947,6 +2055,7 @@ class EmbeddedBot {
       this.log(`Whot playing ${best.card.shape} ${best.card.value} (score: ${best.score})`);
       this.socket.emit('whot_play', { card: best.card, cardIdx: idx });
       this.whotState.hand.splice(idx, 1);
+      scheduleSafety();
     }, 1500 + Math.random() * 1500);
   }
 
@@ -1974,8 +2083,11 @@ class EmbeddedBot {
       return;
     }
 
+    const COLOR_ORDER = ['green', 'yellow', 'red', 'blue'];
     this.playersList = roomInfo.players;
-    this.activeColors = roomInfo.players.map(p => p.color);
+    this.activeColors = roomInfo.players
+      .map(p => p.color)
+      .sort((a, b) => COLOR_ORDER.indexOf(a) - COLOR_ORDER.indexOf(b));
     this.turnIndex = 0;
     this.diceValue = null;
     this.hasRolled = false;
@@ -1998,7 +2110,7 @@ class EmbeddedBot {
       // 1200ms dice spin + 500ms buffer + walk animation + ~200ms settle.
       // This avoids bots starting their next roll before the UI has shown the
       // previous player's move finishing and the turn actually passing to them.
-      const walkTime = 1200 + 500 + Math.max(800, d.value * 200) + 100 + 200;
+      const walkTime = 1200 + 500 + (d.value * 200 + 600) + 600;
       
       this.hasRolled = false;
       this.diceValue = null;

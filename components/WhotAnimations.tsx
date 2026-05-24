@@ -46,12 +46,12 @@ export interface RootLayout { w: number; h: number; }
 export interface RootPos { x: number; y: number; }
 
 const getMarketPile = (root: RootLayout) => ({
-  x: root.w / 2 - (CARD_W / 2 + 16),
+  x: root.w / 2,
   y: root.h / 2 - 8,
 });
 
 const getDiscardPile = (root: RootLayout) => ({
-  x: root.w / 2 + (CARD_W / 2 + 16),
+  x: root.w / 2 + (CARD_W + rs(24)),
   y: root.h / 2 - 8,
 });
 
@@ -675,7 +675,7 @@ interface HandViewerOverlayProps {
   cards: Card[];
   onClose: () => void;
   onCardPress: (idx: number) => void;
-  canPlayCard?: (card: Card) => boolean;
+  canPlayCard?: (card: Card, handLength: number) => boolean;
 }
 
 export const HandViewerOverlay = ({
@@ -766,7 +766,7 @@ export const HandViewerOverlay = ({
                 idx={idx}
                 cardW={cardW}
                 cardH={cardH}
-                isPlayable={canPlayCard?.(card)}
+                isPlayable={canPlayCard?.(card, cards.length)}
                 onPress={() => { onCardPress(idx); onClose(); }}
               />
             ))}

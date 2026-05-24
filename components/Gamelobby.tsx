@@ -2,9 +2,11 @@ import { socket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   DeviceEventEmitter,
@@ -57,6 +59,8 @@ const C = {
   bg: '#040d07',
   divider: 'rgba(255,255,255,0.055)',
 };
+
+const PROFILE_CACHE_KEY = '@lobby_profile_cache';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -399,6 +403,7 @@ function StakeOptionCard({
   const anim = useFadeSlide(300 + i * 40);
   const factor = 1.0 - (platformFeePercent / 100.0);
   const winAmount = opt.amount * playerCount * factor;
+  const displayMultiplier = gamblingEnabled ? 1 : 2;
   return (
     <Animated.View style={anim}>
       <Pressable
@@ -413,8 +418,14 @@ function StakeOptionCard({
             <Text style={[sl.stakeTagText, { color: opt.tagColor }]}>{opt.tag}</Text>
           </View>
         )}
-        <Text style={[sl.stakeAmount, active && { color: accentColor }]}>{prefix}{opt.label}</Text>
-        <Text style={sl.stakeWin}>{gamblingEnabled ? `Win ₦${winAmount.toLocaleString('en-NG', { maximumFractionDigits: 0 })}` : `${Math.floor(winAmount).toLocaleString()} coins`}</Text>
+        <Text style={[sl.stakeAmount, active && { color: accentColor }]}>
+          {gamblingEnabled ? `₦${opt.label}` : `${(opt.amount * 2).toLocaleString()}`}
+        </Text>
+        <Text style={sl.stakeWin}>
+          {gamblingEnabled
+            ? `Win ₦${winAmount.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`
+            : `${Math.floor(winAmount * 2).toLocaleString()} coins`}
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -451,7 +462,7 @@ function StakeSelector({
         <View style={sl.potPill}>
           <MaterialCommunityIcons name="cash-multiple" size={s(11)} color={C.gold} />
           <Text style={sl.potLabel}>Pot:</Text>
-          <Text style={sl.potValue}>{gamblingEnabled ? `₦${totalPot.toLocaleString('en-NG')}` : `${totalPot.toLocaleString()} coins`}</Text>
+          <Text style={sl.potValue}>{gamblingEnabled ? `₦${totalPot.toLocaleString('en-NG')}` : `${(totalPot * 2).toLocaleString()} coins`}</Text>
         </View>
       </View>
 
@@ -907,6 +918,7 @@ const RoomOptions = React.memo(({
   roomCode,
   onJoinPrivateRoom,
   isOffline,
+  loading,
 }: {
   isPrivate: boolean;
   onToggle: () => void;
@@ -918,6 +930,7 @@ const RoomOptions = React.memo(({
   roomCode?: string;
   onJoinPrivateRoom?: (code: string) => void;
   isOffline?: boolean;
+  loading?: boolean;
 }) => {
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCode, setJoinCode] = useState('');
@@ -951,6 +964,22 @@ const RoomOptions = React.memo(({
     setJoinCode('');
     setShowJoinInput(false);
   };
+
+  if (loading) {
+    return (
+      <Animated.View style={[sl.roomOptions, anim, { opacity: 0.5 }]}>
+        <View style={sl.roomToggleRow}>
+          <View style={sl.roomToggleInfo}>
+            <View style={{ width: s(13), height: s(13), borderRadius: s(7), backgroundColor: accentBorder }} />
+            <View>
+              <View style={{ width: s(80), height: s(9), borderRadius: s(4), backgroundColor: accentBorder, marginBottom: s(4) }} />
+              <View style={{ width: s(120), height: s(7), borderRadius: s(3), backgroundColor: accentBorder }} />
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
 
   if (isOffline) {
     return (
@@ -1157,6 +1186,7 @@ function CtaFooter({
   gameState,
   onFindMatch,
   platformFeePercent,
+  currentUser,
 }: {
   stake: number;
   playerCount: PlayerCount;
@@ -1165,6 +1195,7 @@ function CtaFooter({
   gameState: 'lobby' | 'starting' | 'playing';
   onFindMatch: () => void;
   platformFeePercent: number;
+  currentUser: any;
 }) {
   const anim = useFadeSlide(400);
   const pressAnim = useRef(new Animated.Value(1)).current;
@@ -1197,34 +1228,25 @@ function CtaFooter({
 
   const stakeAnim = useFadeSlide(400);
 
-  // ── Balance ────────────────────────────────────────────────────────────────
-  const [balance, setBalance] = useState<number>(0);
+  const balance = currentUser?.wallet_balance ?? 0;
   const gamblingEnabled = useFeatureActive();
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.from('profiles').select('wallet_balance').eq('id', user.id).single().then(({ data }) => {
-        setBalance((data?.wallet_balance || 0) as number);
-      });
-    });
-  }, []);
 
   return (
     <Animated.View style={[sl.ctaFooter, searching && { borderColor: C.warnBorder }, anim]}>
       <View style={sl.ctaSummary}>
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Stake</Text>
-          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${stake.toLocaleString('en-NG')}` : `${stake.toLocaleString()} coins`}</Text>
+          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${stake.toLocaleString('en-NG')}` : `${(stake * 2).toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Pot</Text>
-          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${pot.toLocaleString('en-NG')}` : `${pot.toLocaleString()} coins`}</Text>
+          <Text style={sl.ctaSummaryValue}>{gamblingEnabled ? `₦${pot.toLocaleString('en-NG')}` : `${(pot * 2).toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
           <Text style={sl.ctaSummaryLabel}>Win</Text>
-          <Text style={[sl.ctaSummaryValue, { color: C.success }]}>{gamblingEnabled ? `₦${win.toLocaleString('en-NG')}` : `${win.toLocaleString()} coins`}</Text>
+          <Text style={[sl.ctaSummaryValue, { color: C.success }]}>{gamblingEnabled ? `₦${win.toLocaleString('en-NG')}` : `${(win * 2).toLocaleString()} coins`}</Text>
         </View>
         <View style={sl.ctaSummaryDiv} />
         <View style={sl.ctaSummaryItem}>
@@ -1305,13 +1327,37 @@ function timeAgo(isoString: string): string {
   return `${days}d ago`;
 }
 
+function RecentActivitySkeleton({ accentSoft, accentBorder }: { accentSoft: string; accentBorder: string }) {
+  return (
+    <View style={[sl.section, { opacity: 0.5 }]}>
+      <View style={sl.sectionHeader}>
+        <Text style={sl.sectionTitle}>Recent Matches</Text>
+      </View>
+      {[0, 1, 2, 3].map(i => (
+        <View key={i} style={[sl.recentRow, i < 3 && sl.recentDivider]}>
+          <View style={[sl.recentDot, { backgroundColor: accentSoft, borderColor: accentBorder }]}>
+            <View style={{ width: s(10), height: s(10), borderRadius: s(5), backgroundColor: accentBorder }} />
+          </View>
+          <View style={sl.recentInfo}>
+            <View style={{ width: '60%', height: s(8), borderRadius: s(4), backgroundColor: accentBorder, marginBottom: s(4) }} />
+            <View style={{ width: '40%', height: s(6), borderRadius: s(3), backgroundColor: accentBorder }} />
+          </View>
+          <View style={{ width: s(40), height: s(8), borderRadius: s(4), backgroundColor: accentBorder }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const RecentActivity = React.memo(({ accentColor, accentSoft, accentBorder }: { accentColor: string; accentSoft: string; accentBorder: string }) => {
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
+  const [loading, setLoading] = useState(true);
   const anim = useFadeSlide(180);
 
   useEffect(() => {
     let mounted = true;
     const fetchRecent = async () => {
+      setLoading(true);
       let matches: RecentMatch[] = [];
 
       // Try finished game_rooms first
@@ -1360,12 +1406,16 @@ const RecentActivity = React.memo(({ accentColor, accentSoft, accentBorder }: { 
         }
       }
 
-      if (mounted) setRecentMatches(matches);
+      if (mounted) {
+        setRecentMatches(matches);
+        setLoading(false);
+      }
     };
     fetchRecent();
     return () => { mounted = false; };
   }, []);
 
+  if (loading) return <RecentActivitySkeleton accentSoft={accentSoft} accentBorder={accentBorder} />;
   if (recentMatches.length === 0) return null;
 
   return (
@@ -1471,6 +1521,7 @@ export function GameLobbyScreen({
   const [countdown, setCountdown] = useState(5);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [searchingPlayers, setSearchingPlayers] = useState<any[]>([]);
   const gamblingEnabled = useFeatureActive();
   const [platformFeePercent, setPlatformFeePercent] = useState<number>(10);
@@ -1498,22 +1549,34 @@ export function GameLobbyScreen({
   });
 
   useEffect(() => {
-    // ── Preload background assets for faster game start ──
     preloadGameAssets();
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        // Fetch profile with stats
-        supabase.from('profiles').select(`
-          *,
-          profile_stats(total_matches, total_wins, win_rate)
-        `).eq('id', user.id).maybeSingle().then(async ({ data: profile, error }) => {
-          if (error) {
-            console.error('Lobby profile fetch error:', error);
-          }
+    let mounted = true;
+
+    const loadProfile = async () => {
+      // Try cached profile first for instant display
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached && mounted) {
+          const parsed = JSON.parse(cached);
+          setCurrentUser(parsed);
+          setIsProfileLoading(false);
+        }
+      } catch { /* ignore cache read errors */ }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!mounted) return;
+
+        if (user) {
+          const { data: profile } = await supabase.from('profiles').select(`
+            *,
+            profile_stats(total_matches, total_wins, win_rate)
+          `).eq('id', user.id).maybeSingle();
+
+          if (!mounted) return;
 
           if (profile) {
-            // Flatten stats safely
             const stats = (profile as any).profile_stats;
             const flattened = {
               ...profile,
@@ -1522,55 +1585,71 @@ export function GameLobbyScreen({
               win_rate: stats?.win_rate || 0
             };
 
-            // Also fetch global rank
-            supabase
-              .from('profiles')
-              .select('id', { count: 'exact', head: true })
-              .gt('xp', profile.xp || 0)
-              .then(({ count: rankCount }) => {
-                setCurrentUser({
-                  id: user.id,
-                  ...flattened,
-                  global_rank: (rankCount || 0) + 1
-                });
-              });
-          } else {
-            // If no profile record exists yet, create one or use auth data
-            console.log('No profile record found, using auth fallback');
-            setCurrentUser({
+            // Fetch user's actual rank relative to their XP
+            let globalRank = 999;
+            if (profile.xp) {
+              const { count } = await supabase
+                .from('profiles')
+                .select('id', { count: 'exact', head: true })
+                .gt('xp', profile.xp || 0);
+              globalRank = (count || 0) + 1;
+            }
+
+            const userData = {
               id: user.id,
-              username: user.email?.split('@')[0] || 'Player',
-              wallet_balance: 0,
-              level: 1,
-              xp: 0
-            });
+              ...flattened,
+              global_rank: globalRank
+            };
+
+            if (mounted) {
+              setCurrentUser(userData);
+              // Cache for next time
+              AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(userData)).catch(() => {});
+            }
+          } else {
+            if (mounted) {
+              setCurrentUser({
+                id: user.id,
+                username: user.email?.split('@')[0] || 'Player',
+                wallet_balance: 0,
+                level: 1,
+                xp: 0
+              });
+            }
           }
-        });
-      } else {
-        // Guest/Offline fallback
-        console.log('Offline/Guest mode detected in Gamelobby');
-        setCurrentUser({
-          id: 'guest-player',
-          username: 'Guest Player',
-          wallet_balance: 1000,
-          level: 1,
-          xp: 0,
-          global_rank: 999
-        });
-        setIsAiEnabled(true);
+        } else {
+          if (mounted) {
+            setCurrentUser({
+              id: 'guest-player',
+              username: 'Guest Player',
+              wallet_balance: 1000,
+              level: 1,
+              xp: 0,
+              global_rank: 999
+            });
+            setIsAiEnabled(true);
+          }
+        }
+      } catch (err) {
+        console.log('Offline/Guest catch triggered in Gamelobby:', err);
+        if (mounted) {
+          setCurrentUser({
+            id: 'guest-player',
+            username: 'Guest Player',
+            wallet_balance: 1000,
+            level: 1,
+            xp: 0,
+            global_rank: 999
+          });
+          setIsAiEnabled(true);
+        }
+      } finally {
+        if (mounted) setIsProfileLoading(false);
       }
-    }).catch(err => {
-      console.log('Offline/Guest catch triggered in Gamelobby:', err);
-      setCurrentUser({
-        id: 'guest-player',
-        username: 'Guest Player',
-        wallet_balance: 1000,
-        level: 1,
-        xp: 0,
-        global_rank: 999
-      });
-      setIsAiEnabled(true);
-    });
+    };
+
+    loadProfile();
+    return () => { mounted = false; };
   }, []);
 
   // ── Matchmaking Logic ──────────────────────────────────────────────────────
@@ -1658,7 +1737,7 @@ export function GameLobbyScreen({
         'Insufficient Balance',
         gamblingEnabled
           ? `You need ₦${stake} to join this match. Please top up your wallet.`
-          : `You need ${stake} coins to join this match. Play more games or earn more coins first.`
+          : `You need ${(stake * 2).toLocaleString()} coins to join this match. Play more games or earn more coins first.`
       );
       setSearching(false);
       return;
@@ -1819,6 +1898,7 @@ export function GameLobbyScreen({
                   else startMatchmaking();
                 }}
                 platformFeePercent={platformFeePercent}
+                currentUser={currentUser}
               />
 
               <View style={{ marginTop: s(8) }}>
@@ -1831,7 +1911,8 @@ export function GameLobbyScreen({
                   accentSoft={config.accentSoft}
                   accentBorder={config.accentBorder}
                   roomCode={isPrivate ? privateRoomCode : undefined}
-                  isOffline={!currentUser || currentUser.id === 'guest-player'}
+                  isOffline={!isProfileLoading && (!currentUser || currentUser.id === 'guest-player')}
+                  loading={isProfileLoading && !currentUser}
                   onJoinPrivateRoom={async (code) => {
                     // Look up the room by its private code
                     const { data: room, error } = await supabase

@@ -15,6 +15,7 @@ const CARD_ORANGE = '#C8000A';
 const CARD_BG = '#ffffffff';
 const CARD_BORDER = '#C8000A';
 const INNER_FRAME = '#ff9b9bff';
+const GREEN_FRAME = '#43D17B';
 
 export type WhotShape = 'circle' | 'triangle' | 'cross' | 'square' | 'star' | 'whot';
 
@@ -24,6 +25,11 @@ interface WhotFrontCardProps {
   width?: number;
   height?: number;
   isPlayable?: boolean;
+  hideValue?: boolean;
+  cardColor?: string;
+  shapeColor?: string;
+  innerFrameColor?: string;
+  faceDown?: boolean;
 }
 
 const SHAPE_COLORS: Record<WhotShape, string> = {
@@ -48,7 +54,7 @@ function starPoints(cx: number, cy: number, outerR: number, innerR: number): str
 }
 
 // ─── Mini Shape for Corner Indicators ─────────────────────────────────────────
-const MiniShape = ({ shape, size, color }: { shape: WhotShape; size: number; color: string }) => {
+export const MiniShape = ({ shape, size, color }: { shape: WhotShape; size: number; color: string }) => {
   if (shape === 'circle') {
     return (
       <View style={{
@@ -300,8 +306,14 @@ export function WhotFrontCard({
   width = 280,
   height = 392,
   isPlayable = false,
+  hideValue = false,
+  cardColor,
+  shapeColor,
+  innerFrameColor,
+  faceDown = false,
 }: WhotFrontCardProps) {
-  const color = SHAPE_COLORS[shape];
+  const color = shapeColor || cardColor || SHAPE_COLORS[shape];
+  const frameColor = innerFrameColor || cardColor || INNER_FRAME;
   const scale = width / 280;
 
   const radius = 20 * scale;
@@ -367,7 +379,40 @@ export function WhotFrontCard({
   }));
 
   return (
-    <Animated.View style={[styles.card, { width, height, borderRadius: radius }, animatedCardStyle]}>
+    <Animated.View style={[styles.card, { width, height, borderRadius: radius, backgroundColor: faceDown ? '#C8000A' : (cardColor ? cardColor + '18' : CARD_BG) }, animatedCardStyle]}>
+      {faceDown ? (
+        /* ── Card Back ── */
+        <>
+          <View style={[StyleSheet.absoluteFillObject, { borderRadius: radius, backgroundColor: '#C8000A', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }]}>
+            {/* Diamond pattern */}
+            <Svg width={width} height={height} style={StyleSheet.absoluteFillObject}>
+              <Defs>
+                <Pattern id="diamond" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+                  <Rect x="0" y="0" width="24" height="24" fill="none" />
+                  <Rect x="12" y="0" width="12" height="12" fill="#B00009" transform="rotate(45, 12, 0)" />
+                  <Rect x="0" y="12" width="12" height="12" fill="#B00009" transform="rotate(45, 0, 12)" />
+                </Pattern>
+              </Defs>
+              <Rect width={width} height={height} fill="url(#diamond)" />
+            </Svg>
+            {/* Inner border */}
+            <View style={{
+              position: 'absolute', top: frameInset, left: frameInset, right: frameInset, bottom: frameInset,
+              borderRadius: frameRadius, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)',
+            }} />
+            {/* Center WHOT text */}
+            <Text style={{
+              color: 'rgba(255,255,255,0.15)', fontSize: centerSize * 0.18,
+              fontWeight: '900', letterSpacing: 3, fontFamily: 'Kanit_900Black',
+            }}>
+              WHOT
+            </Text>
+          </View>
+          {/* Edge shadow overlay */}
+          <View style={[StyleSheet.absoluteFillObject, { borderRadius: radius, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.2)' }]} />
+        </>
+      ) : (
+        <>
       {isPlayable && (
         <Animated.View style={[
           StyleSheet.absoluteFillObject,
@@ -405,17 +450,19 @@ export function WhotFrontCard({
           right: frameInset,
           bottom: frameInset,
           borderRadius: frameRadius,
-          borderColor: INNER_FRAME,
+          borderColor: frameColor,
           overflow: 'hidden',
         },
       ]} />
 
       {/* TOP-LEFT: ornament + indicator */}
       <View style={[styles.cornerTL, { top: padding, left: padding }]}>
-        <CornerOrnament size={ornamentSize} color={INNER_FRAME} />
-        <View style={{ position: 'absolute', top: -8 * scale, left: -8 * scale }}>
-          <CornerIndicator value={value} shape={shape} color={color} scale={scale} />
-        </View>
+        <CornerOrnament size={ornamentSize} color={frameColor} />
+        {!hideValue && (
+          <View style={{ position: 'absolute', top: -8 * scale, left: -8 * scale }}>
+            <CornerIndicator value={value} shape={shape} color={color} scale={scale} />
+          </View>
+        )}
       </View>
 
       {/* BOTTOM-RIGHT: ornament + indicator (rotated 180°) */}
@@ -427,17 +474,20 @@ export function WhotFrontCard({
           transform: [{ rotate: '180deg' }],
         },
       ]}>
-        <CornerOrnament size={ornamentSize} color={INNER_FRAME} />
-        <View style={{ position: 'absolute', top: -6 * scale, left: -6 * scale }}>
-          <CornerIndicator value={value} shape={shape} color={color} scale={scale} />
-        </View>
+        <CornerOrnament size={ornamentSize} color={frameColor} />
+        {!hideValue && (
+          <View style={{ position: 'absolute', top: -6 * scale, left: -6 * scale }}>
+            <CornerIndicator value={value} shape={shape} color={color} scale={scale} />
+          </View>
+        )}
       </View>
 
       {/* Center shape */}
       <View style={styles.center}>
         <CenterShape shape={shape} size={centerSize} color={color} />
       </View>
-
+      </>
+      )}
     </Animated.View>
   );
 }

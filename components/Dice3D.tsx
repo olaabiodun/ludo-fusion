@@ -121,11 +121,12 @@ function createRoundedBoxGeometry(
 interface DiceMeshProps {
   value: number;
   rolling: boolean;
+  isSpinningRef: React.RefObject<boolean>;
   diceColor: string;
   pipColor: string;
 }
 
-function DiceMesh({ value, rolling, diceColor, pipColor }: DiceMeshProps) {
+function DiceMesh({ value, rolling, isSpinningRef, diceColor, pipColor }: DiceMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
 
   const materials = useMemo(() => {
@@ -147,7 +148,10 @@ function DiceMesh({ value, rolling, diceColor, pipColor }: DiceMeshProps) {
     [],
   );
 
-  const [targetRot, setTargetRot] = useState<[number, number, number]>(FACE_ROTATIONS[value] ?? FACE_ROTATIONS[1]);
+  const targetQuaternion = useMemo(() => {
+    const rot = FACE_ROTATIONS[value] ?? FACE_ROTATIONS[1];
+    return new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2]));
+  }, [value]);
   const spinAxis = useRef(new THREE.Vector3(1, 1, 0.5).normalize());
 
   useEffect(() => {
@@ -157,21 +161,18 @@ function DiceMesh({ value, rolling, diceColor, pipColor }: DiceMeshProps) {
         Math.random() - 0.5,
         Math.random() - 0.5,
       ).normalize();
-    } else {
-      setTargetRot(FACE_ROTATIONS[value] ?? FACE_ROTATIONS[1]);
     }
-  }, [value, rolling]);
+  }, [rolling]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    if (rolling) {
+    const isCurrentlyRolling = rolling || !!isSpinningRef?.current;
+    if (isCurrentlyRolling) {
       // High-speed tumble around a fixed random-looking axis (cheaper than calculating new axis every frame)
       meshRef.current.rotateOnAxis(spinAxis.current, delta * 18);
     } else {
-      // Smooth interpolation to face the result value
-      meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, targetRot?.[0] ?? 0, 0.15);
-      meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, targetRot?.[1] ?? 0, 0.15);
-      meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, targetRot?.[2] ?? 0, 0.15);
+      // Perfect straight-path spherical linear interpolation (SLERP) in 3D space
+      meshRef.current.quaternion.slerp(targetQuaternion, 0.15);
     }
   });
 
@@ -216,24 +217,26 @@ const Dice3D = React.forwardRef(({
   const [lastResult, setLastResult] = useState<number | null>(null);
 
   const rolling = controlled ? (!!externalRolling || internalRolling) : internalRolling;
+  const isSpinningRef = useRef(false);
+  isSpinningRef.current = rolling;
 
   React.useImperativeHandle(ref, () => ({
     roll: () => handlePress(true),
-    startSpinning: () => setInternalRolling(true),
-    stopSpinning: () => setInternalRolling(false),
+    startSpinning: () => {
+      isSpinningRef.current = true;
+      setInternalRolling(true);
+    },
+    stopSpinning: () => {
+      isSpinningRef.current = false;
+      setInternalRolling(false);
+    },
   }));
 
   useEffect(() => {
     onReady?.();
   }, []);
 
-  // Track when rolling started and the value when it started (to detect actual updates)
-  const rollStartRef = useRef<number>(0);
-  const valueAtRollStartRef = useRef<number>(value);
-  const minDurationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const valueRef = useRef(value);
-  useEffect(() => { valueRef.current = value; }, [value]);
+
 
   useEffect(() => {
     setDisplayValue(value);
@@ -241,34 +244,14 @@ const Dice3D = React.forwardRef(({
 
   // Sync internal display value with rapid randoms if rolling
   useEffect(() => {
+    if (controlled) return;
+
     if (rolling) {
-      rollStartRef.current = Date.now();
-      valueAtRollStartRef.current = value;
-      if (!controlled) {
-        setLastResult(null);
-      }
+      setLastResult(null);
     } else {
-      if (controlled) {
-        const elapsed = Date.now() - rollStartRef.current;
-        const remaining = Math.max(700 - elapsed, 0);
-        if (remaining > 0) {
-          // Continue tumbling via useFrame until minimum duration is met
-          // then snap to final value
-          minDurationTimer.current = setTimeout(() => {
-            setDisplayValue(valueRef.current);
-          }, remaining);
-        } else {
-          setDisplayValue(valueRef.current);
-        }
-      }
-      if (!controlled) {
-        setDisplayValue(lastResult || value);
-      }
+      setDisplayValue(lastResult || value);
     }
-    return () => {
-      if (minDurationTimer.current) clearTimeout(minDurationTimer.current);
-    };
-  }, [rolling, lastResult, controlled]);
+  }, [rolling, lastResult, controlled, value]);
 
   const handlePress = (force = false) => {
     if (typeof force !== 'boolean') force = false;
@@ -284,6 +267,7 @@ const Dice3D = React.forwardRef(({
       return;
     }
 
+    isSpinningRef.current = true;
     setInternalRolling(true);
     onRollStart?.();
 
@@ -305,7 +289,7 @@ const Dice3D = React.forwardRef(({
         <Suspense fallback={<ActivityIndicator color="#888" />}>
           <Canvas
             camera={{ position: [0, 0, 5], fov: 40 }}
-            shadows
+            shadows="percentage"
             gl={{ antialias: true, shadowMapType: THREE.PCFShadowMap }}
             onCreated={({ gl }) => {
               gl.shadowMap.enabled = true;
@@ -316,7 +300,7 @@ const Dice3D = React.forwardRef(({
             <directionalLight position={[5, 8, 5]} intensity={1.6} castShadow shadow-mapSize={[512, 512]} />
             <directionalLight position={[-5, -4, -3]} intensity={0.4} />
             <pointLight position={[0, 4, 4]} intensity={0.8} color="#FFF8F0" />
-            <DiceMesh value={displayValue} rolling={rolling} diceColor={diceColor} pipColor={pipColor} />
+            <DiceMesh value={controlled ? value : displayValue} rolling={rolling} isSpinningRef={isSpinningRef} diceColor={diceColor} pipColor={pipColor} />
           </Canvas>
         </Suspense>
       </View>
@@ -325,7 +309,7 @@ const Dice3D = React.forwardRef(({
         onPress={() => handlePress(false)}
         activeOpacity={0.7}
         style={StyleSheet.absoluteFill}
-        accessibilityLabel={`Dice showing ${displayValue}. Tap to roll.`}
+        accessibilityLabel={`Dice showing ${controlled ? value : displayValue}. Tap to roll.`}
         accessibilityRole="button"
       />
     </View>

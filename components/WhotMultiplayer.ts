@@ -51,6 +51,7 @@ interface MultiplayerProps {
   /** Ref the parent keeps pointing at the current activePlay value so we can
    *  check inside socket callbacks whether an animation is still in-flight. */
   activePlayRef: React.MutableRefObject<any>;
+  setSavedWinnerInfo: (v: { color: string; scores: Record<string, number> } | null) => void;
 }
 
 export function useWhotMultiplayer({
@@ -81,6 +82,7 @@ export function useWhotMultiplayer({
   pendingHandsRef,
   hasJoinedRoom,
   activePlayRef,
+  setSavedWinnerInfo,
 }: MultiplayerProps) {
 
   /**
@@ -173,11 +175,30 @@ export function useWhotMultiplayer({
         }
 
         // Apply any deferred turn advancement that arrived while animating
-        if (pendingTurnRef.current !== null) {
+        if (pendingTurnRef.current !== null && remainingAfterPlay > 0) {
           const { turn, startedAt } = pendingTurnRef.current;
           pendingTurnRef.current = null;
           setTurnIndex(turn);
           setTurnStartedAt(startedAt);
+        }
+
+        // Apply authoritative hands map once play animation completes
+        if (pendingHandsRef.current) {
+          setPlayers(prev => prev.map(pl => {
+            if (pl.id === p.id && remainingAfterPlay <= 0) {
+              return {
+                ...pl,
+                cards: [],
+                cardCount: 0
+              };
+            }
+            const myHand = pendingHandsRef.current[pl.id] || pl.cards;
+            return {
+              ...pl,
+              cards: myHand,
+              cardCount: myHand.length
+            };
+          }));
         }
       },
     });
@@ -352,6 +373,7 @@ export function useWhotMultiplayer({
       gameEndsAt,
       playerLives,
       prize,
+      hands, // Authoritative hands map!
     }: {
       topCard?: Card;
       currentTurn?: number;
@@ -362,6 +384,7 @@ export function useWhotMultiplayer({
       gameEndsAt?: number | null;
       playerLives?: Record<string, number>;
       prize?: number;
+      hands?: Record<string, Card[]>; // Authoritative hands type!
     }) => {
       // Do not sync topCard visually if an animation is currently flying to the center
       if (topCard && !activePlayRef.current) setTopCard(topCard);
@@ -384,6 +407,26 @@ export function useWhotMultiplayer({
           ...p,
           lives: playerLives[p.id] ?? p.lives
         })));
+      }
+
+      if (hands !== undefined) {
+        pendingHandsRef.current = hands; // Keep ref updated with latest authoritative hands
+        
+        const isAnimating = !!activePlayRef.current || (activePicksCountRef && activePicksCountRef.current > 0);
+        setPlayers(prev => prev.map(p => {
+          const myHand = hands[p.id] || [];
+          const isDrawing = myHand.length > p.cards.length;
+          
+          if (isAnimating || isDrawing) {
+            return p; // Defer and wait for animation to complete and land
+          }
+          
+          return {
+            ...p,
+            cards: myHand,
+            cardCount: myHand.length
+          };
+        }));
       }
 
       if (currentTurn !== undefined) {
@@ -415,9 +458,14 @@ export function useWhotMultiplayer({
         setShapeAskerSeat(seat);
         setActionMessage({ msg: `I want ${shape.toUpperCase()}!`, seat });
       }
-      setTurnIndex(nextTurn);
-      if (turnStartedAt !== undefined) {
-        setTurnStartedAt(turnStartedAt ?? null);
+      
+      if (activePlayRef.current || activePicksCountRef.current > 0) {
+        pendingTurnRef.current = { turn: nextTurn, startedAt: turnStartedAt ?? null };
+      } else {
+        setTurnIndex(nextTurn);
+        if (turnStartedAt !== undefined) {
+          setTurnStartedAt(turnStartedAt ?? null);
+        }
       }
     };
 
@@ -441,22 +489,26 @@ export function useWhotMultiplayer({
       } else if (data.scores && typeof data.scores === 'object') {
         normalizedScores = data.scores; // Already keyed
       }
-
+ 
       // data.winner is a userId — find the corresponding player color for onWinner
       const winnerPlayer = players.find(p => p.id === data.winner);
       const winnerColor = winnerPlayer?.color ?? data.winner;
-
+ 
       if (data.reason === 'WIN') {
         playWhotCheckupSound();
         // Delay showing result screen and unmounting WhotGameUI by 3 seconds
         // so the user can see the winning card play animation and final board state!
         setTimeout(() => {
           onWinner?.(winnerColor, normalizedScores);
-          setShowScoring(true);
         }, 3000);
-      } else {
-        onWinner?.(winnerColor, normalizedScores);
+      } else if (data.reason === 'TIME_UP') {
+        playWhotCheckupSound();
+        // Save these for when WhotScoringSystem closes
+        setSavedWinnerInfo({ color: winnerColor, scores: normalizedScores });
         setShowScoring(true);
+      } else {
+        // For FORFEIT, etc. - go straight to result screen
+        onWinner?.(winnerColor, normalizedScores);
       }
     };
 

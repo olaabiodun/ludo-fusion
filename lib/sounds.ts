@@ -29,6 +29,7 @@ let ludoCaptureSound: Audio.Sound | null = null;
 let playerFoundSound: Audio.Sound | null = null;
 let victorySound: Audio.Sound | null = null;
 let loseSound: Audio.Sound | null = null;
+let swipeSound: Audio.Sound | null = null;
 let whotGMSounds: Record<string, Audio.Sound | null> = {
   circle: null,
   triangle: null,
@@ -60,6 +61,7 @@ function getLoadedSounds(): Audio.Sound[] {
     playerFoundSound,
     victorySound,
     loseSound,
+    swipeSound,
     whotGMSounds.circle,
     whotGMSounds.triangle,
     whotGMSounds.cross,
@@ -152,7 +154,7 @@ export async function loadSounds() {
 
   if (!moveSound) {
     const { sound: mSound } = await Audio.Sound.createAsync(
-      require('../assets/sounds/button.wav')
+      require('../assets/sounds/moving.mp3')
     );
     moveSound = mSound;
   }
@@ -244,6 +246,11 @@ export async function loadSounds() {
     const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/lose.mp3'));
     loseSound = sound;
   }
+
+  if (!swipeSound) {
+    const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/moving.mp3'));
+    swipeSound = sound;
+  }
 }
 
 export async function playButtonSound() {
@@ -258,6 +265,22 @@ export async function playButtonSound() {
       await buttonSound.replayAsync();
     } else {
       console.log('Error playing button sound:', error);
+    }
+  }
+}
+
+export async function playSwipeSound() {
+  try {
+    if (!(await ensureSoundPreferenceLoaded())) return;
+    if (!swipeSound) await loadSounds();
+    if (swipeSound) await swipeSound.replayAsync();
+  } catch (error) {
+    if (String(error).includes('Player does not exist')) {
+      swipeSound = null;
+      swipeSound = (await Audio.Sound.createAsync(require('../assets/sounds/moving.mp3'))).sound;
+      await swipeSound.replayAsync();
+    } else {
+      console.log('Error playing swipe sound:', error);
     }
   }
 }
@@ -290,7 +313,7 @@ export async function playMoveSound() {
   } catch (error) {
     if (String(error).includes('Player does not exist')) {
       moveSound = null;
-      moveSound = (await Audio.Sound.createAsync(require('../assets/sounds/button.wav'))).sound;
+      moveSound = (await Audio.Sound.createAsync(require('../assets/sounds/moving.mp3'))).sound;
       await moveSound.replayAsync();
     } else {
       console.log('Error playing move sound:', error);

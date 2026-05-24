@@ -33,6 +33,10 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
     }
   },
   "submit": {
